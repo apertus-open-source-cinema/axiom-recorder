@@ -2,7 +2,15 @@
 name = "recorder"
 version = "0.1.0"
 authors = ["Jaro <jarohabiger@googlemail.com>"]
+repository = "https://github.com/axiom-micro/recorder"
+readme = "README.md"
+license = "GPL-3.0"
+
+[dependencies]
+spmc = "0.2.2"
+gdk = "0.8.0"
+gl = "0.10.0"
 
 [dependencies.gtk]
 version = "0.4.1"
-features = ["v3_10"]
+features = ["v3_20"]
