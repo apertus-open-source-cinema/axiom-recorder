@@ -20,8 +20,8 @@ trait VideoSource {
     fn get_images(&self, &Fn(Image));
 }
 
-#[derive(Debug)]
-struct BufferedVideoSource<VS> {
+// #[derive(Debug)]
+pub struct BufferedVideoSource<VS> {
     _marker: marker::PhantomData<VS>,
     _rx: spmc::Receiver<Image>,
 }
@@ -29,13 +29,9 @@ impl<T> BufferedVideoSource<T>
 where
     T: VideoSource + marker::Send + 'static,
 {
-    fn new(vs: T) -> BufferedVideoSource<T> {
+    pub fn new(vs: T) -> BufferedVideoSource<T> {
         let (tx, rx) = spmc::channel();
-        let handle = thread::spawn(move || {
-            vs.get_images(&|img| {
-                tx.send(img);
-            })
-        });
+        let handle = thread::spawn(move || vs.get_images(&|img| { tx.send(img); }));
 
         BufferedVideoSource {
             _rx: rx,
@@ -43,19 +39,20 @@ where
         }
     }
 
-    fn subscribe(&self) -> spmc::Receiver<Image> {
+    pub fn subscribe(&self) -> spmc::Receiver<Image> {
         self._rx.clone()
     }
 }
 
 // File video source
 #[derive(Debug)]
-struct FileVideoSource {
-    path: String,
-    width: u32,
-    height: u32,
-    bit_depth: u8,
+pub struct FileVideoSource {
+    pub path: String,
+    pub width: u32,
+    pub height: u32,
+    pub bit_depth: u8,
 }
+
 impl VideoSource for FileVideoSource {
     fn get_images(&self, callback: &Fn(Image)) {
         let mut file = File::open(&self.path).unwrap();

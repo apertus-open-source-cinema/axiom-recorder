@@ -648,7 +648,7 @@
             <property name="visible">True</property>
             <property name="app_paintable">True</property>
             <property name="can_focus">False</property>
-            <property name="use_es">True</property>
+            <property name="use_es">False</property>
           </object>
           <packing>
             <property name="expand">True</property>

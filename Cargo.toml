@@ -10,6 +10,10 @@ license = "GPL-3.0"
 spmc = "0.2.2"
 gdk = "0.8.0"
 gl = "0.10.0"
+epoxy = "*"
+shared_library = "*"
+crossbeam = "*"
+libc = "*"
 
 [dependencies.gtk]
 version = "0.4.1"
