@@ -7,6 +7,7 @@ readme = "README.md"
 license = "GPL-3.0"
 
 [dependencies]
+bus = "*"
 spmc = "0.2.2"
 gdk = "0.8.0"
 gl = "0.10.0"

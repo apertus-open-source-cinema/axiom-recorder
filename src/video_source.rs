@@ -1,19 +1,23 @@
 use std::thread;
-extern crate spmc;
+extern crate bus;
 
 use std::fs::File;
 use std::io::prelude::*;
+use std::net::TcpStream;
+use std::time::SystemTime;
+use self::bus::{Bus, BusReader};
+use std::sync::{Arc, Mutex};
 
 use std::marker;
 
 // general stuff
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Image {
-    width: u32,
-    height: u32,
-    bit_depth: u8,
+    pub width: u32,
+    pub height: u32,
+    pub bit_depth: u8,
 
-    data: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 trait VideoSource {
@@ -23,24 +27,30 @@ trait VideoSource {
 // #[derive(Debug)]
 pub struct BufferedVideoSource<VS> {
     _marker: marker::PhantomData<VS>,
-    _rx: spmc::Receiver<Image>,
+    _tx: Arc<Mutex<Bus<Image>>>,
 }
 impl<T> BufferedVideoSource<T>
 where
     T: VideoSource + marker::Send + 'static,
 {
     pub fn new(vs: T) -> BufferedVideoSource<T> {
-        let (tx, rx) = spmc::channel();
-        let handle = thread::spawn(move || vs.get_images(&|img| { tx.send(img); }));
+        let mut tx = Bus::new(30 * 10); // 10 seconds footage
+
+        let tx = Arc::new(Mutex::new(tx));
+
+        {
+            let tx = tx.clone();
+            thread::spawn(move || vs.get_images(&|img| { tx.lock().unwrap().broadcast(img); }));
+        }
 
         BufferedVideoSource {
-            _rx: rx,
+            _tx: tx,
             _marker: marker::PhantomData,
         }
     }
 
-    pub fn subscribe(&self) -> spmc::Receiver<Image> {
-        self._rx.clone()
+    pub fn subscribe(&self) -> BusReader<Image> {
+        self._tx.lock().unwrap().add_rx()
     }
 }
 
@@ -56,16 +66,69 @@ pub struct FileVideoSource {
 impl VideoSource for FileVideoSource {
     fn get_images(&self, callback: &Fn(Image)) {
         let mut file = File::open(&self.path).unwrap();
-        let mut bytes = Vec::with_capacity(file.metadata().unwrap().len() as usize);
-        file.read_to_end(&mut bytes).unwrap();
 
-        let image = Image {
-            width: self.width,
-            height: self.height,
-            bit_depth: 8,
-            data: bytes,
-        };
-        callback(image)
+
+        loop {
+        let mut bytes = vec![0u8; (self.width * self.height) as usize];
+            file.read_exact(&mut bytes).unwrap();
+
+            let image = Image {
+                width: self.width,
+                height: self.height,
+                bit_depth: 8,
+                data: bytes,
+            };
+            callback(image)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct EthernetVideoSource {
+    pub url: String,
+    pub width: u32,
+    pub height: u32,
+    pub bit_depth: u8,
+}
+
+impl VideoSource for EthernetVideoSource {
+    fn get_images(&self, callback: &Fn(Image)) {
+        let mut stream = TcpStream::connect(&self.url).unwrap();
+
+        let mut image_count = 0;
+        let mut start = SystemTime::now();
+
+        
+        loop {
+//            let mut bytes = Vec::with_capacity((self.width * self.height) as usize);
+            let mut bytes = vec![0u8; (self.width * self.height) as usize];
+
+
+            stream.read_exact(&mut bytes).unwrap();
+
+            let image = Image {
+                width: self.width,
+                height: self.height,
+                bit_depth: 8,
+                data: bytes,
+            };
+
+            let time = SystemTime::now().duration_since(start).expect("Time went backwards");
+            if time.as_secs() > 1 {
+                let in_ms = time.as_secs() * 1000 + time.subsec_nanos() as u64 / 1_000_000;
+
+                println!("{} fps", ((image_count as f64) / (in_ms as f64)) * 1000.0);
+
+                image_count = 0;
+                start = SystemTime::now();
+            } else {
+                image_count += 1;
+            }
+
+            
+
+            callback(image)
+        }
     }
 }
 
