@@ -1,4 +1,5 @@
 use std::thread;
+
 extern crate bus;
 
 use std::fs::File;
@@ -7,46 +8,32 @@ use std::net::TcpStream;
 use std::time::SystemTime;
 use self::bus::{Bus, BusReader};
 use std::sync::{Arc, Mutex};
+use video_io::Image;
 
-use std::marker;
-
-// general stuff
-#[derive(Debug, Clone)]
-pub struct Image {
-    pub width: u32,
-    pub height: u32,
-    pub bit_depth: u8,
-
-    pub data: Vec<u8>,
+pub trait VideoSource: Send {
+    fn get_images(&self, callback: &Fn(Image));
 }
 
-trait VideoSource {
-    fn get_images(&self, &Fn(Image));
-}
-
-// #[derive(Debug)]
-pub struct BufferedVideoSource<VS> {
-    _marker: marker::PhantomData<VS>,
+pub struct BufferedVideoSource<> {
     _tx: Arc<Mutex<Bus<Image>>>,
 }
-impl<T> BufferedVideoSource<T>
-where
-    T: VideoSource + marker::Send + 'static,
-{
-    pub fn new(vs: T) -> BufferedVideoSource<T> {
+
+impl BufferedVideoSource {
+    pub fn new(vs: Box<VideoSource>) -> BufferedVideoSource {
         let mut tx = Bus::new(30 * 10); // 10 seconds footage
 
         let tx = Arc::new(Mutex::new(tx));
+        let vs_send = Arc::new(Mutex::new(vs));
 
         {
             let tx = tx.clone();
-            thread::spawn(move || vs.get_images(&|img| { tx.lock().unwrap().broadcast(img); }));
+            thread::spawn(move || {
+                let vs = vs_send.lock().unwrap();
+                vs.get_images(&|img| { tx.lock().unwrap().broadcast(img); })
+            });
         }
 
-        BufferedVideoSource {
-            _tx: tx,
-            _marker: marker::PhantomData,
-        }
+        BufferedVideoSource { _tx: tx }
     }
 
     pub fn subscribe(&self) -> BusReader<Image> {
@@ -55,12 +42,10 @@ where
 }
 
 // File video source
-#[derive(Debug)]
 pub struct FileVideoSource {
     pub path: String,
     pub width: u32,
     pub height: u32,
-    pub bit_depth: u8,
 }
 
 impl VideoSource for FileVideoSource {
@@ -69,7 +54,7 @@ impl VideoSource for FileVideoSource {
 
 
         loop {
-        let mut bytes = vec![0u8; (self.width * self.height) as usize];
+            let mut bytes = vec![0u8; (self.width * self.height) as usize];
             file.read_exact(&mut bytes).unwrap();
 
             let image = Image {
@@ -88,7 +73,6 @@ pub struct EthernetVideoSource {
     pub url: String,
     pub width: u32,
     pub height: u32,
-    pub bit_depth: u8,
 }
 
 impl VideoSource for EthernetVideoSource {
@@ -98,7 +82,7 @@ impl VideoSource for EthernetVideoSource {
         let mut image_count = 0;
         let mut start = SystemTime::now();
 
-        
+
         loop {
 //            let mut bytes = Vec::with_capacity((self.width * self.height) as usize);
             let mut bytes = vec![0u8; (self.width * self.height) as usize];
@@ -125,7 +109,6 @@ impl VideoSource for EthernetVideoSource {
                 image_count += 1;
             }
 
-            
 
             callback(image)
         }

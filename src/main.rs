@@ -1,73 +1,54 @@
-extern crate gdk;
-extern crate gtk;
+extern crate glium;
+extern crate clap;
 
-use gtk::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
+use clap::{App, Arg};
 
-mod preview;
-mod video_source;
-mod writer;
+mod video_io;
+mod graphical;
+
 
 fn main() {
-    if gtk::init().is_err() {
-        println!("Failed to initialize GTK.");
-        return;
-    }
+    let arguments = App::new("AXIOM recorder")
+        .version("0.1")
+        .about("record raw footage from AXIOM cameras")
+        .arg(Arg::with_name("video_source")
+            .short("s")
+            .long("video-source")
+            .takes_value(true)
+            .required(true)
+            .help("a URI that describes the video source to use. Can be file:// or tcp://")
+            .validator(|x| {
+                match x.split("://").count() {
+                    2 => Result::Ok(()),
+                    _ => Result::Err(String::from("invalid source URI format."))
+                }
+            }))
+        .arg(Arg::with_name("width")
+            .short("w")
+            .long("width")
+            .takes_value(true)
+            .required(true)
+        )
+        .arg(Arg::with_name("height")
+            .short("h")
+            .long("height")
+            .takes_value(true)
+            .required(true)
+        )
+        .get_matches();
 
-    let glade_src = include_str!("recorder.glade");
-    let builder = gtk::Builder::new_from_string(glade_src);
+    let source = arguments.value_of("video_source").unwrap();
+    let parts = source.split("://").collect::<Vec<_>>();
 
-    let window: gtk::Window = builder.get_object("main_window").unwrap();
+    let height = arguments.value_of("height").unwrap().parse().unwrap();
+    let width = arguments.value_of("width").unwrap().parse().unwrap();
 
-    // show preferences dialog on button click
-    let show_preferences: gtk::Button = builder.get_object("show_preferences").unwrap();
-    let preferences_dialog: gtk::Dialog = builder.get_object("preferences_dialog").unwrap();
-    show_preferences.connect_clicked(move |_| { preferences_dialog.show(); });
-
-    // hide the preferences dialog on ok button click
-    let close_preferences: gtk::Button = builder.get_object("close_preferences").unwrap();
-    let preferences_dialog: gtk::Dialog = builder.get_object("preferences_dialog").unwrap();
-    close_preferences.connect_clicked(move |_| { preferences_dialog.hide(); });
-
-    // start the video Source
-
-    /*
-    let vs = video_source::FileVideoSource {
-        path: "rec-1535159119.raw8".to_string(),
-        width: 2304,
-        height: 1296,
-        bit_depth: 8,
+    let unbuffered_video_source : Result<Box<video_io::source::VideoSource>, ()> = match *parts.get(0).unwrap() {
+        "tcp" => Result::Ok(Box::new(video_io::source::EthernetVideoSource {url: (*parts.get(1).unwrap()).to_string(), height, width})),
+        "file" => Result::Ok(Box::new(video_io::source::FileVideoSource { path: (*parts.get(1).unwrap()).to_string(), height, width })),
+        _ => Result::Err(())
     };
-    */
+    let video_source = video_io::source::BufferedVideoSource::new(unbuffered_video_source.unwrap());
 
-    let vs = video_source::EthernetVideoSource {
-        url: "axiom-micro:8080".to_string(),
-        width: 2304,
-        height: 1296,
-        bit_depth: 8,
-    };
-
-    let video_source = video_source::BufferedVideoSource::new(vs);
-
-    // start the opengl rendering thread
-    let glarea: gtk::GLArea = builder.get_object("gl_canvas").unwrap();
-
-    let opengl_handler = preview::OpenGlHandler::new(
-        glarea,
-        video_source.subscribe()
-    );
-
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-
-    /*
-    let writer = writer::Writer::new(
-        video_source.subscribe(),
-        format!("rec-{}.raw8", now)
-    );
-
-    */
-    window.set_default_size(2304, 1346);
-    window.show_all();
-
-    gtk::main();
+    let graphics_manager = graphical::Manager::new();
 }
