@@ -50,10 +50,8 @@ pub struct FileVideoSource {
 
 impl VideoSource for FileVideoSource {
     fn get_images(&self, callback: &Fn(Image)) {
-        let mut file = File::open(&self.path).unwrap();
-
-
         loop {
+            let mut file = File::open(&self.path).unwrap();
             let mut bytes = vec![0u8; (self.width * self.height) as usize];
             file.read_exact(&mut bytes).unwrap();
 

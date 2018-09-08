@@ -1,7 +1,11 @@
 extern crate glium;
 extern crate clap;
+extern crate bus;
 
 use clap::{App, Arg};
+use std::thread;
+use std::time;
+use glium::glutin;
 
 mod video_io;
 mod graphical;
@@ -43,12 +47,16 @@ fn main() {
     let height = arguments.value_of("height").unwrap().parse().unwrap();
     let width = arguments.value_of("width").unwrap().parse().unwrap();
 
-    let unbuffered_video_source : Result<Box<video_io::source::VideoSource>, ()> = match *parts.get(0).unwrap() {
-        "tcp" => Result::Ok(Box::new(video_io::source::EthernetVideoSource {url: (*parts.get(1).unwrap()).to_string(), height, width})),
-        "file" => Result::Ok(Box::new(video_io::source::FileVideoSource { path: (*parts.get(1).unwrap()).to_string(), height, width })),
+    let unbuffered_video_source: Result<Box<video_io::source::VideoSource>, ()> = match *parts.get(0).unwrap() {
+        "tcp" => Result::Ok(Box::new(video_io::source::EthernetVideoSource { url: (*parts.get(1).unwrap()).to_string(), height, width })),
+        "file" => {
+            println!("{}", (*parts.get(1).unwrap()).to_string());
+            Result::Ok(Box::new(video_io::source::FileVideoSource { path: (*parts.get(1).unwrap()).to_string(), height, width }))
+        }
         _ => Result::Err(())
     };
     let video_source = video_io::source::BufferedVideoSource::new(unbuffered_video_source.unwrap());
 
-    let graphics_manager = graphical::Manager::new();
+    let mut graphical_manager = graphical::Manager::new(video_source.subscribe());
+    graphical_manager.run_event_loop();
 }

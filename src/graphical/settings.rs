@@ -1,24 +1,24 @@
 // the main struct, that stores all settings data needed for drawing the UI
 pub struct Settings {
-    shutter_angle: f32,
-    iso: f32,
-    fps: f32,
-    recording_format: RecordingFormat,
-    grid: Grid,
+    pub shutter_angle: f32,
+    pub iso: f32,
+    pub fps: f32,
+    pub recording_format: RecordingFormat,
+    pub grid: Grid,
 }
 
-enum Grid {
+pub enum Grid {
     Grid3x3,
     None,
 }
 
-enum RecordingFormat {
+pub enum RecordingFormat {
     CinemaDNG,
     MLV,
     rawN,
 }
 
-enum DebayeringAlgorithm {
+pub enum DebayeringAlgorithm {
     Bilinear,
     VRNG,
     ResolutionLoss,
