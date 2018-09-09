@@ -1,11 +1,11 @@
 extern crate bus;
 
 use self::bus::BusReader;
-use std::thread;
+use std::fs::create_dir;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::mpsc::{channel, Sender};
-use std::fs::create_dir;
+use std::thread;
 use video_io::Image;
 
 /// An image sink, that somehow stores the images it receives
@@ -13,7 +13,6 @@ trait Writer {
     fn start(image_rx: BusReader<Image>, filename: String) -> Self;
     fn stop(&self);
 }
-
 
 /// A writer, that simply writes the bytes of the received images to a single file
 pub struct RawBlobWriter {
@@ -37,15 +36,13 @@ impl Writer for RawBlobWriter {
             }
         });
 
-        RawBlobWriter{ stop_channel: tx }
+        RawBlobWriter { stop_channel: tx }
     }
 
     fn stop(&self) {
         self.stop_channel.send(()).unwrap();
     }
 }
-
-
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
@@ -74,7 +71,9 @@ impl Writer for CinemaDngWriter {
             }
         });
 
-        CinemaDngWriter { stop_channel: stop_tx }
+        CinemaDngWriter {
+            stop_channel: stop_tx,
+        }
     }
 
     fn stop(&self) {

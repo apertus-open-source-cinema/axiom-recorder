@@ -1,21 +1,22 @@
 extern crate glium;
 
-use glium::*;
-use glium::glutin::{WindowBuilder, ContextBuilder, EventsLoop};
-use video_io::Image;
-use glium::texture::texture2d::Texture2d;
-use glium::backend::Facade;
-use std::borrow::Cow;
 use bus::BusReader;
-use graphical::settings::Settings;
-use std::time::Duration;
-use glium::texture::UncompressedFloatFormat;
+use glium::backend::Facade;
+use glium::glutin::{ContextBuilder, EventsLoop, WindowBuilder};
+use glium::texture::texture2d::Texture2d;
 use glium::texture::MipmapsOption;
+use glium::texture::UncompressedFloatFormat;
+use glium::*;
+use graphical::settings::Settings;
+use graphical::ui_lib::Drawable;
+use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::time::Duration;
+use video_io::Image;
 
-mod settings;
 mod gl_util;
+mod settings;
 mod ui_lib;
-
 
 /// Manage the rendering process and orchestrate the rendering passes
 pub struct Manager {
@@ -31,21 +32,23 @@ impl Manager {
         let context = ContextBuilder::new();
         let display = Display::new(window, context, &event_loop).unwrap();
 
-        Manager { display, raw_image_source, event_loop }
+        Manager {
+            display,
+            raw_image_source,
+            event_loop,
+        }
     }
 
     pub fn run_event_loop(&mut self) {
         let mut closed = false;
         while !closed {
             // listing the events produced by application and waiting to be received
-            self.event_loop.poll_events(|ev| {
-                match ev {
-                    glutin::Event::WindowEvent { event, .. } => match event {
-                        glutin::WindowEvent::CloseRequested => closed = true,
-                        _ => (),
-                    },
+            self.event_loop.poll_events(|ev| match ev {
+                glutin::Event::WindowEvent { event, .. } => match event {
+                    glutin::WindowEvent::CloseRequested => closed = true,
                     _ => (),
-                }
+                },
+                _ => (),
             });
 
             // look, wether we should debayer a new image
@@ -57,20 +60,29 @@ impl Manager {
                 grid: settings::Grid::None,
             };
 
-            match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
-                Result::Err(_) => {}
-                Result::Ok(image) => {
-                    self.redraw(image, &gui_settings);
+            match self
+                .raw_image_source
+                .recv_timeout(Duration::from_millis(10))
+                {
+                    Result::Err(_) => {}
+                    Result::Ok(image) => {
+                        self.redraw(image, &gui_settings);
+                    }
                 }
-            }
         }
     }
 
-    pub fn redraw(&self, raw_image: Image, gui_state: &settings::Settings) {
-        ui_lib::ColorBox {
+    pub fn redraw(&mut self, raw_image: Image, gui_state: &settings::Settings) {
+        let mut target = self.display.draw();
+        target.clear_color(0.0, 0.0, 0.0, 0.0);
+
+        ui_lib::util::ColorBox {
             color: [1.0, 0.0, 0.0, 1.0],
-            start: (0., 0.),
-            size: (1., 1.),
-        };
+        }.draw(
+            &mut (&mut target, &mut self.display, &mut BTreeMap::new()),
+            ui_lib::Pos { start: (0., 0.), size: (1., 1.) },
+        );
+
+        target.finish();
     }
 }

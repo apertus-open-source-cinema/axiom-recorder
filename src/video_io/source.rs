@@ -2,19 +2,19 @@ use std::thread;
 
 extern crate bus;
 
+use self::bus::{Bus, BusReader};
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
-use std::time::SystemTime;
-use self::bus::{Bus, BusReader};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 use video_io::Image;
 
 pub trait VideoSource: Send {
     fn get_images(&self, callback: &Fn(Image));
 }
 
-pub struct BufferedVideoSource<> {
+pub struct BufferedVideoSource {
     _tx: Arc<Mutex<Bus<Image>>>,
 }
 
@@ -29,7 +29,9 @@ impl BufferedVideoSource {
             let tx = tx.clone();
             thread::spawn(move || {
                 let vs = vs_send.lock().unwrap();
-                vs.get_images(&|img| { tx.lock().unwrap().broadcast(img); })
+                vs.get_images(&|img| {
+                    tx.lock().unwrap().broadcast(img);
+                })
             });
         }
 
@@ -80,11 +82,9 @@ impl VideoSource for EthernetVideoSource {
         let mut image_count = 0;
         let mut start = SystemTime::now();
 
-
         loop {
-//            let mut bytes = Vec::with_capacity((self.width * self.height) as usize);
+            //            let mut bytes = Vec::with_capacity((self.width * self.height) as usize);
             let mut bytes = vec![0u8; (self.width * self.height) as usize];
-
 
             stream.read_exact(&mut bytes).unwrap();
 
@@ -95,7 +95,9 @@ impl VideoSource for EthernetVideoSource {
                 data: bytes,
             };
 
-            let time = SystemTime::now().duration_since(start).expect("Time went backwards");
+            let time = SystemTime::now()
+                .duration_since(start)
+                .expect("Time went backwards");
             if time.as_secs() > 1 {
                 let in_ms = time.as_secs() * 1000 + time.subsec_nanos() as u64 / 1_000_000;
 
@@ -106,7 +108,6 @@ impl VideoSource for EthernetVideoSource {
             } else {
                 image_count += 1;
             }
-
 
             callback(image)
         }
