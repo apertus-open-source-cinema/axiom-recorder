@@ -20,7 +20,7 @@ pub struct BufferedVideoSource<> {
 
 impl BufferedVideoSource {
     pub fn new(vs: Box<VideoSource>) -> BufferedVideoSource {
-        let mut tx = Bus::new(30 * 10); // 10 seconds footage
+        let tx = Bus::new(30 * 10); // 10 seconds footage
 
         let tx = Arc::new(Mutex::new(tx));
         let vs_send = Arc::new(Mutex::new(vs));

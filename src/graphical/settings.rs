@@ -15,12 +15,5 @@ pub enum Grid {
 pub enum RecordingFormat {
     CinemaDNG,
     MLV,
-    rawN,
-}
-
-pub enum DebayeringAlgorithm {
-    Bilinear,
-    VRNG,
-    ResolutionLoss,
-    Shodak,
+    RawN,
 }

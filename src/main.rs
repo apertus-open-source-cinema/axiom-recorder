@@ -1,11 +1,8 @@
-extern crate glium;
+#[macro_use] extern crate glium;
 extern crate clap;
 extern crate bus;
 
 use clap::{App, Arg};
-use std::thread;
-use std::time;
-use glium::glutin;
 
 mod video_io;
 mod graphical;

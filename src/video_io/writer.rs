@@ -57,7 +57,7 @@ impl Writer for CinemaDngWriter {
         let (stop_tx, stop_rx) = channel::<()>();
 
         thread::spawn(move || {
-            create_dir(&filename);
+            create_dir(&filename).unwrap();
 
             let mut i = 0;
             loop {

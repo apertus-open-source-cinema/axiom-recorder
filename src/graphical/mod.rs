@@ -6,7 +6,6 @@ use video_io::Image;
 use glium::texture::texture2d::Texture2d;
 use glium::backend::Facade;
 use std::borrow::Cow;
-use std::thread;
 use bus::BusReader;
 use graphical::settings::Settings;
 use std::time::Duration;
@@ -15,6 +14,7 @@ use glium::texture::MipmapsOption;
 
 mod settings;
 mod gl_util;
+mod ui_lib;
 
 
 /// Manage the rendering process and orchestrate the rendering passes
@@ -26,7 +26,7 @@ pub struct Manager {
 
 impl Manager {
     pub fn new(raw_image_source: BusReader<Image>) -> Self {
-        let mut event_loop = EventsLoop::new();
+        let event_loop = EventsLoop::new();
         let window = WindowBuilder::new();
         let context = ContextBuilder::new();
         let display = Display::new(window, context, &event_loop).unwrap();
@@ -53,7 +53,7 @@ impl Manager {
                 shutter_angle: 0.0,
                 iso: 0.0,
                 fps: 0.0,
-                recording_format: settings::RecordingFormat::rawN,
+                recording_format: settings::RecordingFormat::RawN,
                 grid: settings::Grid::None,
             };
 
@@ -66,66 +66,11 @@ impl Manager {
         }
     }
 
-    pub fn assemble(&self, debayered_image: texture::Texture2d, gui_state: &settings::Settings) {
-        let mut target = self.display.draw();
-
-        let program = Program::from_source(
-            &self.display,
-            gl_util::PASSTHROUGH_VERTEX_SHADER_SRC,
-            include_str!("scale.frag"),
-            None,
-        ).unwrap();
-
-        target.draw(
-            &gl_util::Vertex::create_triangle_strip_vertex_buffer(&self.display),
-            &index::NoIndices(index::PrimitiveType::TriangleStrip),
-            &program,
-            &uniform! {in_image: &debayered_image},
-            &Default::default(),
-        ).unwrap();
-
-        target.finish().unwrap();
-    }
-
-    pub fn debayer(raw_image: Image, context: &Facade) -> Texture2d {
-        let target_texture = Texture2d::empty_with_format(
-            context,
-            UncompressedFloatFormat::U8U8U8U8,
-            MipmapsOption::NoMipmap,
-            raw_image.width,
-            raw_image.height,
-        ).unwrap();
-
-        let source_texture = Texture2d::new(
-            context,
-            texture::RawImage2d {
-                data: Cow::from(raw_image.data),
-                width: raw_image.width, height: raw_image.height,
-                format: texture::ClientFormat::U8
-            },
-        ).unwrap();
-
-        let program = Program::from_source(
-            context,
-            gl_util::PASSTHROUGH_VERTEX_SHADER_SRC,
-            include_str!("debayer.frag"),
-            None,
-        ).unwrap();
-
-        target_texture.as_surface().draw(
-            &gl_util::Vertex::create_triangle_strip_vertex_buffer(context),
-            &index::NoIndices(index::PrimitiveType::TriangleStrip),
-            &program,
-            &uniform! {raw_image: &source_texture},
-            &Default::default(),
-        );
-
-        target_texture
-    }
-
     pub fn redraw(&self, raw_image: Image, gui_state: &settings::Settings) {
-        // Redraws the whole window by invoking a debayer and the second rendering pass
-        let debayered = Manager::debayer(raw_image, &self.display);
-        self.assemble(debayered, gui_state)
+        ui_lib::ColorBox {
+            color: [1.0, 0.0, 0.0, 1.0],
+            start: (0., 0.),
+            size: (1., 1.),
+        };
     }
 }
