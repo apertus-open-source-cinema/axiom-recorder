@@ -1,12 +1,13 @@
 use graphical::ui_lib::*;
+use glium::Surface;
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
 pub struct ColorBox {
     pub color: [f32; 4],
 }
 
-impl Drawable for ColorBox {
-    fn draw(&self, params: &mut DrawParams, pos: Pos) {
+impl<T> Drawable<T> for ColorBox where T: Surface {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -26,8 +27,8 @@ impl Drawable for ColorBox {
 
 /// The main container. If you want to draw multiple things, use this.
 /// Every Drawable is drawn to its position relative to the container position
-impl<'a> Drawable for Vec<(&'a Drawable, Pos)> {
-    fn draw(&self, params: &mut DrawParams, pos: Pos) {
+impl<'a, T> Drawable<T> for Vec<(&'a Drawable<T>, Pos)> where T: Surface {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         for (drawable, drawable_pos) in self {
             // TODO: rethink; check for correctness
             let absolute_pos = Pos {
@@ -48,20 +49,21 @@ impl<'a> Drawable for Vec<(&'a Drawable, Pos)> {
 
 /// Makes a given child keep the given aspect ratio independent of the aspect ratio of this container.
 /// letterboxing of pillarboxing is the result
-struct AspectRatioContainer<'a> {
-    aspect_ratio: f32,
-    element: &'a Drawable,
+pub struct AspectRatioContainer<'a, T> where T: Surface + 'a {
+    pub aspect_ratio: f32,
+    pub element: &'a Drawable<T>,
 }
 
-impl<'a> Drawable for AspectRatioContainer<'a> {
-    fn draw(&self, params: &mut DrawParams, pos: Pos) {
-        let size = if pos.size.0 / pos.size.1 > self.aspect_ratio {
-
+impl<'a, T> Drawable<T> for AspectRatioContainer<'a, T> where T: Surface + 'a {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+        let ratio_difference = pos.size.0 / pos.size.1 - self.aspect_ratio;
+        let size = if ratio_difference > 0. {
+            (1., 1. - ratio_difference)
         } else {
-
+            (1. - ratio_difference, 1.)
         };
 
-        self.element.draw(params, pos)
+        self.element.draw(params, Pos { start: (0., 0.), size })
     }
 }
 
@@ -71,14 +73,15 @@ enum Direction {
     Vertical,
 }
 
-struct EqualDistributingContainer<'a> {
+pub struct EqualDistributingContainer<'a, T> where T: Surface + 'a {
     direction: Direction,
-    size_hint: f32, // TODO: rethink api
-    elements: Vec<&'a Drawable>,
+    size_hint: f32,
+    // TODO: rethink api
+    elements: Vec<&'a Drawable<T>>,
 }
 
-impl<'a> Drawable for EqualDistributingContainer<'a> {
-    fn draw(&self, params: &mut DrawParams, pos: Pos) {
+impl<'a, T> Drawable<T> for EqualDistributingContainer<'a, T> where T: Surface + 'a {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         unimplemented!()
     }
 }

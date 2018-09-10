@@ -13,11 +13,12 @@ use std::collections::BTreeMap;
 pub mod debayer;
 pub mod util;
 
-/// Util type alias, that allows to pass draw Params easier
-type DrawParams<'a> = (
-    &'a mut Frame,
+// Util type aliases, that allows to pass draw Params easier
+pub type Cache = BTreeMap<String, Program>;
+pub type DrawParams<'a, T> where T: Surface = (
+    &'a mut T,
     &'a mut Facade,
-    &'a mut BTreeMap<String, Program>,
+    &'a mut Cache,
 );
 
 /// Util type for representing the "geographical" properties
@@ -37,8 +38,8 @@ impl Pos {
 
 /// All drawable elements can be rendered with openGL
 /// a GUI is a single Drawable, that can contain children
-pub trait Drawable {
-    fn draw(&self, params: &mut DrawParams, pos: Pos);
+pub trait Drawable<T> where T : Surface {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos);
 }
 
 /// Draws a given fragment shader onto a given Box. The heart of all other Drawables
@@ -50,11 +51,12 @@ where
     uniforms: U,
 }
 
-impl<U> Drawable for ShaderBox<U>
+impl<U, T> Drawable<T> for ShaderBox<U>
 where
     U: Uniforms,
+    T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams, pos: Pos) {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         let (frame, facade, cache) = params;
 
         if !cache.contains_key(self.fragment_shader.as_str()) {

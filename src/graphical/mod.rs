@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 use std::time::Instant;
 use video_io::Image;
+use graphical::ui_lib::Cache;
 
 mod gl_util;
 mod settings;
@@ -42,8 +43,12 @@ impl Manager {
     }
 
     pub fn run_event_loop(&mut self) {
+        let cache = &mut BTreeMap::new();
+
         let mut closed = false;
         while !closed {
+            println!("cache size: {}", cache.len());
+
             let now = Instant::now();
             // listing the events produced by application and waiting to be received
             self.event_loop.poll_events(|ev| match ev {
@@ -69,7 +74,7 @@ impl Manager {
             {
                 Result::Err(_) => {}
                 Result::Ok(image) => {
-                    self.redraw(image, &gui_settings);
+                    self.redraw(image, &gui_settings, cache);
                 }
             }
 
@@ -77,26 +82,29 @@ impl Manager {
         }
     }
 
-    pub fn redraw(&mut self, raw_image: Image, gui_state: &settings::Settings) {
+    pub fn redraw(&mut self, raw_image: Image, gui_state: &settings::Settings, cache: &mut Cache) {
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
         vec![
             (
-                &ui_lib::debayer::Debayer { raw_image } as &Drawable,
+                &ui_lib::util::AspectRatioContainer {
+                    aspect_ratio: 1.0,
+                    element: &ui_lib::debayer::Debayer { raw_image },
+                } as &Drawable<Frame>,
                 Pos::full(),
             ),
             (
                 &ui_lib::util::ColorBox {
                     color: [0.0, 0.0, 0.0, 0.5],
-                } as &Drawable,
+                } as &Drawable<Frame>,
                 Pos {
                     start: (0., 0.),
                     size: (1., 0.1),
                 },
             ),
         ].draw(
-            &mut (&mut target, &mut self.display, &mut BTreeMap::new()),
+            &mut (&mut target, &mut self.display, cache),
             Pos::full(),
         );
 

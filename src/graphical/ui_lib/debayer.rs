@@ -9,13 +9,14 @@ use graphical::ui_lib::*;
 use std::borrow::Cow;
 use video_io::Image;
 use std::collections::BTreeMap;
+use glium::Surface;
 
 pub struct Debayer {
     pub raw_image: Image,
 }
 
 impl Debayer {
-    pub fn debayer(raw_image: &Image, context: &mut Facade, cache: &mut BTreeMap<String, Program>) -> texture::Texture2d {
+    pub fn debayer(raw_image: &Image, context: &mut Facade, cache: &mut Cache) -> texture::Texture2d {
         let target_texture = texture::Texture2d::empty_with_format(
             context,
             UncompressedFloatFormat::U8U8U8U8,
@@ -43,8 +44,8 @@ impl Debayer {
     }
 }
 
-impl Drawable for Debayer {
-    fn draw(&self, params: &mut DrawParams, pos: Pos) {
+impl<T> Drawable<T> for Debayer where T : Surface {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         let texture = Self::debayer(&self.raw_image, params.1, params.2);
 
         ShaderBox {
