@@ -3,14 +3,15 @@ extern crate glium;
 use glium::backend::Facade;
 use glium::index;
 use glium::uniforms::Uniforms;
+use glium::Blend;
 use glium::Frame;
 use glium::Program;
 use glium::Surface;
 use graphical::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 use std::collections::BTreeMap;
 
-pub mod util;
 pub mod debayer;
+pub mod util;
 
 /// Util type alias, that allows to pass draw Params easier
 type DrawParams<'a> = (
@@ -23,6 +24,15 @@ type DrawParams<'a> = (
 pub struct Pos {
     pub start: (f32, f32),
     pub size: (f32, f32),
+}
+
+impl Pos {
+    pub fn full() -> Self {
+        Pos {
+            start: (0., 0.),
+            size: (1., 1.),
+        }
+    }
 }
 
 /// All drawable elements can be rendered with openGL
@@ -62,14 +72,22 @@ where
 
         let vertices = &Vertex::triangle_strip_surface(
             *facade,
-            (pos.start.0, pos.start.1, pos.start.0 + pos.size.0, pos.start.1 + pos.size.1),
+            (
+                pos.start.0,
+                pos.start.1,
+                pos.start.0 + pos.size.0,
+                pos.start.1 + pos.size.1,
+            ),
         );
         (*frame).draw(
             vertices,
             &index::NoIndices(index::PrimitiveType::TriangleStrip),
             &program,
             &self.uniforms,
-            &Default::default(),
+            &glium::DrawParameters {
+                blend: Blend::alpha_blending(),
+                ..Default::default()
+            },
         );
     }
 }

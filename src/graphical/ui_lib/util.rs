@@ -31,11 +31,54 @@ impl<'a> Drawable for Vec<(&'a Drawable, Pos)> {
         for (drawable, drawable_pos) in self {
             // TODO: rethink; check for correctness
             let absolute_pos = Pos {
-                start: (drawable_pos.start.0 + pos.start.0, drawable_pos.start.1 + pos.start.1),
-                size: (drawable_pos.size.0 * pos.size.0, drawable_pos.size.1 * pos.size.1),
+                start: (
+                    (drawable_pos.start.0 * pos.size.0) + pos.start.0,
+                    (drawable_pos.start.1 * pos.size.1) + pos.start.1,
+                ),
+                size: (
+                    drawable_pos.size.0 * pos.size.0,
+                    drawable_pos.size.1 * pos.size.1,
+                ),
             };
 
             drawable.draw(params, absolute_pos);
         }
+    }
+}
+
+/// Makes a given child keep the given aspect ratio independent of the aspect ratio of this container.
+/// letterboxing of pillarboxing is the result
+struct AspectRatioContainer<'a> {
+    aspect_ratio: f32,
+    element: &'a Drawable,
+}
+
+impl<'a> Drawable for AspectRatioContainer<'a> {
+    fn draw(&self, params: &mut DrawParams, pos: Pos) {
+        let size = if pos.size.0 / pos.size.1 > self.aspect_ratio {
+
+        } else {
+
+        };
+
+        self.element.draw(params, pos)
+    }
+}
+
+// a more advanced container
+enum Direction {
+    Horizontal,
+    Vertical,
+}
+
+struct EqualDistributingContainer<'a> {
+    direction: Direction,
+    size_hint: f32, // TODO: rethink api
+    elements: Vec<&'a Drawable>,
+}
+
+impl<'a> Drawable for EqualDistributingContainer<'a> {
+    fn draw(&self, params: &mut DrawParams, pos: Pos) {
+        unimplemented!()
     }
 }

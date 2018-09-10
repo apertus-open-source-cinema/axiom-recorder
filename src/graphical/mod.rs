@@ -9,9 +9,11 @@ use glium::texture::UncompressedFloatFormat;
 use glium::*;
 use graphical::settings::Settings;
 use graphical::ui_lib::Drawable;
+use graphical::ui_lib::Pos;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::Duration;
+use std::time::Instant;
 use video_io::Image;
 
 mod gl_util;
@@ -42,6 +44,7 @@ impl Manager {
     pub fn run_event_loop(&mut self) {
         let mut closed = false;
         while !closed {
+            let now = Instant::now();
             // listing the events produced by application and waiting to be received
             self.event_loop.poll_events(|ev| match ev {
                 glutin::Event::WindowEvent { event, .. } => match event {
@@ -63,12 +66,14 @@ impl Manager {
             match self
                 .raw_image_source
                 .recv_timeout(Duration::from_millis(10))
-                {
-                    Result::Err(_) => {}
-                    Result::Ok(image) => {
-                        self.redraw(image, &gui_settings);
-                    }
+            {
+                Result::Err(_) => {}
+                Result::Ok(image) => {
+                    self.redraw(image, &gui_settings);
                 }
+            }
+
+            println!("{} fps", 1000 / now.elapsed().subsec_millis());
         }
     }
 
@@ -76,11 +81,23 @@ impl Manager {
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
-        ui_lib::util::ColorBox {
-            color: [1.0, 0.0, 0.0, 1.0],
-        }.draw(
+        vec![
+            (
+                &ui_lib::debayer::Debayer { raw_image } as &Drawable,
+                Pos::full(),
+            ),
+            (
+                &ui_lib::util::ColorBox {
+                    color: [0.0, 0.0, 0.0, 0.5],
+                } as &Drawable,
+                Pos {
+                    start: (0., 0.),
+                    size: (1., 0.1),
+                },
+            ),
+        ].draw(
             &mut (&mut target, &mut self.display, &mut BTreeMap::new()),
-            ui_lib::Pos { start: (0., 0.), size: (1., 1.) },
+            Pos::full(),
         );
 
         target.finish();
