@@ -50,7 +50,7 @@ impl Debayer {
                     y: raw_image.height,
                 },
             },
-            Pos::full(),
+            SpacialProperties::full(),
         )?;
 
         Ok(target_texture)
@@ -61,7 +61,7 @@ impl<T> Drawable<T> for Debayer
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
         let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;
 
         ShaderBox {
@@ -81,6 +81,6 @@ where
             uniforms: uniform! {
                 in_image: &texture,
             },
-        }.draw(params, pos)
+        }.draw(params, sp)
     }
 }

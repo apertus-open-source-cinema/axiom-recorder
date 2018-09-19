@@ -10,8 +10,12 @@ use glium::Surface;
 use std::collections::BTreeMap;
 
 pub mod basic_components;
+pub mod container_components;
 pub mod debayer_component;
 mod gl_util;
+pub mod layout_components;
+pub mod list_components;
+pub mod text_components;
 
 use graphical::ui_lib::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 
@@ -45,14 +49,14 @@ impl<T> From<(T, T)> for Vec2<T> {
     }
 }
 
-pub struct Pos {
+pub struct SpacialProperties {
     pub start: Vec2<f64>,
     pub size: Vec2<f64>,
 }
 
-impl Pos {
+impl SpacialProperties {
     pub fn full() -> Self {
-        Pos {
+        SpacialProperties {
             start: Vec2 { x: 0., y: 0. },
             size: Vec2 { x: 1., y: 1. },
         }
@@ -65,7 +69,7 @@ pub trait Drawable<T>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult;
+    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult;
 }
 
 /// Draws a given fragment shader onto a given Box. The heart of all other Drawables
@@ -82,7 +86,7 @@ where
     U: Uniforms,
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
         if !params.cache.contains_key(self.fragment_shader.as_str()) {
             let fragment_shader = self.fragment_shader.clone();
             let program = Program::from_source(
@@ -99,10 +103,10 @@ where
         let vertices = &Vertex::triangle_strip_surface(
             params.facade,
             (
-                pos.start.x,
-                pos.start.y,
-                pos.start.x + pos.size.x,
-                pos.start.y + pos.size.y,
+                sp.start.x,
+                sp.start.y,
+                sp.start.x + sp.size.x,
+                sp.start.y + sp.size.y,
             ),
         );
         (*params.surface).draw(
