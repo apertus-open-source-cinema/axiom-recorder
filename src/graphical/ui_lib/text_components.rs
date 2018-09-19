@@ -1,6 +1,4 @@
-extern crate euclid;
-
-use crate::graphical::ui_lib::*;
+use super::*;
 use glium::texture;
 use std::borrow::Cow;
 use std::error::Error;
@@ -19,7 +17,7 @@ pub struct Letter {
 }
 
 impl Letter {
-    fn get_bitmap(&self) -> Result<Canvas, Box<Error>> {
+    fn get_bitmap(&self) -> Result<Canvas, Box<dyn Error>> {
         let font = SystemSource::new()
             .select_best_match(&[FamilyName::SansSerif], &Properties::new())
             .unwrap()
@@ -43,7 +41,7 @@ impl<T> Drawable<T> for Letter
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
         let bitmap = self.get_bitmap().unwrap();
         let texture = texture::Texture2d::new(
             params.facade,

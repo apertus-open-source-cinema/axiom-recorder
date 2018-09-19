@@ -1,20 +1,18 @@
-extern crate glium;
-
+use self::settings::Settings;
+use self::ui_lib::{
+    basic_components::*,
+    debayer_component::*,
+    layout_components::{Size::*, *},
+    text_components::*,
+    *,
+};
 use bus::BusReader;
-use crate::graphical::settings::Settings;
-use crate::graphical::ui_lib::basic_components::ColorBox;
-use crate::graphical::ui_lib::debayer_component::Debayer;
-use crate::graphical::ui_lib::layout_components::Size::{Percent, Px};
-use crate::graphical::ui_lib::layout_components::{AspectRatioContainer, PixelSizeContainer};
-use crate::graphical::ui_lib::text_components::Letter;
-use crate::graphical::ui_lib::{Cache, DrawParams, Drawable, SpacialProperties, Vec2};
 use crate::video_io::Image;
 use glium::glutin::{ContextBuilder, EventsLoop, WindowBuilder};
 use glium::*;
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 mod settings;
 mod ui_lib;
@@ -92,7 +90,7 @@ impl Manager {
         raw_image: Image,
         gui_state: &settings::Settings,
         cache: &mut Cache,
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
@@ -101,7 +99,7 @@ impl Manager {
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
                 child: &Debayer { raw_image },
-            } as &Drawable<Frame>,
+            } as &dyn Drawable<Frame>,
             &PixelSizeContainer {
                 resolution: Vec2 {
                     x: Percent(1.0),
@@ -109,9 +107,9 @@ impl Manager {
                 },
                 child: &ColorBox {
                     color: [0.0, 0.0, 0.0, 0.5],
-                } as &Drawable<Frame>,
-            } as &Drawable<Frame>,
-            &Letter { chr: "A".parse()? } as &Drawable<Frame>,
+                } as &dyn Drawable<Frame>,
+            } as &dyn Drawable<Frame>,
+            &Letter { chr: "A".parse()? } as &dyn Drawable<Frame>,
         ].draw(
             &mut DrawParams {
                 surface: &mut target,

@@ -1,12 +1,7 @@
-extern crate glium;
-
+use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 use glium::backend::Facade;
-use glium::index;
 use glium::uniforms::Uniforms;
-use glium::Blend;
-use glium::DrawError;
-use glium::Program;
-use glium::Surface;
+use glium::{index, Blend, DrawError, Program, Surface};
 use std::collections::BTreeMap;
 
 pub mod basic_components;
@@ -16,7 +11,6 @@ mod gl_util;
 pub mod layout_components;
 pub mod list_components;
 pub mod text_components;
-use crate::graphical::ui_lib::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 
 // Util type aliases, that allows to pass draw Params easier
 pub type Cache = BTreeMap<String, Program>;
@@ -26,7 +20,7 @@ where
     T: Surface + 'a,
 {
     pub surface: &'a mut T,
-    pub facade: &'a mut Facade,
+    pub facade: &'a mut dyn Facade,
     pub cache: &'a mut Cache,
     pub screen_size: Vec2<u32>,
 }
@@ -68,7 +62,7 @@ pub trait Drawable<T>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult;
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult;
 }
 
 /// Draws a given fragment shader onto a given Box. The heart of all other Drawables
@@ -85,7 +79,7 @@ where
     U: Uniforms,
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
         if !params.cache.contains_key(self.fragment_shader.as_str()) {
             let fragment_shader = self.fragment_shader.clone();
             let program = Program::from_source(

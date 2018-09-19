@@ -8,14 +8,14 @@ where
     T: Surface + 'a,
 {
     pub aspect_ratio: f64,
-    pub child: &'a Drawable<T>,
+    pub child: &'a dyn Drawable<T>,
 }
 
 impl<'a, T> Drawable<T> for AspectRatioContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
         let container_ratio =
             (sp.size.x * params.screen_size.x as f64) / (sp.size.y * params.screen_size.y as f64);
         let ratio = container_ratio * (1. / self.aspect_ratio);
@@ -50,14 +50,14 @@ where
     T: 'a,
 {
     pub resolution: Vec2<Size>,
-    pub child: &'a Drawable<T>,
+    pub child: &'a dyn Drawable<T>,
 }
 
 impl<'a, T> Drawable<T> for PixelSizeContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
         let size = Vec2 {
             x: match self.resolution.x {
                 Px(px) => sp.size.x * (px as f64 / params.screen_size.x as f64),

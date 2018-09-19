@@ -1,10 +1,3 @@
-extern crate bus;
-#[macro_use]
-extern crate glium;
-extern crate clap;
-extern crate euclid;
-extern crate font_kit;
-
 use clap::{App, Arg};
 
 mod graphical;
@@ -45,7 +38,7 @@ fn main() {
     let height = arguments.value_of("height").unwrap().parse().unwrap();
     let width = arguments.value_of("width").unwrap().parse().unwrap();
 
-    let unbuffered_video_source: Result<Box<video_io::source::VideoSource>, ()> =
+    let unbuffered_video_source: Result<Box<dyn video_io::source::VideoSource>, ()> =
         match *parts.get(0).unwrap() {
             "tcp" => Result::Ok(Box::new(video_io::source::EthernetVideoSource {
                 url: (*parts.get(1).unwrap()).to_string(),

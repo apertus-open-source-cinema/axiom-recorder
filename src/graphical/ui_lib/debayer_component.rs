@@ -1,12 +1,9 @@
-use crate::graphical::ui_lib::basic_components::TextureBox;
-use crate::graphical::ui_lib::*;
+use self::basic_components::TextureBox;
+use super::*;
 use crate::video_io::Image;
 use glium::backend::Facade;
-use glium::texture;
-use glium::texture::MipmapsOption;
-use glium::texture::UncompressedFloatFormat;
-use glium::DrawError;
-use glium::Surface;
+use glium::texture::{MipmapsOption, UncompressedFloatFormat};
+use glium::{texture, uniform, DrawError, Surface};
 use std::borrow::Cow;
 use std::result::Result::Ok;
 
@@ -17,7 +14,7 @@ pub struct Debayer {
 impl Debayer {
     pub fn debayer(
         raw_image: &Image,
-        context: &mut Facade,
+        context: &mut dyn Facade,
         cache: &mut Cache,
     ) -> Result<texture::Texture2d, DrawError> {
         let target_texture = texture::Texture2d::empty_with_format(
@@ -62,7 +59,7 @@ impl<T> Drawable<T> for Debayer
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
         let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;
         TextureBox { texture }.draw(params, sp)
     }

@@ -1,17 +1,14 @@
-use std::thread;
-
-extern crate bus;
-
-use self::bus::{Bus, BusReader};
-use crate::video_io::Image;
+use super::Image;
+use bus::{Bus, BusReader};
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::SystemTime;
 
 pub trait VideoSource: Send {
-    fn get_images(&self, callback: &Fn(Image));
+    fn get_images(&self, callback: &dyn Fn(Image));
 }
 
 pub struct BufferedVideoSource {
@@ -19,7 +16,7 @@ pub struct BufferedVideoSource {
 }
 
 impl BufferedVideoSource {
-    pub fn new(vs: Box<VideoSource>) -> BufferedVideoSource {
+    pub fn new(vs: Box<dyn VideoSource>) -> BufferedVideoSource {
         let tx = Bus::new(30 * 10); // 10 seconds footage
 
         let tx = Arc::new(Mutex::new(tx));
@@ -51,7 +48,7 @@ pub struct FileVideoSource {
 }
 
 impl VideoSource for FileVideoSource {
-    fn get_images(&self, callback: &Fn(Image)) {
+    fn get_images(&self, callback: &dyn Fn(Image)) {
         let mut file = File::open(&self.path).unwrap();
         let mut bytes = vec![0u8; (self.width * self.height) as usize];
         file.read_exact(&mut bytes).unwrap();
@@ -76,7 +73,7 @@ pub struct EthernetVideoSource {
 }
 
 impl VideoSource for EthernetVideoSource {
-    fn get_images(&self, callback: &Fn(Image)) {
+    fn get_images(&self, callback: &dyn Fn(Image)) {
         let mut stream = TcpStream::connect(&self.url).unwrap();
 
         let mut image_count = 0;

@@ -1,6 +1,5 @@
-use crate::graphical::ui_lib::*;
-use glium::texture;
-use glium::Surface;
+use super::*;
+use glium::{texture, uniform, Surface};
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
 pub struct ColorBox {
@@ -11,7 +10,7 @@ impl<T> Drawable<T> for ColorBox
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -38,7 +37,7 @@ impl<T> Drawable<T> for TextureBox
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
