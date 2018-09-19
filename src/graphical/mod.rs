@@ -1,26 +1,19 @@
 extern crate glium;
 
 use bus::BusReader;
-use glium::backend::Facade;
 use glium::glutin::{ContextBuilder, EventsLoop, WindowBuilder};
-use glium::texture::texture2d::Texture2d;
-use glium::texture::MipmapsOption;
-use glium::texture::UncompressedFloatFormat;
 use glium::*;
 use graphical::settings::Settings;
-use graphical::ui_lib::debayer::Debayer;
-use graphical::ui_lib::util::Size::{Percent, Px};
-use graphical::ui_lib::util::{AspectRatioContainer, ColorBox, PixelSizeContainer};
-use graphical::ui_lib::Drawable;
-use graphical::ui_lib::Pos;
-use graphical::ui_lib::{Cache, DrawParams};
-use std::borrow::Cow;
+use graphical::ui_lib::basic_components::Size::{Percent, Px};
+use graphical::ui_lib::basic_components::{AspectRatioContainer, ColorBox, PixelSizeContainer};
+use graphical::ui_lib::debayer_component::Debayer;
+use graphical::ui_lib::{Cache, DrawParams, Drawable, Pos, Vec2};
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::time::Duration;
 use std::time::Instant;
 use video_io::Image;
 
-mod gl_util;
 mod settings;
 mod ui_lib;
 
@@ -49,6 +42,7 @@ impl Manager {
         let cache = &mut BTreeMap::new();
 
         let mut closed = false;
+        let mut last_image: Option<Image> = None;
         while !closed {
             println!("cache size: {}", cache.len());
 
@@ -71,32 +65,48 @@ impl Manager {
                 grid: settings::Grid::None,
             };
 
-            match self
+            let draw_result = match self
                 .raw_image_source
                 .recv_timeout(Duration::from_millis(10))
             {
-                Result::Err(_) => {}
+                Result::Err(_) => match last_image.clone() {
+                    None => Ok(()),
+                    Some(image) => self.redraw(image, &gui_settings, cache),
+                },
                 Result::Ok(image) => {
-                    self.redraw(image, &gui_settings, cache);
+                    last_image = Some(image.clone());
+                    self.redraw(image, &gui_settings, cache)
                 }
+            };
+
+            if draw_result.is_err() {
+                println!("draw error occured: \n {:#?}", draw_result.err().unwrap());
             }
 
             println!("{} fps", 1000 / now.elapsed().subsec_millis());
         }
     }
 
-    pub fn redraw(&mut self, raw_image: Image, gui_state: &settings::Settings, cache: &mut Cache) {
-        let screen_size = self.display.get_framebuffer_dimensions();
+    pub fn redraw(
+        &mut self,
+        raw_image: Image,
+        gui_state: &settings::Settings,
+        cache: &mut Cache,
+    ) -> Result<(), Box<Error>> {
+        let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
-        vec![
+        let draw_result = vec![
             &AspectRatioContainer {
-                aspect_ratio: 2.0,
+                aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
                 child: &Debayer { raw_image },
             } as &Drawable<Frame>,
             &PixelSizeContainer {
-                resolution: (Percent(1.0), Px(80)),
+                resolution: Vec2 {
+                    x: Percent(1.0),
+                    y: Px(80),
+                },
                 child: &ColorBox {
                     color: [0.0, 0.0, 0.0, 0.5],
                 } as &Drawable<Frame>,
@@ -111,6 +121,9 @@ impl Manager {
             Pos::full(),
         );
 
-        target.finish();
+        target.finish()?;
+        draw_result?;
+
+        Ok(())
     }
 }

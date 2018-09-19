@@ -1,14 +1,7 @@
 extern crate glium;
 
 use glium::backend::Facade;
-use glium::index::IndicesSource;
-use glium::uniforms::Uniforms;
-use glium::vertex::MultiVerticesSource;
-use glium::Frame;
-use glium::Program;
-use glium::*;
-use std::collections::BTreeMap;
-use std::ops::Deref;
+use glium::VertexBuffer;
 
 pub const PASSTHROUGH_VERTEX_SHADER_SRC: &str = r#"
     #version 140
@@ -24,8 +17,8 @@ pub const PASSTHROUGH_VERTEX_SHADER_SRC: &str = r#"
 
 #[derive(Copy, Clone)]
 pub struct Vertex {
-    absolute_position: [f32; 2],
-    relative_position: [f32; 2],
+    absolute_position: [f64; 2],
+    relative_position: [f64; 2],
 }
 implement_vertex!(Vertex, absolute_position, relative_position);
 
@@ -34,7 +27,7 @@ impl Vertex {
     /// The coordinates are normalized to a range from 0 to 1
     pub fn triangle_strip_surface(
         context: &Facade,
-        corners: (f32, f32, f32, f32),
+        corners: (f64, f64, f64, f64),
     ) -> VertexBuffer<Vertex> {
         let start = (corners.0 * 2. - 1., corners.1 * 2. - 1.);
         let end = (corners.2 * 2. - 1., corners.3 * 2. - 1.);

@@ -4,17 +4,20 @@ use glium::backend::Facade;
 use glium::index;
 use glium::uniforms::Uniforms;
 use glium::Blend;
-use glium::Frame;
+use glium::DrawError;
 use glium::Program;
 use glium::Surface;
-use graphical::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 use std::collections::BTreeMap;
 
-pub mod debayer;
-pub mod util;
+pub mod basic_components;
+pub mod debayer_component;
+mod gl_util;
+
+use graphical::ui_lib::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 
 // Util type aliases, that allows to pass draw Params easier
 pub type Cache = BTreeMap<String, Program>;
+
 pub struct DrawParams<'a, T>
 where
     T: Surface + 'a,
@@ -22,20 +25,36 @@ where
     pub surface: &'a mut T,
     pub facade: &'a mut Facade,
     pub cache: &'a mut Cache,
-    pub screen_size: (u32, u32),
+    pub screen_size: Vec2<u32>,
 }
 
+type DrawResult = Result<(), DrawError>;
+
 /// Util type for representing the "geographical" properties
+pub struct Vec2<T> {
+    pub x: T,
+    pub y: T,
+}
+
+impl<T> From<(T, T)> for Vec2<T> {
+    fn from(tuple: (T, T)) -> Self {
+        Vec2 {
+            x: tuple.0,
+            y: tuple.1,
+        }
+    }
+}
+
 pub struct Pos {
-    pub start: (f32, f32),
-    pub size: (f32, f32),
+    pub start: Vec2<f64>,
+    pub size: Vec2<f64>,
 }
 
 impl Pos {
     pub fn full() -> Self {
         Pos {
-            start: (0., 0.),
-            size: (1., 1.),
+            start: Vec2 { x: 0., y: 0. },
+            size: Vec2 { x: 1., y: 1. },
         }
     }
 }
@@ -46,7 +65,7 @@ pub trait Drawable<T>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos);
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult;
 }
 
 /// Draws a given fragment shader onto a given Box. The heart of all other Drawables
@@ -63,7 +82,7 @@ where
     U: Uniforms,
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
         if !params.cache.contains_key(self.fragment_shader.as_str()) {
             let fragment_shader = self.fragment_shader.clone();
             let program = Program::from_source(
@@ -80,10 +99,10 @@ where
         let vertices = &Vertex::triangle_strip_surface(
             params.facade,
             (
-                pos.start.0,
-                pos.start.1,
-                pos.start.0 + pos.size.0,
-                pos.start.1 + pos.size.1,
+                pos.start.x,
+                pos.start.y,
+                pos.start.x + pos.size.x,
+                pos.start.y + pos.size.y,
             ),
         );
         (*params.surface).draw(
@@ -95,6 +114,6 @@ where
                 blend: Blend::alpha_blending(),
                 ..Default::default()
             },
-        );
+        )
     }
 }

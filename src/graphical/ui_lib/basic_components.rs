@@ -1,6 +1,6 @@
 use glium::Surface;
-use graphical::ui_lib::util::Size::Percent;
-use graphical::ui_lib::util::Size::Px;
+use graphical::ui_lib::basic_components::Size::Percent;
+use graphical::ui_lib::basic_components::Size::Px;
 use graphical::ui_lib::*;
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
@@ -12,7 +12,7 @@ impl<T> Drawable<T> for ColorBox
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -24,9 +24,9 @@ where
                 }
             "#.to_string(),
             uniforms: uniform! {
-                in_color: self.color
+                in_color: self.color,
             },
-        }.draw(params, pos);
+        }.draw(params, pos)
     }
 }
 
@@ -36,22 +36,23 @@ impl<'a, T> Drawable<T> for Vec<(&'a Drawable<T>, Pos)>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
         for (drawable, drawable_pos) in self {
             // TODO: rethink; check for correctness
             let absolute_pos = Pos {
-                start: (
-                    (drawable_pos.start.0 * pos.size.0) + pos.start.0,
-                    (drawable_pos.start.1 * pos.size.1) + pos.start.1,
-                ),
-                size: (
-                    drawable_pos.size.0 * pos.size.0,
-                    drawable_pos.size.1 * pos.size.1,
-                ),
+                start: Vec2 {
+                    x: (drawable_pos.start.x * pos.size.x) + pos.start.x,
+                    y: (drawable_pos.start.y * pos.size.y) + pos.start.y,
+                },
+                size: Vec2 {
+                    x: drawable_pos.size.x * pos.size.x,
+                    y: drawable_pos.size.y * pos.size.y,
+                },
             };
 
-            drawable.draw(params, absolute_pos);
+            drawable.draw(params, absolute_pos)?
         }
+        Ok(())
     }
 }
 
@@ -60,7 +61,7 @@ impl<'a, T> Drawable<T> for Vec<&'a Drawable<T>>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
         let vec_with_size: Vec<_> = self.into_iter().map(|elem| (*elem, Pos::full())).collect();
         vec_with_size.draw(params, pos)
     }
@@ -72,7 +73,7 @@ pub struct AspectRatioContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    pub aspect_ratio: f32,
+    pub aspect_ratio: f64,
     pub child: &'a Drawable<T>,
 }
 
@@ -80,17 +81,26 @@ impl<'a, T> Drawable<T> for AspectRatioContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
-        let container_ratio = ((pos.size.0 * params.screen_size.0 as f32)
-            / (pos.size.1 * params.screen_size.1 as f32));
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
+        let container_ratio =
+            (pos.size.x * params.screen_size.x as f64) / (pos.size.y * params.screen_size.y as f64);
         let ratio = container_ratio * self.aspect_ratio;
         let size = if container_ratio > self.aspect_ratio {
-            (pos.size.0, pos.size.1 * ratio)
+            Vec2 {
+                x: pos.size.x,
+                y: pos.size.y * ratio,
+            }
         } else {
-            (pos.size.0 / ratio, pos.size.1)
+            Vec2 {
+                x: pos.size.x / ratio,
+                y: pos.size.y,
+            }
         };
 
-        let start = ((1. - size.0) / 2., (1. - size.1) / 2.);
+        let start = Vec2 {
+            x: (1. - size.x) / 2.,
+            y: (1. - size.y) / 2.,
+        };
 
         self.child.draw(params, Pos { start, size })
     }
@@ -107,7 +117,7 @@ where
     T: Surface + 'a,
 {
     direction: Direction,
-    size_hint: f32,
+    size_hint: f64,
     // TODO: rethink api
     elements: Vec<&'a Drawable<T>>,
 }
@@ -116,21 +126,21 @@ impl<'a, T> Drawable<T> for EqualDistributingContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
         unimplemented!()
     }
 }
 
 pub enum Size {
     Px(u32),
-    Percent(f32),
+    Percent(f64),
 }
 
 pub struct PixelSizeContainer<'a, T>
 where
     T: 'a,
 {
-    pub resolution: (Size, Size),
+    pub resolution: Vec2<Size>,
     pub child: &'a Drawable<T>,
 }
 
@@ -138,17 +148,17 @@ impl<'a, T> Drawable<T> for PixelSizeContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
-        let size = (
-            match self.resolution.0 {
-                Px(px) => pos.size.0 * (px as f32 / params.screen_size.0 as f32),
-                Percent(percent) => pos.size.0 * percent,
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
+        let size = Vec2 {
+            x: match self.resolution.x {
+                Px(px) => pos.size.x * (px as f64 / params.screen_size.x as f64),
+                Percent(percent) => pos.size.x * percent,
             },
-            match self.resolution.1 {
-                Px(px) => pos.size.1 * (px as f32 / params.screen_size.1 as f32),
-                Percent(percent) => pos.size.1 * percent,
+            y: match self.resolution.y {
+                Px(px) => pos.size.y * (px as f64 / params.screen_size.y as f64),
+                Percent(percent) => pos.size.y * percent,
             },
-        );
+        };
         self.child.draw(
             params,
             Pos {

@@ -1,14 +1,12 @@
 use glium::backend::Facade;
-use glium::index;
 use glium::texture;
 use glium::texture::MipmapsOption;
 use glium::texture::UncompressedFloatFormat;
-use glium::Program;
+use glium::DrawError;
 use glium::Surface;
-use graphical::gl_util;
 use graphical::ui_lib::*;
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::result::Result::Ok;
 use video_io::Image;
 
 pub struct Debayer {
@@ -20,7 +18,7 @@ impl Debayer {
         raw_image: &Image,
         context: &mut Facade,
         cache: &mut Cache,
-    ) -> texture::Texture2d {
+    ) -> Result<texture::Texture2d, DrawError> {
         let target_texture = texture::Texture2d::empty_with_format(
             context,
             UncompressedFloatFormat::U8U8U8U8,
@@ -47,12 +45,15 @@ impl Debayer {
                 surface: &mut target_texture.as_surface(),
                 facade: context,
                 cache,
-                screen_size: (raw_image.width, raw_image.height),
+                screen_size: Vec2 {
+                    x: raw_image.width,
+                    y: raw_image.height,
+                },
             },
             Pos::full(),
-        );
+        )?;
 
-        target_texture
+        Ok(target_texture)
     }
 }
 
@@ -60,8 +61,8 @@ impl<T> Drawable<T> for Debayer
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
-        let texture = Self::debayer(&self.raw_image, params.facade, params.cache);
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) -> DrawResult {
+        let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;
 
         ShaderBox {
             fragment_shader: r#"
@@ -80,6 +81,6 @@ where
             uniforms: uniform! {
                 in_image: &texture,
             },
-        }.draw(params, pos);
+        }.draw(params, pos)
     }
 }

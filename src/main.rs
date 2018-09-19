@@ -1,7 +1,7 @@
-#[macro_use]
-extern crate glium;
 extern crate bus;
 extern crate clap;
+#[macro_use]
+extern crate glium;
 
 use clap::{App, Arg};
 
