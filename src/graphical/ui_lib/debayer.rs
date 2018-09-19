@@ -4,19 +4,23 @@ use glium::texture;
 use glium::texture::MipmapsOption;
 use glium::texture::UncompressedFloatFormat;
 use glium::Program;
+use glium::Surface;
 use graphical::gl_util;
 use graphical::ui_lib::*;
 use std::borrow::Cow;
-use video_io::Image;
 use std::collections::BTreeMap;
-use glium::Surface;
+use video_io::Image;
 
 pub struct Debayer {
     pub raw_image: Image,
 }
 
 impl Debayer {
-    pub fn debayer(raw_image: &Image, context: &mut Facade, cache: &mut Cache) -> texture::Texture2d {
+    pub fn debayer(
+        raw_image: &Image,
+        context: &mut Facade,
+        cache: &mut Cache,
+    ) -> texture::Texture2d {
         let target_texture = texture::Texture2d::empty_with_format(
             context,
             UncompressedFloatFormat::U8U8U8U8,
@@ -38,15 +42,26 @@ impl Debayer {
         ShaderBox {
             fragment_shader: include_str!("debayer.frag").to_string(),
             uniforms: uniform! {raw_image: &source_texture},
-        }.draw(&mut (&mut target_texture.as_surface(), context, cache), Pos::full());
+        }.draw(
+            &mut DrawParams {
+                surface: &mut target_texture.as_surface(),
+                facade: context,
+                cache,
+                screen_size: (raw_image.width, raw_image.height),
+            },
+            Pos::full(),
+        );
 
         target_texture
     }
 }
 
-impl<T> Drawable<T> for Debayer where T : Surface {
+impl<T> Drawable<T> for Debayer
+where
+    T: Surface,
+{
     fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
-        let texture = Self::debayer(&self.raw_image, params.1, params.2);
+        let texture = Self::debayer(&self.raw_image, params.facade, params.cache);
 
         ShaderBox {
             fragment_shader: r#"

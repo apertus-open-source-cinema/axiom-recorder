@@ -8,14 +8,17 @@ use glium::texture::MipmapsOption;
 use glium::texture::UncompressedFloatFormat;
 use glium::*;
 use graphical::settings::Settings;
+use graphical::ui_lib::debayer::Debayer;
+use graphical::ui_lib::util::Size::{Percent, Px};
+use graphical::ui_lib::util::{AspectRatioContainer, ColorBox, PixelSizeContainer};
 use graphical::ui_lib::Drawable;
 use graphical::ui_lib::Pos;
+use graphical::ui_lib::{Cache, DrawParams};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::Duration;
 use std::time::Instant;
 use video_io::Image;
-use graphical::ui_lib::Cache;
 
 mod gl_util;
 mod settings;
@@ -83,28 +86,28 @@ impl Manager {
     }
 
     pub fn redraw(&mut self, raw_image: Image, gui_state: &settings::Settings, cache: &mut Cache) {
+        let screen_size = self.display.get_framebuffer_dimensions();
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
         vec![
-            (
-                &ui_lib::util::AspectRatioContainer {
-                    aspect_ratio: 1.0,
-                    element: &ui_lib::debayer::Debayer { raw_image },
-                } as &Drawable<Frame>,
-                Pos::full(),
-            ),
-            (
-                &ui_lib::util::ColorBox {
+            &AspectRatioContainer {
+                aspect_ratio: 2.0,
+                child: &Debayer { raw_image },
+            } as &Drawable<Frame>,
+            &PixelSizeContainer {
+                resolution: (Percent(1.0), Px(80)),
+                child: &ColorBox {
                     color: [0.0, 0.0, 0.0, 0.5],
                 } as &Drawable<Frame>,
-                Pos {
-                    start: (0., 0.),
-                    size: (1., 0.1),
-                },
-            ),
+            } as &Drawable<Frame>,
         ].draw(
-            &mut (&mut target, &mut self.display, cache),
+            &mut DrawParams {
+                surface: &mut target,
+                facade: &mut self.display,
+                cache,
+                screen_size,
+            },
             Pos::full(),
         );
 

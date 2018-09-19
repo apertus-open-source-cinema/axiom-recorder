@@ -15,11 +15,15 @@ pub mod util;
 
 // Util type aliases, that allows to pass draw Params easier
 pub type Cache = BTreeMap<String, Program>;
-pub type DrawParams<'a, T> where T: Surface = (
-    &'a mut T,
-    &'a mut Facade,
-    &'a mut Cache,
-);
+pub struct DrawParams<'a, T>
+where
+    T: Surface + 'a,
+{
+    pub surface: &'a mut T,
+    pub facade: &'a mut Facade,
+    pub cache: &'a mut Cache,
+    pub screen_size: (u32, u32),
+}
 
 /// Util type for representing the "geographical" properties
 pub struct Pos {
@@ -38,7 +42,10 @@ impl Pos {
 
 /// All drawable elements can be rendered with openGL
 /// a GUI is a single Drawable, that can contain children
-pub trait Drawable<T> where T : Surface {
+pub trait Drawable<T>
+where
+    T: Surface,
+{
     fn draw(&self, params: &mut DrawParams<T>, pos: Pos);
 }
 
@@ -57,23 +64,21 @@ where
     T: Surface,
 {
     fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
-        let (frame, facade, cache) = params;
-
-        if !cache.contains_key(self.fragment_shader.as_str()) {
+        if !params.cache.contains_key(self.fragment_shader.as_str()) {
             let fragment_shader = self.fragment_shader.clone();
             let program = Program::from_source(
-                *facade,
+                params.facade,
                 PASSTHROUGH_VERTEX_SHADER_SRC,
                 self.fragment_shader.as_str(),
                 None,
             ).unwrap();
-            cache.insert(fragment_shader, program);
+            params.cache.insert(fragment_shader, program);
         }
 
-        let program = cache.get(self.fragment_shader.as_str()).unwrap();
+        let program = params.cache.get(self.fragment_shader.as_str()).unwrap();
 
         let vertices = &Vertex::triangle_strip_surface(
-            *facade,
+            params.facade,
             (
                 pos.start.0,
                 pos.start.1,
@@ -81,7 +86,7 @@ where
                 pos.start.1 + pos.size.1,
             ),
         );
-        (*frame).draw(
+        (*params.surface).draw(
             vertices,
             &index::NoIndices(index::PrimitiveType::TriangleStrip),
             &program,

@@ -1,12 +1,17 @@
-use graphical::ui_lib::*;
 use glium::Surface;
+use graphical::ui_lib::util::Size::Percent;
+use graphical::ui_lib::util::Size::Px;
+use graphical::ui_lib::*;
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
 pub struct ColorBox {
     pub color: [f32; 4],
 }
 
-impl<T> Drawable<T> for ColorBox where T: Surface {
+impl<T> Drawable<T> for ColorBox
+where
+    T: Surface,
+{
     fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         ShaderBox {
             fragment_shader: r#"
@@ -27,7 +32,10 @@ impl<T> Drawable<T> for ColorBox where T: Surface {
 
 /// The main container. If you want to draw multiple things, use this.
 /// Every Drawable is drawn to its position relative to the container position
-impl<'a, T> Drawable<T> for Vec<(&'a Drawable<T>, Pos)> where T: Surface {
+impl<'a, T> Drawable<T> for Vec<(&'a Drawable<T>, Pos)>
+where
+    T: Surface,
+{
     fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         for (drawable, drawable_pos) in self {
             // TODO: rethink; check for correctness
@@ -47,23 +55,44 @@ impl<'a, T> Drawable<T> for Vec<(&'a Drawable<T>, Pos)> where T: Surface {
     }
 }
 
-/// Makes a given child keep the given aspect ratio independent of the aspect ratio of this container.
-/// letterboxing of pillarboxing is the result
-pub struct AspectRatioContainer<'a, T> where T: Surface + 'a {
-    pub aspect_ratio: f32,
-    pub element: &'a Drawable<T>,
+/// A less generalized form of the Vec container, here each element is drawn with full width and height.
+impl<'a, T> Drawable<T> for Vec<&'a Drawable<T>>
+where
+    T: Surface,
+{
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+        let vec_with_size: Vec<_> = self.into_iter().map(|elem| (*elem, Pos::full())).collect();
+        vec_with_size.draw(params, pos)
+    }
 }
 
-impl<'a, T> Drawable<T> for AspectRatioContainer<'a, T> where T: Surface + 'a {
+/// Makes a given child keep the given aspect ratio independent of the aspect ratio of this container.
+/// letterboxing of pillarboxing is the result
+pub struct AspectRatioContainer<'a, T>
+where
+    T: Surface + 'a,
+{
+    pub aspect_ratio: f32,
+    pub child: &'a Drawable<T>,
+}
+
+impl<'a, T> Drawable<T> for AspectRatioContainer<'a, T>
+where
+    T: Surface + 'a,
+{
     fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
-        let ratio_difference = pos.size.0 / pos.size.1 - self.aspect_ratio;
-        let size = if ratio_difference > 0. {
-            (1., 1. - ratio_difference)
+        let container_ratio = ((pos.size.0 * params.screen_size.0 as f32)
+            / (pos.size.1 * params.screen_size.1 as f32));
+        let ratio = container_ratio * self.aspect_ratio;
+        let size = if container_ratio > self.aspect_ratio {
+            (pos.size.0, pos.size.1 * ratio)
         } else {
-            (1. - ratio_difference, 1.)
+            (pos.size.0 / ratio, pos.size.1)
         };
 
-        self.element.draw(params, Pos { start: (0., 0.), size })
+        let start = ((1. - size.0) / 2., (1. - size.1) / 2.);
+
+        self.child.draw(params, Pos { start, size })
     }
 }
 
@@ -73,15 +102,59 @@ enum Direction {
     Vertical,
 }
 
-pub struct EqualDistributingContainer<'a, T> where T: Surface + 'a {
+pub struct EqualDistributingContainer<'a, T>
+where
+    T: Surface + 'a,
+{
     direction: Direction,
     size_hint: f32,
     // TODO: rethink api
     elements: Vec<&'a Drawable<T>>,
 }
 
-impl<'a, T> Drawable<T> for EqualDistributingContainer<'a, T> where T: Surface + 'a {
+impl<'a, T> Drawable<T> for EqualDistributingContainer<'a, T>
+where
+    T: Surface + 'a,
+{
     fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
         unimplemented!()
+    }
+}
+
+pub enum Size {
+    Px(u32),
+    Percent(f32),
+}
+
+pub struct PixelSizeContainer<'a, T>
+where
+    T: 'a,
+{
+    pub resolution: (Size, Size),
+    pub child: &'a Drawable<T>,
+}
+
+impl<'a, T> Drawable<T> for PixelSizeContainer<'a, T>
+where
+    T: Surface + 'a,
+{
+    fn draw(&self, params: &mut DrawParams<T>, pos: Pos) {
+        let size = (
+            match self.resolution.0 {
+                Px(px) => pos.size.0 * (px as f32 / params.screen_size.0 as f32),
+                Percent(percent) => pos.size.0 * percent,
+            },
+            match self.resolution.1 {
+                Px(px) => pos.size.1 * (px as f32 / params.screen_size.1 as f32),
+                Percent(percent) => pos.size.1 * percent,
+            },
+        );
+        self.child.draw(
+            params,
+            Pos {
+                start: pos.start,
+                size,
+            },
+        )
     }
 }
