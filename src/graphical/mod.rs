@@ -8,6 +8,7 @@ use graphical::ui_lib::basic_components::ColorBox;
 use graphical::ui_lib::debayer_component::Debayer;
 use graphical::ui_lib::layout_components::Size::{Percent, Px};
 use graphical::ui_lib::layout_components::{AspectRatioContainer, PixelSizeContainer};
+use graphical::ui_lib::text_components::Letter;
 use graphical::ui_lib::{Cache, DrawParams, Drawable, SpacialProperties, Vec2};
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -45,8 +46,6 @@ impl Manager {
         let mut closed = false;
         let mut last_image: Option<Image> = None;
         while !closed {
-            println!("cache size: {}", cache.len());
-
             let now = Instant::now();
             // listing the events produced by application and waiting to be received
             self.event_loop.poll_events(|ev| match ev {
@@ -112,6 +111,7 @@ impl Manager {
                     color: [0.0, 0.0, 0.0, 0.5],
                 } as &Drawable<Frame>,
             } as &Drawable<Frame>,
+            &Letter { chr: "A".parse()? } as &Drawable<Frame>,
         ].draw(
             &mut DrawParams {
                 surface: &mut target,

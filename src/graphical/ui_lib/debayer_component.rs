@@ -4,6 +4,7 @@ use glium::texture::MipmapsOption;
 use glium::texture::UncompressedFloatFormat;
 use glium::DrawError;
 use glium::Surface;
+use graphical::ui_lib::basic_components::TextureBox;
 use graphical::ui_lib::*;
 use std::borrow::Cow;
 use std::result::Result::Ok;
@@ -63,24 +64,6 @@ where
 {
     fn draw(&self, params: &mut DrawParams<T>, sp: SpacialProperties) -> DrawResult {
         let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;
-
-        ShaderBox {
-            fragment_shader: r#"
-                #version 450
-                uniform sampler2D in_image;
-                in vec2 position;
-                out vec4 color;
-
-                void main(void) {
-                    ivec2 size = textureSize(in_image, 0);
-                    ivec2 pos = ivec2(size * position);
-                    pos.y = size.y - pos.y;
-                    color = vec4(texelFetch(in_image, pos, 0));
-                }
-           "#.to_string(),
-            uniforms: uniform! {
-                in_image: &texture,
-            },
-        }.draw(params, sp)
+        TextureBox { texture }.draw(params, sp)
     }
 }

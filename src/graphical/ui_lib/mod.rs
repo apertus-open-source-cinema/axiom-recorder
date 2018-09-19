@@ -16,7 +16,6 @@ mod gl_util;
 pub mod layout_components;
 pub mod list_components;
 pub mod text_components;
-
 use graphical::ui_lib::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 
 // Util type aliases, that allows to pass draw Params easier

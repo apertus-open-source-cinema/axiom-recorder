@@ -1,7 +1,9 @@
 extern crate bus;
-extern crate clap;
 #[macro_use]
 extern crate glium;
+extern crate clap;
+extern crate euclid;
+extern crate font_kit;
 
 use clap::{App, Arg};
 
