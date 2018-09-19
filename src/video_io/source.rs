@@ -3,12 +3,12 @@ use std::thread;
 extern crate bus;
 
 use self::bus::{Bus, BusReader};
+use crate::video_io::Image;
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
-use video_io::Image;
 
 pub trait VideoSource: Send {
     fn get_images(&self, callback: &Fn(Image));

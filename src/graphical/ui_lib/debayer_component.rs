@@ -1,14 +1,14 @@
+use crate::graphical::ui_lib::basic_components::TextureBox;
+use crate::graphical::ui_lib::*;
+use crate::video_io::Image;
 use glium::backend::Facade;
 use glium::texture;
 use glium::texture::MipmapsOption;
 use glium::texture::UncompressedFloatFormat;
 use glium::DrawError;
 use glium::Surface;
-use graphical::ui_lib::basic_components::TextureBox;
-use graphical::ui_lib::*;
 use std::borrow::Cow;
 use std::result::Result::Ok;
-use video_io::Image;
 
 pub struct Debayer {
     pub raw_image: Image,

@@ -1,20 +1,20 @@
 extern crate glium;
 
 use bus::BusReader;
+use crate::graphical::settings::Settings;
+use crate::graphical::ui_lib::basic_components::ColorBox;
+use crate::graphical::ui_lib::debayer_component::Debayer;
+use crate::graphical::ui_lib::layout_components::Size::{Percent, Px};
+use crate::graphical::ui_lib::layout_components::{AspectRatioContainer, PixelSizeContainer};
+use crate::graphical::ui_lib::text_components::Letter;
+use crate::graphical::ui_lib::{Cache, DrawParams, Drawable, SpacialProperties, Vec2};
+use crate::video_io::Image;
 use glium::glutin::{ContextBuilder, EventsLoop, WindowBuilder};
 use glium::*;
-use graphical::settings::Settings;
-use graphical::ui_lib::basic_components::ColorBox;
-use graphical::ui_lib::debayer_component::Debayer;
-use graphical::ui_lib::layout_components::Size::{Percent, Px};
-use graphical::ui_lib::layout_components::{AspectRatioContainer, PixelSizeContainer};
-use graphical::ui_lib::text_components::Letter;
-use graphical::ui_lib::{Cache, DrawParams, Drawable, SpacialProperties, Vec2};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::time::Duration;
 use std::time::Instant;
-use video_io::Image;
 
 mod settings;
 mod ui_lib;

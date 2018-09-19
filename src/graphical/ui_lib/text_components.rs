@@ -1,7 +1,7 @@
 extern crate euclid;
 
+use crate::graphical::ui_lib::*;
 use glium::texture;
-use graphical::ui_lib::*;
 use std::borrow::Cow;
 use std::error::Error;
 use std::result::Result::Ok;
@@ -21,8 +21,10 @@ pub struct Letter {
 impl Letter {
     fn get_bitmap(&self) -> Result<Canvas, Box<Error>> {
         let font = SystemSource::new()
-            .select_best_match(&[FamilyName::SansSerif], &Properties::new()).unwrap()
-            .load().unwrap();
+            .select_best_match(&[FamilyName::SansSerif], &Properties::new())
+            .unwrap()
+            .load()
+            .unwrap();
         let glyph_id = font.glyph_for_char('A').unwrap();
         let mut canvas = Canvas::new(&Size2D::new(32, 32), Format::A8);
         font.rasterize_glyph(

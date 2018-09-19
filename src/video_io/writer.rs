@@ -1,12 +1,12 @@
 extern crate bus;
 
 use self::bus::BusReader;
+use crate::video_io::Image;
 use std::fs::create_dir;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use video_io::Image;
 
 /// An image sink, that somehow stores the images it receives
 trait Writer {

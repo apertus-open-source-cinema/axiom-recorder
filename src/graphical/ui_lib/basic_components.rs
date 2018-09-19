@@ -1,6 +1,6 @@
+use crate::graphical::ui_lib::*;
 use glium::texture;
 use glium::Surface;
-use graphical::ui_lib::*;
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
 pub struct ColorBox {

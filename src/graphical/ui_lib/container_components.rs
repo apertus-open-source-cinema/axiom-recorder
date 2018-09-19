@@ -1,4 +1,4 @@
-use graphical::ui_lib::*;
+use crate::graphical::ui_lib::*;
 
 enum Direction {
     Horizontal,
