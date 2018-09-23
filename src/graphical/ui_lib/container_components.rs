@@ -19,7 +19,7 @@ impl<'a, T> Drawable<T> for EqualDistributingContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, param: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         unimplemented!()
     }
 }

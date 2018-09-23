@@ -28,9 +28,29 @@ where
 type DrawResult = Result<(), DrawError>;
 
 /// Util type for representing the "geographical" properties
+#[derive(Debug)]
 pub struct Vec2<T> {
     pub x: T,
     pub y: T,
+}
+
+impl<T> Vec2<T>
+where
+    T: From<u32>,
+{
+    fn zero() -> Self {
+        Vec2 {
+            x: T::from(0),
+            y: T::from(0),
+        }
+    }
+
+    fn one() -> Self {
+        Vec2 {
+            x: T::from(1),
+            y: T::from(1),
+        }
+    }
 }
 
 impl<T> From<(T, T)> for Vec2<T> {
@@ -42,16 +62,17 @@ impl<T> From<(T, T)> for Vec2<T> {
     }
 }
 
-pub struct SpacialProperties {
+#[derive(Debug)]
+pub struct SpatialProperties {
     pub start: Vec2<f64>,
     pub size: Vec2<f64>,
 }
 
-impl SpacialProperties {
+impl SpatialProperties {
     pub fn full() -> Self {
-        SpacialProperties {
-            start: Vec2 { x: 0., y: 0. },
-            size: Vec2 { x: 1., y: 1. },
+        SpatialProperties {
+            start: Vec2::zero(),
+            size: Vec2::one(),
         }
     }
 }
@@ -62,7 +83,7 @@ pub trait Drawable<T>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult;
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult;
 }
 
 /// Draws a given fragment shader onto a given Box. The heart of all other Drawables
@@ -79,7 +100,7 @@ where
     U: Uniforms,
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         if !params.cache.contains_key(self.fragment_shader.as_str()) {
             let fragment_shader = self.fragment_shader.clone();
             let program = Program::from_source(

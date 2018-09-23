@@ -15,7 +15,7 @@ impl<'a, T> Drawable<T> for AspectRatioContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         let container_ratio =
             (sp.size.x * params.screen_size.x as f64) / (sp.size.y * params.screen_size.y as f64);
         let ratio = container_ratio * (1. / self.aspect_ratio);
@@ -36,7 +36,7 @@ where
             y: (1. - size.y) / 2.,
         };
 
-        self.child.draw(params, SpacialProperties { start, size })
+        self.child.draw(params, SpatialProperties { start, size })
     }
 }
 
@@ -45,35 +45,35 @@ pub enum Size {
     Percent(f64),
 }
 
-pub struct PixelSizeContainer<'a, T>
+pub struct SizeContainer<'a, T>
 where
     T: 'a,
 {
-    pub resolution: Vec2<Size>,
+    pub size: Vec2<Size>,
+    pub anchor: Vec2<f64>,
     pub child: &'a dyn Drawable<T>,
 }
 
-impl<'a, T> Drawable<T> for PixelSizeContainer<'a, T>
+impl<'a, T> Drawable<T> for SizeContainer<'a, T>
 where
     T: Surface + 'a,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         let size = Vec2 {
-            x: match self.resolution.x {
-                Px(px) => sp.size.x * (px as f64 / params.screen_size.x as f64),
+            x: match self.size.x {
+                Px(px) => sp.size.x * (px as f64 / (params.screen_size.x as f64 * sp.size.x)),
                 Percent(percent) => sp.size.x * percent,
             },
-            y: match self.resolution.y {
-                Px(px) => sp.size.y * (px as f64 / params.screen_size.y as f64),
+            y: match self.size.y {
+                Px(px) => sp.size.y * (px as f64 / (params.screen_size.y as f64 * sp.size.y)),
                 Percent(percent) => sp.size.y * percent,
             },
         };
-        self.child.draw(
-            params,
-            SpacialProperties {
-                start: sp.start,
-                size,
-            },
-        )
+
+        let start = Vec2 {
+            x: sp.start.x + (sp.size.x - size.x) * self.anchor.x,
+            y: sp.start.y + (sp.size.y - size.y) * self.anchor.y,
+        };
+        self.child.draw(params, SpatialProperties { start, size })
     }
 }

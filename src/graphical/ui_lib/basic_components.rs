@@ -10,7 +10,7 @@ impl<T> Drawable<T> for ColorBox
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -37,7 +37,7 @@ impl<T> Drawable<T> for TextureBox
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -54,6 +54,40 @@ where
            "#.to_string(),
             uniforms: uniform! {
                 in_image: &self.texture,
+            },
+        }.draw(params, sp)
+    }
+}
+
+/// renders a simple textured box with a single color.
+pub struct MonoTextureBox {
+    pub texture: texture::Texture2d,
+    pub color: [f32; 4],
+}
+
+impl<T> Drawable<T> for MonoTextureBox
+where
+    T: Surface,
+{
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+        ShaderBox {
+            fragment_shader: r#"
+                #version 450
+                uniform sampler2D in_image;
+                uniform vec4 in_color;
+                in vec2 position;
+                out vec4 color;
+
+                void main(void) {
+                    ivec2 size = textureSize(in_image, 0);
+                    ivec2 pos = ivec2(size * position);
+                    pos.y = size.y - pos.y;
+                    color = texelFetch(in_image, pos, 0).r * in_color;
+                }
+           "#.to_string(),
+            uniforms: uniform! {
+                in_image: &self.texture,
+                in_color: self.color
             },
         }.draw(params, sp)
     }

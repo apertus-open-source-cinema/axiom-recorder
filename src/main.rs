@@ -1,3 +1,5 @@
+extern crate font_kit;
+
 use clap::{App, Arg};
 
 mod graphical;

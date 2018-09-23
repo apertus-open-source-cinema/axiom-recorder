@@ -66,16 +66,16 @@ impl Manager {
             let draw_result = match self
                 .raw_image_source
                 .recv_timeout(Duration::from_millis(10))
-            {
-                Result::Err(_) => match last_image.clone() {
-                    None => Ok(()),
-                    Some(image) => self.redraw(image, &gui_settings, cache),
-                },
-                Result::Ok(image) => {
-                    last_image = Some(image.clone());
-                    self.redraw(image, &gui_settings, cache)
-                }
-            };
+                {
+                    Result::Err(_) => match last_image.clone() {
+                        None => Ok(()),
+                        Some(image) => self.redraw(image, &gui_settings, cache),
+                    },
+                    Result::Ok(image) => {
+                        last_image = Some(image.clone());
+                        self.redraw(image, &gui_settings, cache)
+                    }
+                };
 
             if draw_result.is_err() {
                 println!("draw error occured: \n {:#?}", draw_result.err().unwrap());
@@ -96,12 +96,36 @@ impl Manager {
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
         let draw_result = vec![
+            // the debayered image
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
                 child: &Debayer { raw_image },
             } as &dyn Drawable<Frame>,
-            &PixelSizeContainer {
-                resolution: Vec2 {
+            // the top bar
+            &SizeContainer {
+                anchor: Vec2 { x: 0., y: 1. },
+                size: Vec2 {
+                    x: Percent(1.0),
+                    y: Px(50),
+                },
+                child: &vec![
+                    &ColorBox {
+                        color: [0.0, 0.0, 0.0, 0.5],
+                    } as &dyn Drawable<Frame>,
+                    &Text {
+                        str: "ISO 800".to_string(),
+                        size: 30,
+                    } as &dyn Drawable<Frame>,
+                ] as &dyn Drawable<Frame>,
+            } as &dyn Drawable<Frame>,
+            &Text {
+                str: "Apertus° AXIOM recorder".to_string(),
+                size: 40,
+            } as &dyn Drawable<Frame>,
+            // the bottom bar
+            &SizeContainer {
+                anchor: Vec2 { x: 0., y: 0. },
+                size: Vec2 {
                     x: Percent(1.0),
                     y: Px(80),
                 },
@@ -109,7 +133,6 @@ impl Manager {
                     color: [0.0, 0.0, 0.0, 0.5],
                 } as &dyn Drawable<Frame>,
             } as &dyn Drawable<Frame>,
-            &Letter { chr: "A".parse()? } as &dyn Drawable<Frame>,
         ].draw(
             &mut DrawParams {
                 surface: &mut target,
@@ -117,7 +140,7 @@ impl Manager {
                 cache,
                 screen_size,
             },
-            SpacialProperties::full(),
+            SpatialProperties::full(),
         );
 
         target.finish()?;

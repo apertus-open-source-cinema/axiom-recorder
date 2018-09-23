@@ -2,13 +2,38 @@ use crate::graphical::ui_lib::*;
 
 /// The most generic list container. If you want to draw multiple things, use this.
 /// Every Drawable is drawn to its position relative to the container position
-impl<'a, T> Drawable<T> for Vec<(&'a dyn Drawable<T>, SpacialProperties)>
+impl<'a, T> Drawable<T> for Vec<(&'a dyn Drawable<T>, SpatialProperties)>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         for (drawable, child_sp) in self {
-            let absolute_sp = SpacialProperties {
+            let absolute_sp = SpatialProperties {
+                start: Vec2 {
+                    x: (child_sp.start.x * sp.size.x) + sp.start.x,
+                    y: (child_sp.start.y * sp.size.y) + sp.start.y,
+                },
+                size: Vec2 {
+                    x: child_sp.size.x * sp.size.x,
+                    y: child_sp.size.y * sp.size.y,
+                },
+            };
+
+            drawable.draw(params, absolute_sp)?
+        }
+        Ok(())
+    }
+}
+
+/// Sometimes, its not possible, to have a the drawable in the heap
+impl<'a, T> Drawable<T> for Vec<(Box<dyn Drawable<T>>, SpatialProperties)>
+where
+    T: Surface,
+{
+    // TODO: having the exact same code twice, really, really sucks
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+        for (drawable, child_sp) in self {
+            let absolute_sp = SpatialProperties {
                 start: Vec2 {
                     x: (child_sp.start.x * sp.size.x) + sp.start.x,
                     y: (child_sp.start.y * sp.size.y) + sp.start.y,
@@ -30,10 +55,10 @@ impl<'a, T> Drawable<T> for Vec<&'a dyn Drawable<T>>
 where
     T: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpacialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         let vec_with_size: Vec<_> = self
             .into_iter()
-            .map(|elem| (*elem, SpacialProperties::full()))
+            .map(|elem| (*elem, SpatialProperties::full()))
             .collect();
         vec_with_size.draw(params, sp)
     }
