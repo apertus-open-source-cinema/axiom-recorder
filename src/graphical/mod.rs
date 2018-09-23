@@ -66,16 +66,16 @@ impl Manager {
             let draw_result = match self
                 .raw_image_source
                 .recv_timeout(Duration::from_millis(10))
-                {
-                    Result::Err(_) => match last_image.clone() {
-                        None => Ok(()),
-                        Some(image) => self.redraw(image, &gui_settings, cache),
-                    },
-                    Result::Ok(image) => {
-                        last_image = Some(image.clone());
-                        self.redraw(image, &gui_settings, cache)
-                    }
-                };
+            {
+                Result::Err(_) => match last_image.clone() {
+                    None => Ok(()),
+                    Some(image) => self.redraw(image, &gui_settings, cache),
+                },
+                Result::Ok(image) => {
+                    last_image = Some(image.clone());
+                    self.redraw(image, &gui_settings, cache)
+                }
+            };
 
             if draw_result.is_err() {
                 println!("draw error occured: \n {:#?}", draw_result.err().unwrap());
@@ -117,10 +117,6 @@ impl Manager {
                         size: 30,
                     } as &dyn Drawable<Frame>,
                 ] as &dyn Drawable<Frame>,
-            } as &dyn Drawable<Frame>,
-            &Text {
-                str: "Apertus° AXIOM recorder".to_string(),
-                size: 40,
             } as &dyn Drawable<Frame>,
             // the bottom bar
             &SizeContainer {

@@ -1,5 +1,4 @@
-extern crate font_kit;
-
+#![feature(specialization)]
 use clap::{App, Arg};
 
 mod graphical;

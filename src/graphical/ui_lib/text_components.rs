@@ -1,5 +1,6 @@
 use super::{
     basic_components::*,
+    container_components::*,
     layout_components::{Size::*, *},
     *,
 };
@@ -109,28 +110,16 @@ where
 {
     fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
         let len = self.str.len();
-        let drawables_vec: Vec<_> = self
-            .str
-            .chars()
-            .enumerate()
-            .map(|(i, chr)| {
-                (
+        let drawable_container = EqualDistributingContainer::Horizontal(
+            self.str
+                .chars()
+                .map(|chr| {
                     Box::from(Letter {
                         chr,
                         size: self.size,
-                    }) as Box<Drawable<T>>,
-                    SpatialProperties {
-                        start: Vec2 {
-                            x: (1. / len as f64) * i as f64,
-                            y: 0.,
-                        },
-                        size: Vec2 {
-                            x: 1. / len as f64,
-                            y: 1.,
-                        },
-                    },
-                )
-            }).collect();
+                    }) as Box<Drawable<T>>
+                }).collect(),
+        );
 
         SizeContainer {
             anchor: Vec2 { x: 0.5, y: 0.5 },
@@ -138,7 +127,7 @@ where
                 x: Px((len as f64 * self.size as f64 * LETTER_WIDTH) as u32),
                 y: Px(self.size),
             },
-            child: &drawables_vec as &dyn Drawable<T>,
+            child: &drawable_container as &dyn Drawable<T>,
         }.draw(params, sp)
     }
 }
