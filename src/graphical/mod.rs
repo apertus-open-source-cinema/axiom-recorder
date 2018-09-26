@@ -94,12 +94,12 @@ impl Manager {
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
-        let draw_result = vec![
+        let draw_result = (vec![
             // the debayered image
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
-                child: &Debayer { raw_image } as &dyn Drawable<_>,
-            } as &dyn Drawable<_>,
+                child: &Debayer { raw_image },
+            },
             // the top bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 1. },
@@ -107,15 +107,15 @@ impl Manager {
                 child: &(vec![
                     &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
                     &Text { str: "ISO 800".to_string(), size: 30 },
-                ]: Vec<&Drawable<_>>) as &dyn Drawable<_>,
-            } as &dyn Drawable<_>,
+                ]: Vec<&Drawable<_>>),
+            },
             // the bottom bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 0. },
                 size: Vec2 { x: Percent(1.0), y: Px(80) },
-                child: &ColorBox { color: [0.0, 0.0, 0.0, 0.5] } as &dyn Drawable<_>,
-            } as &dyn Drawable<_>,
-        ].draw(
+                child: &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
+            },
+        ]: Vec<&Drawable<_>>).draw(
             &mut DrawParams { surface: &mut target, facade: &mut self.display, cache, screen_size },
             SpatialProperties::full(),
         );
