@@ -1,43 +1,31 @@
 use crate::graphical::ui_lib::*;
-use std::ops::Deref;
+use glium::Surface;
 
-/// The most generic list container. If you want to draw multiple things, use this.
-/// Every Drawable is drawn to its position relative to the container position
-impl<D, T> Drawable<T> for Vec<(D, SpatialProperties)>
+/// A generic list container. If you want to draw multiple things, use this.
+impl<S> Drawable<S> for Vec<&Drawable<S>>
 where
-    D: Deref<Target = Drawable<T>>,
-    T: Surface,
+    S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
-        for (drawable, child_sp) in self {
-            let absolute_sp = SpatialProperties {
-                start: Vec2 {
-                    x: (child_sp.start.x * sp.size.x) + sp.start.x,
-                    y: (child_sp.start.y * sp.size.y) + sp.start.y,
-                },
-                size: Vec2 {
-                    x: child_sp.size.x * sp.size.x,
-                    y: child_sp.size.y * sp.size.y,
-                },
-            };
-
-            drawable.draw(params, absolute_sp)?
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+        for drawable in self {
+            drawable.draw(params, sp.clone())?;
         }
+
         Ok(())
     }
 }
 
-/// A less generalized form of the Vec container, here each element is drawn with full width and height.
-default impl<D, T> Drawable<T> for Vec<D>
-where
-    D: Deref<Target = Drawable<T>>,
-    T: Surface,
+
+/// A generic list container. If you want to draw multiple things, use this.
+impl<S> Drawable<S> for Vec<Box<Drawable<S>>>
+    where
+        S: Surface,
 {
-    default fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
-        let vec_with_size: Vec<_> = self
-            .into_iter()
-            .map(|elem| (*elem, SpatialProperties::full()))
-            .collect();
-        vec_with_size.draw(params, sp)
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+        for drawable in self {
+            drawable.draw(params, sp.clone())?;
+        }
+
+        Ok(())
     }
 }

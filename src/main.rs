@@ -1,4 +1,4 @@
-#![feature(specialization)]
+#![feature(type_ascription)]
 use clap::{App, Arg};
 
 mod graphical;
@@ -19,19 +19,9 @@ fn main() {
                     2 => Result::Ok(()),
                     _ => Result::Err(String::from("invalid source URI format.")),
                 }),
-        ).arg(
-            Arg::with_name("width")
-                .short("w")
-                .long("width")
-                .takes_value(true)
-                .required(true),
-        ).arg(
-            Arg::with_name("height")
-                .short("h")
-                .long("height")
-                .takes_value(true)
-                .required(true),
-        ).get_matches();
+        ).arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
+        .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
+        .get_matches();
 
     let source = arguments.value_of("video_source").unwrap();
     let parts = source.split("://").collect::<Vec<_>>();

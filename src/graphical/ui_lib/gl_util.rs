@@ -1,6 +1,4 @@
-use glium::backend::Facade;
-use glium::implement_vertex;
-use glium::VertexBuffer;
+use glium::{backend::Facade, implement_vertex, VertexBuffer};
 
 pub const PASSTHROUGH_VERTEX_SHADER_SRC: &str = r#"
     #version 140
@@ -22,8 +20,8 @@ pub struct Vertex {
 implement_vertex!(Vertex, absolute_position, relative_position);
 
 impl Vertex {
-    /// Creates the Vertices, which will result in a Rectangle, if drawn as triangle strip
-    /// The coordinates are normalized to a range from 0 to 1
+    /// Creates the Vertices, which will result in a Rectangle, if drawn as
+    /// triangle strip The coordinates are normalized to a range from 0 to 1
     pub fn triangle_strip_surface(
         context: &dyn Facade,
         corners: (f64, f64, f64, f64),

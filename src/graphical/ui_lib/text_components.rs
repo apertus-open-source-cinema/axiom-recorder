@@ -5,14 +5,14 @@ use super::{
     *,
 };
 use glium::texture;
-use std::borrow::Cow;
-use std::error::Error;
-use std::result::Result::Ok;
+use std::{borrow::Cow, error::Error, result::Result::Ok};
 
 use euclid::{Point2D, Size2D};
-use font_kit::canvas::{Canvas, Format, RasterizationOptions};
-use font_kit::hinting::HintingOptions;
-use font_kit::loaders::freetype::Font;
+use font_kit::{
+    canvas::{Canvas, Format, RasterizationOptions},
+    hinting::HintingOptions,
+    loaders::freetype::Font,
+};
 use std::sync::Arc;
 
 /// Draws a single glyph. Do not use this Directly
@@ -36,10 +36,7 @@ impl Letter {
                 HintingOptions::None,
                 RasterizationOptions::GrayscaleAa,
             ).unwrap();
-        let size = &Size2D::new(
-            raster_bounds.size.width as u32,
-            raster_bounds.size.height as u32,
-        );
+        let size = &Size2D::new(raster_bounds.size.width as u32, raster_bounds.size.height as u32);
         let mut canvas = Canvas::new(size, Format::A8);
 
         font.rasterize_glyph(
@@ -50,21 +47,15 @@ impl Letter {
             HintingOptions::None,
             RasterizationOptions::GrayscaleAa,
         ).unwrap();
-        Ok((
-            canvas,
-            Vec2 {
-                x: raster_bounds.origin.x,
-                y: raster_bounds.origin.y,
-            },
-        ))
+        Ok((canvas, Vec2 { x: raster_bounds.origin.x, y: raster_bounds.origin.y }))
     }
 }
 
-impl<T> Drawable<T> for Letter
+impl<S> Drawable<S> for Letter
 where
-    T: Surface,
+    S: Surface + 'static,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let (bitmap, offset) = self.get_bitmap(self.size).unwrap();
         let texture = texture::Texture2d::new(
             params.facade,
@@ -81,17 +72,11 @@ where
                 x: Px((self.size as i32 - offset.x) as u32),
                 y: Px((self.size as i32 - offset.y) as u32),
             },
-            child: &SizeContainer {
+            child: &(SizeContainer {
                 anchor: Vec2::zero(),
-                size: Vec2 {
-                    x: Px(bitmap.size.width),
-                    y: Px(bitmap.size.height),
-                },
-                child: &MonoTextureBox {
-                    color: [1., 1., 1., 1.],
-                    texture,
-                } as &Drawable<T>,
-            } as &Drawable<T>,
+                size: Vec2 { x: Px(bitmap.size.width), y: Px(bitmap.size.height) },
+                child: &MonoTextureBox { color: [1., 1., 1., 1.], texture },
+            }),
         }.draw(params, sp)?;
         Ok(())
     }
@@ -104,22 +89,18 @@ pub struct Text {
 }
 
 const LETTER_WIDTH: f64 = 0.6;
-impl<'a, T> Drawable<T> for Text
+
+impl<S> Drawable<S> for Text
 where
-    T: Surface + 'a,
+    S: Surface + 'static,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let len = self.str.len();
-        let drawable_container = EqualDistributingContainer::Horizontal(
-            self.str
+        let letters = self.str
                 .chars()
-                .map(|chr| {
-                    Box::from(Letter {
-                        chr,
-                        size: self.size,
-                    }) as Box<Drawable<T>>
-                }).collect(),
-        );
+                .map(|chr| Box::from(Letter { chr, size: self.size }) as Box<Drawable<_>>)
+                .collect() : Vec<_>;
+        let drawable_container = EqualDistributingContainer::Horizontal(letters);
 
         SizeContainer {
             anchor: Vec2 { x: 0.5, y: 0.5 },
@@ -127,7 +108,7 @@ where
                 x: Px((len as f64 * self.size as f64 * LETTER_WIDTH) as u32),
                 y: Px(self.size),
             },
-            child: &drawable_container as &dyn Drawable<T>,
+            child: &drawable_container ,
         }.draw(params, sp)
     }
 }

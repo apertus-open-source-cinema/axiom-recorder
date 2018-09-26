@@ -1,47 +1,40 @@
 use self::EqualDistributingContainer::*;
-use crate::graphical::ui_lib::*;
-use std::ops::Deref;
+use crate::graphical::ui_lib::{
+    layout_components::LocationContainer,
+    *
+};
 
 // a container, that distributes the space evenly between its children
-pub enum EqualDistributingContainer<D, T>
-where
-    D: Deref<Target = Drawable<T>>,
-    T: Surface,
+pub enum EqualDistributingContainer<S>
+    where
+        S: Surface,
 {
-    Horizontal(Vec<D>),
-    Vertical(Vec<D>),
+    Horizontal(Vec<Box<Drawable<S>>>),
+    Vertical(Vec<Box<Drawable<S>>>),
 }
 
-impl<D, T> Drawable<T> for EqualDistributingContainer<D, T>
-where
-    D: Deref<Target = Drawable<T>>,
-    T: Surface,
+impl<S> Drawable<S> for EqualDistributingContainer<S>
+    where
+        S: Surface,
 {
-    fn draw(&self, param: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, param: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let children = match self {
             Horizontal(vec) => vec,
             Vertical(vec) => vec,
         };
         let len = children.len();
 
-        let drawable_vec: Vec<_> = children
-            .iter()
-            .enumerate()
-            .map(|(i, child)| {
-                (
-                    *child,
-                    SpatialProperties {
-                        start: Vec2 {
-                            x: (1. / len as f64) * i as f64,
-                            y: 0.,
-                        },
-                        size: Vec2 {
-                            x: 1. / len as f64,
-                            y: 1.,
-                        },
-                    },
-                )
-            }).collect();
-        drawable_vec.draw(param, sp)
+        for (i, child) in children.into_iter().enumerate() {
+            let container = &LocationContainer {
+                child: child.as_ref(),
+                sp: SpatialProperties {
+                    start: Vec2 { x: (1. / len as f64) * i as f64, y: 0. },
+                    size: Vec2 { x: 1. / len as f64, y: 1. },
+                },
+            };
+            (container as &Drawable<_>).draw(param, sp.clone())?
+        }
+
+        Ok(())
     }
 }

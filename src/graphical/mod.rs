@@ -1,18 +1,24 @@
-use self::settings::Settings;
-use self::ui_lib::{
-    basic_components::*,
-    debayer_component::*,
-    layout_components::{Size::*, *},
-    text_components::*,
-    *,
+use self::{
+    settings::Settings,
+    ui_lib::{
+        basic_components::*,
+        debayer_component::*,
+        layout_components::{Size::*, *},
+        text_components::*,
+        *,
+    },
 };
 use bus::BusReader;
 use crate::video_io::Image;
-use glium::glutin::{ContextBuilder, EventsLoop, WindowBuilder};
-use glium::*;
-use std::collections::BTreeMap;
-use std::error::Error;
-use std::time::{Duration, Instant};
+use glium::{
+    glutin::{ContextBuilder, EventsLoop, WindowBuilder},
+    *,
+};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    time::{Duration, Instant},
+};
 
 mod settings;
 mod ui_lib;
@@ -31,11 +37,7 @@ impl Manager {
         let context = ContextBuilder::new();
         let display = Display::new(window, context, &event_loop).unwrap();
 
-        Manager {
-            display,
-            raw_image_source,
-            event_loop,
-        }
+        Manager { display, raw_image_source, event_loop }
     }
 
     pub fn run_event_loop(&mut self) {
@@ -63,10 +65,7 @@ impl Manager {
                 grid: settings::Grid::None,
             };
 
-            let draw_result = match self
-                .raw_image_source
-                .recv_timeout(Duration::from_millis(10))
-            {
+            let draw_result = match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
                 Result::Err(_) => match last_image.clone() {
                     None => Ok(()),
                     Some(image) => self.redraw(image, &gui_settings, cache),
@@ -99,43 +98,25 @@ impl Manager {
             // the debayered image
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
-                child: &Debayer { raw_image },
-            } as &dyn Drawable<Frame>,
+                child: &Debayer { raw_image } as &dyn Drawable<_>,
+            } as &dyn Drawable<_>,
             // the top bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 1. },
-                size: Vec2 {
-                    x: Percent(1.0),
-                    y: Px(50),
-                },
-                child: &vec![
-                    &ColorBox {
-                        color: [0.0, 0.0, 0.0, 0.5],
-                    } as &dyn Drawable<Frame>,
-                    &Text {
-                        str: "ISO 800".to_string(),
-                        size: 30,
-                    } as &dyn Drawable<Frame>,
-                ] as &dyn Drawable<Frame>,
-            } as &dyn Drawable<Frame>,
+                size: Vec2 { x: Percent(1.0), y: Px(50) },
+                child: &(vec![
+                    &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
+                    &Text { str: "ISO 800".to_string(), size: 30 },
+                ]: Vec<&Drawable<_>>) as &dyn Drawable<_>,
+            } as &dyn Drawable<_>,
             // the bottom bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 0. },
-                size: Vec2 {
-                    x: Percent(1.0),
-                    y: Px(80),
-                },
-                child: &ColorBox {
-                    color: [0.0, 0.0, 0.0, 0.5],
-                } as &dyn Drawable<Frame>,
-            } as &dyn Drawable<Frame>,
+                size: Vec2 { x: Percent(1.0), y: Px(80) },
+                child: &ColorBox { color: [0.0, 0.0, 0.0, 0.5] } as &dyn Drawable<_>,
+            } as &dyn Drawable<_>,
         ].draw(
-            &mut DrawParams {
-                surface: &mut target,
-                facade: &mut self.display,
-                cache,
-                screen_size,
-            },
+            &mut DrawParams { surface: &mut target, facade: &mut self.display, cache, screen_size },
             SpatialProperties::full(),
         );
 

@@ -6,11 +6,11 @@ pub struct ColorBox {
     pub color: [f32; 4],
 }
 
-impl<T> Drawable<T> for ColorBox
+impl<S> Drawable<S> for ColorBox
 where
-    T: Surface,
+    S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -33,11 +33,11 @@ pub struct TextureBox {
     pub texture: texture::Texture2d,
 }
 
-impl<T> Drawable<T> for TextureBox
+impl<S> Drawable<S> for TextureBox
 where
-    T: Surface,
+    S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -65,11 +65,11 @@ pub struct MonoTextureBox {
     pub color: [f32; 4],
 }
 
-impl<T> Drawable<T> for MonoTextureBox
+impl<S> Drawable<S> for MonoTextureBox
 where
-    T: Surface,
+    S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, T>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         ShaderBox {
             fragment_shader: r#"
                 #version 450

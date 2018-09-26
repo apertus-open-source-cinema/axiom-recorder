@@ -13,7 +13,8 @@ trait Writer {
     fn stop(&self);
 }
 
-/// A writer, that simply writes the bytes of the received images to a single file
+/// A writer, that simply writes the bytes of the received images to a single
+/// file
 pub struct RawBlobWriter {
     stop_channel: Sender<()>,
 }
@@ -38,9 +39,7 @@ impl Writer for RawBlobWriter {
         RawBlobWriter { stop_channel: tx }
     }
 
-    fn stop(&self) {
-        self.stop_channel.send(()).unwrap();
-    }
+    fn stop(&self) { self.stop_channel.send(()).unwrap(); }
 }
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
@@ -70,12 +69,8 @@ impl Writer for CinemaDngWriter {
             }
         });
 
-        CinemaDngWriter {
-            stop_channel: stop_tx,
-        }
+        CinemaDngWriter { stop_channel: stop_tx }
     }
 
-    fn stop(&self) {
-        self.stop_channel.send(()).unwrap();
-    }
+    fn stop(&self) { self.stop_channel.send(()).unwrap(); }
 }

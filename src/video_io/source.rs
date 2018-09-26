@@ -1,11 +1,13 @@
 use super::Image;
 use bus::{Bus, BusReader};
-use std::fs::File;
-use std::io::prelude::*;
-use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::SystemTime;
+use std::{
+    fs::File,
+    io::prelude::*,
+    net::TcpStream,
+    sync::{Arc, Mutex},
+    thread,
+    time::SystemTime,
+};
 
 pub trait VideoSource: Send {
     fn get_images(&self, callback: &dyn Fn(Image));
@@ -35,9 +37,7 @@ impl BufferedVideoSource {
         BufferedVideoSource { _tx: tx }
     }
 
-    pub fn subscribe(&self) -> BusReader<Image> {
-        self._tx.lock().unwrap().add_rx()
-    }
+    pub fn subscribe(&self) -> BusReader<Image> { self._tx.lock().unwrap().add_rx() }
 }
 
 // File video source
@@ -54,12 +54,8 @@ impl VideoSource for FileVideoSource {
         file.read_exact(&mut bytes).unwrap();
 
         loop {
-            let image = Image {
-                width: self.width,
-                height: self.height,
-                bit_depth: 8,
-                data: bytes.clone(),
-            };
+            let image =
+                Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
             callback(image)
         }
     }
@@ -80,21 +76,15 @@ impl VideoSource for EthernetVideoSource {
         let mut start = SystemTime::now();
 
         loop {
-            //            let mut bytes = Vec::with_capacity((self.width * self.height) as usize);
+            //            let mut bytes = Vec::with_capacity((self.width * self.height) as
+            // usize);
             let mut bytes = vec![0u8; (self.width * self.height) as usize];
 
             stream.read_exact(&mut bytes).unwrap();
 
-            let image = Image {
-                width: self.width,
-                height: self.height,
-                bit_depth: 8,
-                data: bytes,
-            };
+            let image = Image { width: self.width, height: self.height, bit_depth: 8, data: bytes };
 
-            let time = SystemTime::now()
-                .duration_since(start)
-                .expect("Time went backwards");
+            let time = SystemTime::now().duration_since(start).expect("Time went backwards");
             if time.as_secs() > 1 {
                 let in_ms = time.as_secs() * 1000 + time.subsec_nanos() as u64 / 1_000_000;
 
