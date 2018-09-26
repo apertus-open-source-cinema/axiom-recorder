@@ -36,8 +36,8 @@ impl<T> Vec2<T>
 where
     T: From<u32>,
 {
-    fn zero() -> Self { Vec2 { x: T::from(0), y: T::from(0) } }
-    fn one() -> Self { Vec2 { x: T::from(1), y: T::from(1) } }
+    pub fn zero() -> Self { Vec2 { x: T::from(0), y: T::from(0) } }
+    pub fn one() -> Self { Vec2 { x: T::from(1), y: T::from(1) } }
 }
 
 impl<T> From<(T, T)> for Vec2<T> {

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 // the main struct, that stores all settings data needed for drawing the UI
 pub struct Settings {
     pub shutter_angle: f64,
@@ -7,13 +9,29 @@ pub struct Settings {
     pub grid: Grid,
 }
 
-pub enum Grid {
-    Grid3x3,
-    None,
+impl Settings {
+    pub fn as_text(&self) -> Vec<String> {
+        vec![
+            format!("ISO {}", self.iso),
+            format!("{} fps", self.fps),
+            format!("{}°", self.shutter_angle),
+            format!("{:#?}", self.recording_format),
+            format!("{:#?}", self.grid),
+        ]
+    }
 }
 
+#[derive(Debug)]
+pub enum Grid {
+    Grid3x3,
+    NoGrid,
+}
+
+#[derive(Debug)]
 pub enum RecordingFormat {
     CinemaDNG,
     MLV,
-    RawN,
+    Raw8,
+    Raw12,
+    Raw16,
 }

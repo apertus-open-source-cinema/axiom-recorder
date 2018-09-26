@@ -5,6 +5,7 @@ use self::{
         debayer_component::*,
         layout_components::{Size::*, *},
         text_components::*,
+        container_components::*,
         *,
     },
 };
@@ -58,11 +59,11 @@ impl Manager {
 
             // look, wether we should debayer a new image
             let gui_settings: Settings = Settings {
-                shutter_angle: 0.0,
-                iso: 0.0,
-                fps: 0.0,
-                recording_format: settings::RecordingFormat::RawN,
-                grid: settings::Grid::None,
+                shutter_angle: 270.0,
+                iso: 800.0,
+                fps: 24.0,
+                recording_format: settings::RecordingFormat::Raw8,
+                grid: settings::Grid::NoGrid,
             };
 
             let draw_result = match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
@@ -104,16 +105,45 @@ impl Manager {
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 1. },
                 size: Vec2 { x: Percent(1.0), y: Px(50) },
-                child: &(vec![
+                child: &vec![
                     &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
-                    &Text { str: "ISO 800".to_string(), size: 30 },
-                ]: Vec<&Drawable<_>>),
+                    &SizeContainer {
+                        anchor: Vec2::one(),
+                        size: Vec2 { x: Percent(1.0), y: Px(42) },
+                        child: &EqualDistributingContainer::Horizontal(
+                            gui_state.as_text()
+                                .into_iter()
+                                .map(|text| Box::from(Text { str: text, size: 25, color: [1., 1., 1., 1.] }) as Box<Drawable<_>>)
+                                .collect()
+                        ),
+                    },
+                ]: &Vec<&Drawable<_>>,
             },
             // the bottom bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 0. },
                 size: Vec2 { x: Percent(1.0), y: Px(80) },
-                child: &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
+                child: &vec![
+                    &ColorBox {
+                        color: [0.0, 0.0, 0.0, 0.5],
+                    },
+                    &SizeContainer {
+                        anchor: Vec2 { x: 1., y: 0. },
+                        size: Vec2 {
+                            x: Px(300),
+                            y: Px(80),
+                        },
+                        child: &Text { str: "00:00:00:00".to_string(), size: 25, color: [1., 1., 1., 1.] },
+                    },
+                    &SizeContainer {
+                        anchor: Vec2 { x: 1., y: 0. },
+                        size: Vec2 {
+                            x: Px(300 * 2 - 50),
+                            y: Px(89),
+                        },
+                        child: &Text { str: "●".to_string(), size: 30, color: [1., 0., 0., 1.] },
+                    }
+                ]: &Vec<&Drawable<_>>,
             },
         ]: Vec<&Drawable<_>>).draw(
             &mut DrawParams { surface: &mut target, facade: &mut self.display, cache, screen_size },

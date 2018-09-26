@@ -19,6 +19,7 @@ use std::sync::Arc;
 pub struct Letter {
     pub chr: char,
     pub size: u32,
+    pub color: [f32; 4],
 }
 
 impl Letter {
@@ -75,7 +76,7 @@ where
             child: &(SizeContainer {
                 anchor: Vec2::zero(),
                 size: Vec2 { x: Px(bitmap.size.width), y: Px(bitmap.size.height) },
-                child: &MonoTextureBox { color: [1., 1., 1., 1.], texture },
+                child: &MonoTextureBox { color: self.color, texture },
             }),
         }.draw(params, sp)?;
         Ok(())
@@ -86,6 +87,7 @@ where
 pub struct Text {
     pub str: String,
     pub size: u32,
+    pub color: [f32; 4],
 }
 
 const LETTER_WIDTH: f64 = 0.6;
@@ -98,9 +100,9 @@ where
         let len = self.str.len();
         let letters = self.str
                 .chars()
-                .map(|chr| Box::from(Letter { chr, size: self.size }) as Box<Drawable<_>>)
+                .map(|chr| Box::from(Letter { chr, size: self.size, color: self.color }) as Box<Drawable<_>>)
                 .collect() : Vec<_>;
-        let drawable_container = EqualDistributingContainer::Horizontal(letters);
+        let drawable_container = EqualDistributingContainer::Horizontal(letters as Vec<Box<Drawable<_>>>);
 
         SizeContainer {
             anchor: Vec2 { x: 0.5, y: 0.5 },
