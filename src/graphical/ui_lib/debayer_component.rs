@@ -10,11 +10,11 @@ use glium::{
 };
 use std::{borrow::Cow, result::Result::Ok};
 
-pub struct Debayer {
-    pub raw_image: Image,
+pub struct Debayer<'a> {
+    pub raw_image: &'a Image,
 }
 
-impl Debayer {
+impl<'a> Debayer<'a> {
     pub fn debayer(
         raw_image: &Image,
         context: &mut dyn Facade,
@@ -55,7 +55,7 @@ impl Debayer {
     }
 }
 
-impl<S> Drawable<S> for Debayer
+impl<'a, S> Drawable<S> for Debayer<'a>
 where
     S: Surface,
 {

@@ -2,10 +2,11 @@ use self::{
     settings::Settings,
     ui_lib::{
         basic_components::*,
+        container_components::*,
         debayer_component::*,
+        histogram_components::*,
         layout_components::{Size::*, *},
         text_components::*,
-        container_components::*,
         *,
     },
 };
@@ -99,7 +100,7 @@ impl Manager {
             // the debayered image
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
-                child: &Debayer { raw_image },
+                child: &Debayer { raw_image: &raw_image },
             },
             // the top bar
             &SizeContainer {
@@ -111,44 +112,55 @@ impl Manager {
                         anchor: Vec2::one(),
                         size: Vec2 { x: Percent(1.0), y: Px(42) },
                         child: &EqualDistributingContainer::Horizontal(
-                            gui_state.as_text()
+                            gui_state
+                                .as_text()
                                 .into_iter()
-                                .map(|text| Box::from(Text { str: text, size: 25, color: [1., 1., 1., 1.] }) as Box<Drawable<_>>)
-                                .collect()
+                                .map(|text| {
+                                    Box::from(Text { str: text, size: 25, color: [1., 1., 1., 1.] })
+                                        as Box<Drawable<_>>
+                                }).collect(),
                         ),
                     },
                 ]: &Vec<&Drawable<_>>,
             },
-            // the bottom bar
+            // the bottom ba9
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 0. },
                 size: Vec2 { x: Percent(1.0), y: Px(80) },
                 child: &vec![
-                    &ColorBox {
-                        color: [0.0, 0.0, 0.0, 0.5],
+                    &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
+                    &SizeContainer {
+                        anchor: Vec2 { x: 1., y: 0. },
+                        size: Vec2 { x: Px(300), y: Px(80) },
+                        child: &Text {
+                            str: "00:00:00:00".to_string(),
+                            size: 25,
+                            color: [1., 1., 1., 1.],
+                        },
                     },
                     &SizeContainer {
                         anchor: Vec2 { x: 1., y: 0. },
-                        size: Vec2 {
-                            x: Px(300),
-                            y: Px(80),
-                        },
-                        child: &Text { str: "00:00:00:00".to_string(), size: 25, color: [1., 1., 1., 1.] },
-                    },
-                    &SizeContainer {
-                        anchor: Vec2 { x: 1., y: 0. },
-                        size: Vec2 {
-                            x: Px(300 * 2 - 50),
-                            y: Px(89),
-                        },
+                        size: Vec2 { x: Px(300 * 2 - 50), y: Px(89) },
                         child: &Text { str: "●".to_string(), size: 30, color: [1., 0., 0., 1.] },
-                    }
+                    },
                 ]: &Vec<&Drawable<_>>,
             },
-        ]: Vec<&Drawable<_>>).draw(
-            &mut DrawParams { surface: &mut target, facade: &mut self.display, cache, screen_size },
-            SpatialProperties::full(),
-        );
+
+            &Histogram {
+                bins: 1024,
+                avrg: 4,
+                raw_image: &raw_image,
+            }
+        ]: Vec<&Drawable<_>>)
+            .draw(
+                &mut DrawParams {
+                    surface: &mut target,
+                    facade: &mut self.display,
+                    cache,
+                    screen_size,
+                },
+                SpatialProperties::full(),
+            );
 
         target.finish()?;
         draw_result?;

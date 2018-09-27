@@ -1,21 +1,18 @@
 use self::EqualDistributingContainer::*;
-use crate::graphical::ui_lib::{
-    layout_components::LocationContainer,
-    *
-};
+use crate::graphical::ui_lib::{layout_components::LocationContainer, *};
 
 // a container, that distributes the space evenly between its children
 pub enum EqualDistributingContainer<S>
-    where
-        S: Surface,
+where
+    S: Surface,
 {
     Horizontal(Vec<Box<Drawable<S>>>),
     Vertical(Vec<Box<Drawable<S>>>),
 }
 
 impl<S> Drawable<S> for EqualDistributingContainer<S>
-    where
-        S: Surface,
+where
+    S: Surface,
 {
     fn draw(&self, param: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let children = match self {

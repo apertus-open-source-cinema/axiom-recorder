@@ -98,11 +98,14 @@ where
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let len = self.str.len();
-        let letters = self.str
-                .chars()
-                .map(|chr| Box::from(Letter { chr, size: self.size, color: self.color }) as Box<Drawable<_>>)
-                .collect() : Vec<_>;
-        let drawable_container = EqualDistributingContainer::Horizontal(letters as Vec<Box<Drawable<_>>>);
+        let letters = self
+            .str
+            .chars()
+            .map(|chr| {
+                Box::from(Letter { chr, size: self.size, color: self.color }) as Box<Drawable<_>>
+            }).collect(): Vec<_>;
+        let drawable_container =
+            EqualDistributingContainer::Horizontal(letters as Vec<Box<Drawable<_>>>);
 
         SizeContainer {
             anchor: Vec2 { x: 0.5, y: 0.5 },
@@ -110,7 +113,7 @@ where
                 x: Px((len as f64 * self.size as f64 * LETTER_WIDTH) as u32),
                 y: Px(self.size),
             },
-            child: &drawable_container ,
+            child: &drawable_container,
         }.draw(params, sp)
     }
 }

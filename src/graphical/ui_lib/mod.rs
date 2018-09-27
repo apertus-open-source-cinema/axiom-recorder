@@ -6,6 +6,7 @@ pub mod basic_components;
 pub mod container_components;
 pub mod debayer_component;
 mod gl_util;
+pub mod histogram_components;
 pub mod layout_components;
 pub mod list_components;
 pub mod text_components;
@@ -105,4 +106,3 @@ where
         )
     }
 }
-
