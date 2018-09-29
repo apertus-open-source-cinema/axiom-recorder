@@ -6,9 +6,9 @@ use glium::{
     implement_vertex,
     texture::{self, MipmapsOption, UncompressedFloatFormat},
     uniform,
+    uniforms::{MagnifySamplerFilter::Nearest, Sampler},
     DrawError,
     Surface,
-    uniforms::{Sampler, MagnifySamplerFilter::Nearest},
 };
 use std::borrow::Cow;
 
@@ -17,9 +17,7 @@ pub struct Histogram<'a> {
 }
 
 impl<'a> Histogram<'a> {
-    pub fn generate_histogram(
-        &self,
-    ) -> Vec<u8> {
+    pub fn generate_histogram(&self) -> Vec<u8> {
         let mut arr = [0 as u32; 256];
         for v in &self.raw_image.data {
             arr[*v as usize] += 1;
@@ -31,8 +29,8 @@ impl<'a> Histogram<'a> {
 }
 
 impl<'a, S> Drawable<S> for Histogram<'a>
-    where
-        S: Surface,
+where
+    S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let histogram_data = self.generate_histogram();

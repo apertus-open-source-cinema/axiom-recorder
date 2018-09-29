@@ -3,13 +3,16 @@ use crate::video_io::Image;
 use std::{
     fs::{create_dir, File},
     io::prelude::*,
-    sync::mpsc::{channel, Sender},
+    sync::{
+        mpsc::{channel, Sender},
+        Arc,
+    },
     thread,
 };
 
 /// An image sink, that somehow stores the images it receives
 trait Writer {
-    fn start(image_rx: BusReader<Image>, filename: String) -> Self;
+    fn start(image_rx: BusReader<Arc<Image>>, filename: String) -> Self;
     fn stop(&self);
 }
 
@@ -20,7 +23,7 @@ pub struct RawBlobWriter {
 }
 
 impl Writer for RawBlobWriter {
-    fn start(mut image_rx: BusReader<Image>, filename: String) -> RawBlobWriter {
+    fn start(mut image_rx: BusReader<Arc<Image>>, filename: String) -> RawBlobWriter {
         let (tx, rx) = channel::<()>();
 
         thread::spawn(move || {
@@ -48,7 +51,7 @@ pub struct CinemaDngWriter {
 }
 
 impl Writer for CinemaDngWriter {
-    fn start(mut image_rx: BusReader<Image>, filename: String) -> CinemaDngWriter {
+    fn start(mut image_rx: BusReader<Arc<Image>>, filename: String) -> CinemaDngWriter {
         let (stop_tx, stop_rx) = channel::<()>();
 
         thread::spawn(move || {

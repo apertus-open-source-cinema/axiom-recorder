@@ -19,6 +19,7 @@ use glium::{
 use std::{
     collections::BTreeMap,
     error::Error,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -28,12 +29,12 @@ mod ui_lib;
 /// Manage the rendering process and orchestrate the rendering passes
 pub struct Manager {
     display: Display,
-    raw_image_source: BusReader<Image>,
+    raw_image_source: BusReader<Arc<Image>>,
     event_loop: EventsLoop,
 }
 
 impl Manager {
-    pub fn new(raw_image_source: BusReader<Image>) -> Self {
+    pub fn new(raw_image_source: BusReader<Arc<Image>>) -> Self {
         let event_loop = EventsLoop::new();
         let window = WindowBuilder::new();
         let context = ContextBuilder::new();
@@ -46,7 +47,7 @@ impl Manager {
         let cache = &mut Cache(BTreeMap::new());
 
         let mut closed = false;
-        let mut last_image: Option<Image> = None;
+        let mut last_image: Option<Arc<Image>> = None;
         while !closed {
             let now = Instant::now();
             // listing the events produced by application and waiting to be received
@@ -88,7 +89,7 @@ impl Manager {
 
     pub fn redraw(
         &mut self,
-        raw_image: Image,
+        raw_image: Arc<Image>,
         gui_state: &settings::Settings,
         cache: &mut Cache,
     ) -> Result<(), Box<dyn Error>> {
@@ -131,9 +132,7 @@ impl Manager {
                     &SizeContainer {
                         anchor: Vec2 { x: 0., y: 0. },
                         size: Vec2 { x: Px(600), y: Px(80) },
-                        child: &Histogram {
-                            raw_image: &raw_image,
-                        },
+                        child: &Histogram { raw_image: &raw_image },
                     },
                     &SizeContainer {
                         anchor: Vec2 { x: 1., y: 0. },

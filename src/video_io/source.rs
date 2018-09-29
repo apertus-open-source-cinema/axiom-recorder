@@ -4,6 +4,7 @@ use std::{
     fs::File,
     io::prelude::*,
     net::TcpStream,
+    rc::Rc,
     sync::{Arc, Mutex},
     thread,
     time::SystemTime,
@@ -14,12 +15,12 @@ pub trait VideoSource: Send {
 }
 
 pub struct BufferedVideoSource {
-    _tx: Arc<Mutex<Bus<Image>>>,
+    _tx: Arc<Mutex<Bus<Arc<Image>>>>,
 }
 
 impl BufferedVideoSource {
     pub fn new(vs: Box<dyn VideoSource>) -> BufferedVideoSource {
-        let tx = Bus::new(30 * 10); // 10 seconds footage
+        let tx = Bus::new(30); // 1 second footage @30fps
 
         let tx = Arc::new(Mutex::new(tx));
         let vs_send = Arc::new(Mutex::new(vs));
@@ -29,7 +30,7 @@ impl BufferedVideoSource {
             thread::spawn(move || {
                 let vs = vs_send.lock().unwrap();
                 vs.get_images(&|img| {
-                    tx.lock().unwrap().broadcast(img);
+                    tx.lock().unwrap().broadcast(Arc::new(img));
                 })
             });
         }
@@ -37,7 +38,7 @@ impl BufferedVideoSource {
         BufferedVideoSource { _tx: tx }
     }
 
-    pub fn subscribe(&self) -> BusReader<Image> { self._tx.lock().unwrap().add_rx() }
+    pub fn subscribe(&self) -> BusReader<Arc<Image>> { self._tx.lock().unwrap().add_rx() }
 }
 
 // File video source

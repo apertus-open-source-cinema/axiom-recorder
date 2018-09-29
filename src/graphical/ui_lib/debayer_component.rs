@@ -56,8 +56,8 @@ impl<'a> Debayer<'a> {
 }
 
 impl<'a, S> Drawable<S> for Debayer<'a>
-    where
-        S: Surface,
+where
+    S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;

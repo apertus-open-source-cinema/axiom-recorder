@@ -1,7 +1,6 @@
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, DrawError, Program, Surface};
-use std::collections::BTreeMap;
-use std::any::Any;
+use std::{any::Any, collections::BTreeMap};
 
 pub mod basic_components;
 pub mod container_components;
@@ -16,7 +15,11 @@ pub mod text_components;
 pub struct Cache(pub BTreeMap<String, Box<Any>>);
 
 impl Cache {
-    fn memoize<T, F>(&mut self, key: &String, block: F) -> &T where F: Fn() -> T, T: 'static {
+    fn memoize<T, F>(&mut self, key: &String, block: F) -> &T
+    where
+        F: Fn() -> T,
+        T: 'static,
+    {
         if !self.0.contains_key(key) {
             self.0.insert(key.clone(), Box::from(block()));
         }
@@ -25,8 +28,8 @@ impl Cache {
 }
 
 pub struct DrawParams<'a, S>
-    where
-        S: Surface + 'a,
+where
+    S: Surface + 'a,
 {
     pub surface: &'a mut S,
     pub facade: &'a mut dyn Facade,
@@ -44,8 +47,8 @@ pub struct Vec2<T> {
 }
 
 impl<T> Vec2<T>
-    where
-        T: From<u32>,
+where
+    T: From<u32>,
 {
     pub fn zero() -> Self { Vec2 { x: T::from(0), y: T::from(0) } }
     pub fn one() -> Self { Vec2 { x: T::from(1), y: T::from(1) } }
@@ -68,8 +71,8 @@ impl SpatialProperties {
 /// All drawable elements can be rendered with openGL
 /// a GUI is a single Drawable, that can contain children
 pub trait Drawable<S>
-    where
-        S: Surface,
+where
+    S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult;
 }
@@ -77,31 +80,28 @@ pub trait Drawable<S>
 /// Draws a given fragment shader onto a given Box. The heart of all other
 /// Drawables
 pub struct ShaderBox<U>
-    where
-        U: Uniforms,
+where
+    U: Uniforms,
 {
     fragment_shader: String,
     uniforms: U,
 }
 
 impl<U, S> Drawable<S> for ShaderBox<U>
-    where
-        U: Uniforms,
-        S: Surface,
+where
+    U: Uniforms,
+    S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let facade = &params.facade;
-        let program = params.cache.memoize(
-            &self.fragment_shader,
-            || {
-                Program::from_source(
-                    *facade,
-                    PASSTHROUGH_VERTEX_SHADER_SRC,
-                    self.fragment_shader.as_str(),
-                    None,
-                ).unwrap()
-            },
-        );
+        let program = params.cache.memoize(&self.fragment_shader, || {
+            Program::from_source(
+                *facade,
+                PASSTHROUGH_VERTEX_SHADER_SRC,
+                self.fragment_shader.as_str(),
+                None,
+            ).unwrap()
+        });
 
 
         let vertices = &Vertex::triangle_strip_surface(
