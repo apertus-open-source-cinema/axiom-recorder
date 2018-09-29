@@ -24,8 +24,8 @@ impl<'a> Debayer<'a> {
             context,
             UncompressedFloatFormat::U8U8U8U8,
             MipmapsOption::NoMipmap,
-            raw_image.width,
-            raw_image.height,
+            raw_image.width / 2,
+            raw_image.height / 2,
         ).unwrap();
 
         let source_texture = texture::Texture2d::new(
@@ -56,8 +56,8 @@ impl<'a> Debayer<'a> {
 }
 
 impl<'a, S> Drawable<S> for Debayer<'a>
-where
-    S: Surface,
+    where
+        S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;
