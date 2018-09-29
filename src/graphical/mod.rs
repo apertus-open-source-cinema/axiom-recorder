@@ -43,7 +43,7 @@ impl Manager {
     }
 
     pub fn run_event_loop(&mut self) {
-        let cache = &mut BTreeMap::new();
+        let cache = &mut Cache(BTreeMap::new());
 
         let mut closed = false;
         let mut last_image: Option<Image> = None;
