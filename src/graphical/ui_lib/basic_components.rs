@@ -46,10 +46,8 @@ where
                 out vec4 color;
 
                 void main(void) {
-                    ivec2 size = textureSize(in_image, 0);
-                    ivec2 pos = ivec2(size * position);
-                    pos.y = size.y - pos.y;
-                    color = vec4(texelFetch(in_image, pos, 0));
+                    vec2 pos = position * vec2(1, -1);
+                    color = vec4(texture(in_image, pos));
                 }
            "#.to_string(),
             uniforms: uniform! {
@@ -79,10 +77,8 @@ where
                 out vec4 color;
 
                 void main(void) {
-                    ivec2 size = textureSize(in_image, 0);
-                    ivec2 pos = ivec2(size * position);
-                    pos.y = size.y - pos.y;
-                    color = texelFetch(in_image, pos, 0).r * in_color;
+                    vec2 pos = position * vec2(1, -1);
+                    color = texture(in_image, pos).r * in_color;
                 }
            "#.to_string(),
             uniforms: uniform! {

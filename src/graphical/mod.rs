@@ -128,7 +128,13 @@ impl Manager {
                 anchor: Vec2 { x: 0., y: 0. },
                 size: Vec2 { x: Percent(1.0), y: Px(80) },
                 child: &vec![
-                    &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
+                    &SizeContainer {
+                        anchor: Vec2 { x: 0., y: 0. },
+                        size: Vec2 { x: Px(600), y: Px(80) },
+                        child: &Histogram {
+                            raw_image: &raw_image,
+                        },
+                    },
                     &SizeContainer {
                         anchor: Vec2 { x: 1., y: 0. },
                         size: Vec2 { x: Px(300), y: Px(80) },
@@ -145,12 +151,6 @@ impl Manager {
                     },
                 ]: &Vec<&Drawable<_>>,
             },
-
-            &Histogram {
-                bins: 1024,
-                avrg: 4,
-                raw_image: &raw_image,
-            }
         ]: Vec<&Drawable<_>>)
             .draw(
                 &mut DrawParams {
