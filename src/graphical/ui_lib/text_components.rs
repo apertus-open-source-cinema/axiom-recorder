@@ -57,7 +57,10 @@ where
     S: Surface + 'static,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+        flame::start("leter_draw");
+        flame::start("leter_raster");
         let (bitmap, offset) = self.get_bitmap(self.size).unwrap();
+        flame::end("leter_raster");
         let texture = texture::Texture2d::new(
             params.facade,
             texture::RawImage2d {
@@ -79,6 +82,7 @@ where
                 child: &MonoTextureBox { color: self.color, texture },
             }),
         }.draw(params, sp)?;
+        flame::end("leter_draw");
         Ok(())
     }
 }
@@ -97,6 +101,7 @@ where
     S: Surface + 'static,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+        flame::start("text_draw");
         let len = self.str.len();
         let letters = self
             .str
@@ -107,13 +112,15 @@ where
         let drawable_container =
             EqualDistributingContainer::Horizontal(letters as Vec<Box<Drawable<_>>>);
 
-        SizeContainer {
+        let ret = SizeContainer {
             anchor: Vec2 { x: 0.5, y: 0.5 },
             size: Vec2 {
                 x: Px((len as f64 * self.size as f64 * LETTER_WIDTH) as u32),
                 y: Px(self.size),
             },
             child: &drawable_container,
-        }.draw(params, sp)
+        }.draw(params, sp);
+        flame::end("text_draw");
+        ret
     }
 }

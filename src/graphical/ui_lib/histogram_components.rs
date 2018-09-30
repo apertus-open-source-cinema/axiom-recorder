@@ -33,7 +33,10 @@ where
     S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+        flame::start("histogram_draw");
+        flame::start("histogram_generate");
         let histogram_data = self.generate_histogram();
+        flame::end("histogram_generate");
 
         let source_texture = texture::Texture2d::new(
             params.facade,
@@ -47,7 +50,7 @@ where
 
         let sampler = Sampler::new(&source_texture).magnify_filter(Nearest);
 
-        ShaderBox {
+        let ret = ShaderBox {
             fragment_shader: r#"
                 #version 450
                 uniform sampler2D data;
@@ -66,6 +69,8 @@ where
             uniforms: uniform! {
                 data: sampler,
             },
-        }.draw(params, sp)
+        }.draw(params, sp);
+        flame::end("histogram_draw");
+        ret
     }
 }

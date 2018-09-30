@@ -1,19 +1,31 @@
 #version 450
 uniform sampler2D raw_image;
+/*
+* The raw_image is packed in a wired way:
+* 4 Pixels of one Line are bound together
+*/
 out vec4 color;
 
-float get_intensity(ivec2 pos) {
-    return texelFetch(raw_image, pos, 0).r;
-}
-
 vec3 get_color_value(ivec2 pos) {
-    int x = (pos.x/2)*2;
-    int y = (pos.y/2)*2;
+    int x = pos.x / 2;
+    int x_base = (x/2)*2;
+    int y = pos.y;
 
-    float r = get_intensity(ivec2(x + 1, y));
-    float g1 = get_intensity(ivec2(x, y));
-    float g2 = get_intensity(ivec2(x+1, y+1));
-    float b = get_intensity(ivec2(x, y + 1));
+    vec4 line1 = texelFetch(raw_image, ivec2(x_base, y), 0);
+    vec4 line2 = texelFetch(raw_image, ivec2(x_base, y + 1), 0);
+
+    float r, g1, g2, b;
+    if(x == x_base) {
+        r = line1.r;
+        g1 = line1.g;
+        g2 = line2.r;
+        b = line2.g;
+    } else {
+        r = line1.b;
+        g1 = line1.a;
+        g2 = line2.b;
+        b = line2.a;
+    }
 
     vec3 col = vec3(r, (g1+g2)/2.0, b);
     return col;
@@ -22,18 +34,10 @@ vec3 get_color_value(ivec2 pos) {
 
 void main(void) {
     ivec2 size = textureSize(raw_image, 0);
-    ivec2 icord = ivec2(gl_FragCoord) * ivec2(2);
+    ivec2 icord = ivec2(gl_FragCoord);
     ivec2 rotcord = ivec2(size.x - icord.x, icord.y);
 
     vec3 debayered = get_color_value(rotcord);
-    vec3 clamped = max(debayered, vec3(0.));
-    vec3 powed = pow(clamped, vec3(0.5 * 2.));
-    vec3 exposured = powed * 0.5 * 2.;
 
-    // float i = get_intensity(ivec2(gl_FragCoord));
-    // color = vec4(i, i, i, 1.0);
-
-    // pack the color into the gl_FragColor without transparency
-    color = vec4(exposured, 1.0);
-    // color = vec4(1.0, 0.0, 0.0, 1.0);
+    color = vec4(debayered, 1.0);
 }

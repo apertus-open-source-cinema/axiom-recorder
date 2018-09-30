@@ -93,6 +93,7 @@ where
     S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+        flame::start("draw");
         let facade = &params.facade;
         let program = params.cache.memoize(&self.fragment_shader, || {
             Program::from_source(
@@ -108,12 +109,14 @@ where
             params.facade,
             (sp.start.x, sp.start.y, sp.start.x + sp.size.x, sp.start.y + sp.size.y),
         );
-        (*params.surface).draw(
+        let ret = (*params.surface).draw(
             vertices,
             &index::NoIndices(index::PrimitiveType::TriangleStrip),
             program,
             &self.uniforms,
             &glium::DrawParameters { blend: Blend::alpha_blending(), ..Default::default() },
-        )
+        );
+        flame::end("draw");
+        ret
     }
 }

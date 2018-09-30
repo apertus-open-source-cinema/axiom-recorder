@@ -20,6 +20,7 @@ impl<'a> Debayer<'a> {
         context: &mut dyn Facade,
         cache: &mut Cache,
     ) -> Result<texture::Texture2d, DrawError> {
+        flame::start("texture_create");
         let target_texture = texture::Texture2d::empty_with_format(
             context,
             UncompressedFloatFormat::U8U8U8U8,
@@ -27,17 +28,21 @@ impl<'a> Debayer<'a> {
             raw_image.width / 2,
             raw_image.height / 2,
         ).unwrap();
+        flame::end("texture_create");
 
+        flame::start("texture_upload");
         let source_texture = texture::Texture2d::new(
             context,
             texture::RawImage2d {
                 data: Cow::from(raw_image.data.clone()),
-                width: raw_image.width,
-                height: raw_image.height,
-                format: texture::ClientFormat::U8,
+                width: raw_image.width / 2,
+                height: raw_image.height / 2,
+                format: texture::ClientFormat::U8U8U8U8,
             },
         ).unwrap();
+        flame::end("texture_upload");
 
+        flame::start("real");
         ShaderBox {
             fragment_shader: include_str!("debayer.frag").to_string(),
             uniforms: uniform! {raw_image: &source_texture},
@@ -50,6 +55,7 @@ impl<'a> Debayer<'a> {
             },
             SpatialProperties::full(),
         )?;
+        flame::end("real");
 
         Ok(target_texture)
     }
@@ -60,7 +66,9 @@ where
     S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+        flame::start("debayer");
         let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;
+        flame::end("debayer");
         TextureBox { texture }.draw(params, sp)
     }
 }

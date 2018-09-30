@@ -22,6 +22,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use std::fs::File;
 
 mod settings;
 mod ui_lib;
@@ -85,6 +86,8 @@ impl Manager {
 
             println!("{} fps", 1000 / now.elapsed().subsec_millis());
         }
+
+        flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
     }
 
     pub fn redraw(
@@ -93,6 +96,7 @@ impl Manager {
         gui_state: &settings::Settings,
         cache: &mut Cache,
     ) -> Result<(), Box<dyn Error>> {
+        flame::start("redraw");
         let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
@@ -124,7 +128,7 @@ impl Manager {
                     },
                 ]: &Vec<&Drawable<_>>,
             },
-            // the bottom ba9
+            // the bottom bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 0. },
                 size: Vec2 { x: Percent(1.0), y: Px(80) },
@@ -164,6 +168,7 @@ impl Manager {
         target.finish()?;
         draw_result?;
 
+        flame::end("redraw");
         Ok(())
     }
 }
