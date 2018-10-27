@@ -40,7 +40,7 @@ impl Cache {
         self.0.get(key).unwrap().downcast_ref::<T>().unwrap()
     }
 
-    fn memoize_evil<H, T, F>(&mut self, prefix: &str, unique: &H, block: F) -> Box<T>
+    fn memoize_evil<H, T, F>(&mut self, prefix: &str, unique: &H, block: F) -> &'static mut T
         where
             H: Hash,
             F: Fn() -> T,
@@ -48,23 +48,18 @@ impl Cache {
     {
         let key = &format!("{}_{}_evil", prefix, Self::calculate_hash(unique));
 
-        if true {
-            print!("cache miss ");
+        if !self.0.contains_key(key) {
             let rc = Box::from(Rc::new(RefCell::new(block())));
             self.0.insert(key.clone(), rc.clone());
 
             // make the value live forever
             mem::forget(rc.clone());
-        } else {
-            print!("cache hit  ");
         }
-
-        println!("{}", key);
 
         let boxed = self.0.get_mut(key).unwrap();
         let ref_cell = boxed.downcast_mut::<Rc<RefCell<T>>>().unwrap().clone();
         let raw = ref_cell.as_ptr();
-        unsafe { Box::from_raw(raw) }
+        unsafe { raw.as_mut().unwrap() }
     }
 }
 

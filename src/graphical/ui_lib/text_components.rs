@@ -60,13 +60,12 @@ impl<S> Drawable<S> for Letter
         flame::start("letter_draw");
         let rc = {
             let mut cache = params.cache.borrow_mut();
-            *cache.memoize_evil("letter", &format!("{}.{}", self.chr, self.size), || self.get_bitmap(self.size).unwrap())
+            cache.memoize_evil("letter", &format!("{}.{}", self.chr, self.size), || self.get_bitmap(self.size).unwrap())
         };
 
         let bitmap = &rc.0;
         let offset = &rc.1;
 
-        println!("aliveTuple {:#?}", bitmap.size);
         let texture = texture::Texture2d::new(
             params.facade,
             texture::RawImage2d {
@@ -76,6 +75,7 @@ impl<S> Drawable<S> for Letter
                 format: texture::ClientFormat::U8,
             },
         ).unwrap();
+
         SizeContainer {
             anchor: Vec2::one(),
             size: Vec2 {
@@ -84,8 +84,8 @@ impl<S> Drawable<S> for Letter
             },
             child: &(SizeContainer {
                 anchor: Vec2::zero(),
-                size: Vec2 { x: Px(bitmap.size.width), y: Px(bitmap.size.height) },
-                child: &MonoTextureBox { color: self.color, texture },
+                size: Vec2 { x: Px(texture.width()), y: Px(texture.height()) },
+                child: &MonoTextureBox { color: self.color, texture: &texture },
             }),
         }.draw(&mut DrawParams {
             surface: params.surface,

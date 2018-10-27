@@ -58,12 +58,12 @@ where
 }
 
 /// renders a simple textured box with a single color.
-pub struct MonoTextureBox {
-    pub texture: texture::Texture2d,
+pub struct MonoTextureBox<'a> {
+    pub texture: &'a texture::Texture2d,
     pub color: [f32; 4],
 }
 
-impl<S> Drawable<S> for MonoTextureBox
+impl<'a, S> Drawable<S> for MonoTextureBox<'a>
 where
     S: Surface,
 {
@@ -82,7 +82,7 @@ where
                 }
            "#.to_string(),
             uniforms: uniform! {
-                in_image: &self.texture,
+                in_image: self.texture,
                 in_color: self.color
             },
         }.draw(params, sp)
