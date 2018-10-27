@@ -18,6 +18,7 @@ pub struct BufferedVideoSource {
     _tx: Arc<Mutex<Bus<Arc<Image>>>>,
 }
 
+
 impl BufferedVideoSource {
     pub fn new(vs: Box<dyn VideoSource>) -> BufferedVideoSource {
         let tx = Bus::new(30); // 1 second footage @30fps

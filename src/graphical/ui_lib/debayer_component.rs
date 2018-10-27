@@ -18,7 +18,7 @@ impl<'a> Debayer<'a> {
     pub fn debayer(
         raw_image: &Image,
         context: &mut dyn Facade,
-        cache: &mut Cache,
+        cache: Rc<RefCell<Cache>>,
     ) -> Result<texture::Texture2d, DrawError> {
         flame::start("texture_create");
         let target_texture = texture::Texture2d::empty_with_format(
@@ -67,7 +67,7 @@ where
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         flame::start("debayer");
-        let texture = Self::debayer(&self.raw_image, params.facade, params.cache)?;
+        let texture = Self::debayer(&self.raw_image, params.facade, params.cache.clone())?;
         flame::end("debayer");
         TextureBox { texture }.draw(params, sp)
     }

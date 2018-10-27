@@ -53,14 +53,20 @@ impl Letter {
 }
 
 impl<S> Drawable<S> for Letter
-where
-    S: Surface + 'static,
+    where
+        S: Surface + 'static,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
-        flame::start("leter_draw");
-        flame::start("leter_raster");
-        let (bitmap, offset) = self.get_bitmap(self.size).unwrap();
-        flame::end("leter_raster");
+        flame::start("letter_draw");
+        let rc = {
+            let mut cache = params.cache.borrow_mut();
+            *cache.memoize_evil("letter", &format!("{}.{}", self.chr, self.size), || self.get_bitmap(self.size).unwrap())
+        };
+
+        let bitmap = &rc.0;
+        let offset = &rc.1;
+
+        println!("aliveTuple {:#?}", bitmap.size);
         let texture = texture::Texture2d::new(
             params.facade,
             texture::RawImage2d {
@@ -81,8 +87,13 @@ where
                 size: Vec2 { x: Px(bitmap.size.width), y: Px(bitmap.size.height) },
                 child: &MonoTextureBox { color: self.color, texture },
             }),
-        }.draw(params, sp)?;
-        flame::end("leter_draw");
+        }.draw(&mut DrawParams {
+            surface: params.surface,
+            facade: params.facade,
+            cache: params.cache.clone(),
+            screen_size: params.screen_size.clone(),
+        }, sp)?;
+        flame::end("letter_draw");
         Ok(())
     }
 }
@@ -97,8 +108,8 @@ pub struct Text {
 const LETTER_WIDTH: f64 = 0.6;
 
 impl<S> Drawable<S> for Text
-where
-    S: Surface + 'static,
+    where
+        S: Surface + 'static,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         flame::start("text_draw");

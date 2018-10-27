@@ -1,11 +1,16 @@
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, DrawError, Program, Surface};
-use std::{any::Any, collections::BTreeMap};
+use std::{any::Any, collections::BTreeMap, mem};
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+use std::cell::RefMut;
 
+mod gl_util;
 pub mod basic_components;
 pub mod container_components;
 pub mod debayer_component;
-mod gl_util;
 pub mod histogram_components;
 pub mod layout_components;
 pub mod list_components;
@@ -15,25 +20,61 @@ pub mod text_components;
 pub struct Cache(pub BTreeMap<String, Box<Any>>);
 
 impl Cache {
-    fn memoize<T, F>(&mut self, key: &String, block: F) -> &T
-    where
-        F: Fn() -> T,
-        T: 'static,
+    fn calculate_hash<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+
+    fn memoize<H, T, F>(&mut self, prefix: &str, unique: &H, block: F) -> &T
+        where
+            H: Hash,
+            F: Fn() -> T,
+            T: 'static,
     {
+        let key = &format!("{}_{}", prefix, Self::calculate_hash(unique));
         if !self.0.contains_key(key) {
             self.0.insert(key.clone(), Box::from(block()));
         }
-        self.0.get(key).unwrap().as_ref().downcast_ref::<T>().unwrap()
+
+        self.0.get(key).unwrap().downcast_ref::<T>().unwrap()
+    }
+
+    fn memoize_evil<H, T, F>(&mut self, prefix: &str, unique: &H, block: F) -> Box<T>
+        where
+            H: Hash,
+            F: Fn() -> T,
+            T: 'static,
+    {
+        let key = &format!("{}_{}_evil", prefix, Self::calculate_hash(unique));
+
+        if true {
+            print!("cache miss ");
+            let rc = Box::from(Rc::new(RefCell::new(block())));
+            self.0.insert(key.clone(), rc.clone());
+
+            // make the value live forever
+            mem::forget(rc.clone());
+        } else {
+            print!("cache hit  ");
+        }
+
+        println!("{}", key);
+
+        let boxed = self.0.get_mut(key).unwrap();
+        let ref_cell = boxed.downcast_mut::<Rc<RefCell<T>>>().unwrap().clone();
+        let raw = ref_cell.as_ptr();
+        unsafe { Box::from_raw(raw) }
     }
 }
 
 pub struct DrawParams<'a, S>
-where
-    S: Surface + 'a,
+    where
+        S: Surface + 'a,
 {
     pub surface: &'a mut S,
     pub facade: &'a mut dyn Facade,
-    pub cache: &'a mut Cache,
+    pub cache: Rc<RefCell<Cache>>,
     pub screen_size: Vec2<u32>,
 }
 
@@ -47,8 +88,8 @@ pub struct Vec2<T> {
 }
 
 impl<T> Vec2<T>
-where
-    T: From<u32>,
+    where
+        T: From<u32>,
 {
     pub fn zero() -> Self { Vec2 { x: T::from(0), y: T::from(0) } }
     pub fn one() -> Self { Vec2 { x: T::from(1), y: T::from(1) } }
@@ -71,8 +112,8 @@ impl SpatialProperties {
 /// All drawable elements can be rendered with openGL
 /// a GUI is a single Drawable, that can contain children
 pub trait Drawable<S>
-where
-    S: Surface,
+    where
+        S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult;
 }
@@ -80,22 +121,23 @@ where
 /// Draws a given fragment shader onto a given Box. The heart of all other
 /// Drawables
 pub struct ShaderBox<U>
-where
-    U: Uniforms,
+    where
+        U: Uniforms,
 {
     fragment_shader: String,
     uniforms: U,
 }
 
 impl<U, S> Drawable<S> for ShaderBox<U>
-where
-    U: Uniforms,
-    S: Surface,
+    where
+        U: Uniforms,
+        S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
         flame::start("draw");
         let facade = &params.facade;
-        let program = params.cache.memoize(&self.fragment_shader, || {
+        let mut cache = params.cache.borrow_mut();
+        let program = cache.memoize("program", &self.fragment_shader, || {
             Program::from_source(
                 *facade,
                 PASSTHROUGH_VERTEX_SHADER_SRC,
@@ -109,14 +151,15 @@ where
             params.facade,
             (sp.start.x, sp.start.y, sp.start.x + sp.size.x, sp.start.y + sp.size.y),
         );
-        let ret = (*params.surface).draw(
+
+        (*params.surface).draw(
             vertices,
             &index::NoIndices(index::PrimitiveType::TriangleStrip),
             program,
             &self.uniforms,
             &glium::DrawParameters { blend: Blend::alpha_blending(), ..Default::default() },
-        );
+        )?;
         flame::end("draw");
-        ret
+        Ok(())
     }
 }

@@ -23,6 +23,8 @@ use std::{
     time::{Duration, Instant},
 };
 use std::fs::File;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 mod settings;
 mod ui_lib;
@@ -45,7 +47,7 @@ impl Manager {
     }
 
     pub fn run_event_loop(&mut self) {
-        let cache = &mut Cache(BTreeMap::new());
+        let cache = Rc::new(RefCell::new(Cache(BTreeMap::new())));
 
         let mut closed = false;
         let mut last_image: Option<Arc<Image>> = None;
@@ -72,11 +74,11 @@ impl Manager {
             let draw_result = match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
                 Result::Err(_) => match last_image.clone() {
                     None => Ok(()),
-                    Some(image) => self.redraw(image, &gui_settings, cache),
+                    Some(image) => self.redraw(image, &gui_settings, cache.clone()),
                 },
                 Result::Ok(image) => {
                     last_image = Some(image.clone());
-                    self.redraw(image, &gui_settings, cache)
+                    self.redraw(image, &gui_settings, cache.clone())
                 }
             };
 
@@ -94,7 +96,7 @@ impl Manager {
         &mut self,
         raw_image: Arc<Image>,
         gui_state: &settings::Settings,
-        cache: &mut Cache,
+        cache: Rc<RefCell<Cache>>,
     ) -> Result<(), Box<dyn Error>> {
         flame::start("redraw");
         let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
