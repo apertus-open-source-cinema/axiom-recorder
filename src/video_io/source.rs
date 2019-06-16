@@ -1,17 +1,16 @@
 use super::Image;
 use bus::{Bus, BusReader};
+use glium::framebuffer::ValidationError;
 use std::{
     error,
     fs::{self, File},
-    io::prelude::*,
+    io::{prelude::*, Error, ErrorKind},
     net::TcpStream,
     path::Path,
     sync::{Arc, Mutex},
     thread,
     time::{Instant, SystemTime},
 };
-use glium::framebuffer::ValidationError;
-use std::io::{Error, ErrorKind};
 
 type Res = Result<(), Box<error::Error>>;
 
@@ -37,7 +36,8 @@ impl BufferedVideoSource {
                 let now = Box::into_raw(Box::new(Instant::now()));
                 let result = vs.get_images(&|img| {
                     tx.lock().unwrap().broadcast(Arc::new(img));
-                    unsafe { // TODO: This is a big, ugly hack
+                    unsafe {
+                        // TODO: This is a big, ugly hack
                         println!("{} fps (recv)", 1000 / (*now).elapsed().subsec_millis());
                         now.write(Instant::now());
                     }
@@ -71,12 +71,20 @@ impl VideoSource for Raw8BlobVideoSource {
             let read_size = file.read(&mut bytes)?;
 
             if read_size == bytes.len() {
-                callback(Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() });
+                callback(Image {
+                    width: self.width,
+                    height: self.height,
+                    bit_depth: 8,
+                    data: bytes.clone(),
+                });
             } else if read_size == 0 {
                 // we are at the end of the stream
-                return Ok(())
+                return Ok(());
             } else {
-                return Err(Box::new(Error::new(ErrorKind::InvalidData, "File could not be fully consumed. is the resolution set right?")))
+                return Err(Box::new(Error::new(
+                    ErrorKind::InvalidData,
+                    "File could not be fully consumed. is the resolution set right?",
+                )));
             }
         }
     }

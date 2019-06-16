@@ -1,12 +1,15 @@
 use clap::{App, Arg};
 
-use recorder::video_io::{Image, source, writer};
-use recorder::video_io::source::VideoSource;
+use recorder::video_io::{
+    source::{self, VideoSource},
+    writer,
+    Image,
+};
 
 fn main() {
     let arguments = App::new("Raw Image / Video Converter")
         .version("0.1")
-        .about("convert raw footage from AXIOM cameras into othir formas")
+        .about("convert raw footage from AXIOM cameras into other formats")
         .arg(
             Arg::with_name("input")
                 .short("i")
@@ -27,6 +30,13 @@ fn main() {
                 .required(true)
                 .help("the path of the output video / image"),
         )
+        .arg(
+            Arg::with_name("input-format")
+                .long("input-format")
+                .short("if")
+                .allow_hyphen_values(true)
+                .case_insensitive(true),
+        )
         .arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
         .get_matches();
@@ -37,13 +47,7 @@ fn main() {
     let height = arguments.value_of("height").unwrap().parse().unwrap();
     let width = arguments.value_of("width").unwrap().parse().unwrap();
 
-    let source = source::Raw8BlobVideoSource {
-        path: source_str.to_string(),
-        width,
-        height,
-    };
+    let source = source::Raw8BlobVideoSource { path: source_str.to_string(), width, height };
 
-    source.get_images(&|img| {
-
-    });
+    source.get_images(&|img| {});
 }
