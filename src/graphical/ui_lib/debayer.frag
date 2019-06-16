@@ -3,7 +3,15 @@ uniform sampler2D raw_image;
 out vec4 color;
 
 float get_intensity(ivec2 pos) {
-    return texelFetch(raw_image, pos, 0).r;
+    float a = 0.021324;
+    float in_bits = 12.0;
+    float out_bits = 8.0;
+
+    float x = texelFetch(raw_image, pos, 0).r * 256.0;
+
+    float i = ((exp(x * log(a * (pow(2.0, in_bits)) - a + 1.0) / (pow(2.0, out_bits) - 1.0)) + a - 1.0) / a) - 1.0;
+
+    return i / 4096.0;
 }
 
 vec3 get_color_value(ivec2 pos) {
@@ -23,7 +31,7 @@ vec3 get_color_value(ivec2 pos) {
 void main(void) {
     ivec2 size = textureSize(raw_image, 0);
     ivec2 icord = ivec2(gl_FragCoord) * ivec2(2);
-    ivec2 rotcord = ivec2(size.x - icord.x, icord.y);
+    ivec2 rotcord = ivec2(size.x - icord.x, size.y - icord.y);
 
     vec3 debayered = get_color_value(rotcord);
     vec3 clamped = max(debayered, vec3(0.));

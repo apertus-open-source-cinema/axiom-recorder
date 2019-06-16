@@ -48,6 +48,6 @@ fn main() {
         };
     let video_source = video_io::source::BufferedVideoSource::new(unbuffered_video_source.unwrap());
 
-    let mut graphical_manager = graphical::Manager::new(video_source.subscribe());
+    let mut graphical_manager = graphical::Manager::new(video_source);
     graphical_manager.run_event_loop();
 }

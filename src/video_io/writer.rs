@@ -11,7 +11,7 @@ use std::{
 };
 
 /// An image sink, that somehow stores the images it receives
-trait Writer {
+pub trait Writer {
     fn start(image_rx: BusReader<Arc<Image>>, filename: String) -> Self;
     fn stop(&self);
 }

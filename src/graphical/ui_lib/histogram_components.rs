@@ -19,12 +19,50 @@ pub struct Histogram<'a> {
 impl<'a> Histogram<'a> {
     pub fn generate_histogram(&self) -> Vec<u8> {
         let mut arr = [0 as u32; 256];
+        
+        let mut i = 0;
+
+        let h = self.raw_image.height;
+        let w = self.raw_image.width;
+
         for v in &self.raw_image.data {
             arr[*v as usize] += 1;
         }
 
-        let max = arr.iter().max().unwrap();
-        arr.iter().map(|x| (x / (max / 256)) as u8).collect()
+        // let max = arr.iter().max().unwrap();
+        // arr.iter().map(|x| (x / (max / 256)) as u8).collect()
+
+        let mut tmp = arr.iter().collect::<Vec<_>>();
+        tmp.sort();
+        let median = tmp[arr.len() / 2];
+
+        let avg_median_dist: u32 = arr.iter().map(|x| {
+            if x < median {
+                (median - x) as u32
+            } else {
+                (x - median) as u32
+            }
+        }).sum::<u32>() / (arr.len() as u32);
+
+        /*
+        let max = 0;
+
+        for x in arr {
+            let y: u32 = (*x / ((median / 256));
+
+            if y >= 255 {
+            }
+        }
+        */
+        
+        arr.iter().map(|x| { 
+            let y: u32 = (*x / ((median + 8 * avg_median_dist) / 256));
+            if y >= 255 {
+                255 as u8
+            } else {
+                y as u8
+            }
+        }).collect()
     }
 }
 
@@ -45,7 +83,7 @@ where
             },
         ).unwrap();
 
-        let sampler = Sampler::new(&source_texture).magnify_filter(Nearest);
+        let sampler = Sampler::new(&source_texture);//;.magnify_filter(Nearest);
 
         ShaderBox {
             fragment_shader: r#"
