@@ -27,7 +27,8 @@ impl Letter {
         let font = Font::from_bytes(
             Arc::new(include_bytes!("../../../res/fonts/DejaVuSansMono.ttf").to_vec()),
             0,
-        ).unwrap();
+        )
+        .unwrap();
         let glyph_id = font.glyph_for_char(self.chr).unwrap();
         let raster_bounds = font
             .raster_bounds(
@@ -36,7 +37,8 @@ impl Letter {
                 &Point2D::origin(),
                 HintingOptions::None,
                 RasterizationOptions::GrayscaleAa,
-            ).unwrap();
+            )
+            .unwrap();
         let size = &Size2D::new(raster_bounds.size.width as u32, raster_bounds.size.height as u32);
         let mut canvas = Canvas::new(size, Format::A8);
 
@@ -47,7 +49,8 @@ impl Letter {
             &Point2D::origin(),
             HintingOptions::None,
             RasterizationOptions::GrayscaleAa,
-        ).unwrap();
+        )
+        .unwrap();
         Ok((canvas, Vec2 { x: raster_bounds.origin.x, y: raster_bounds.origin.y }))
     }
 }
@@ -66,7 +69,8 @@ where
                 height: bitmap.size.height as u32,
                 format: texture::ClientFormat::U8,
             },
-        ).unwrap();
+        )
+        .unwrap();
         SizeContainer {
             anchor: Vec2::one(),
             size: Vec2 {
@@ -78,7 +82,8 @@ where
                 size: Vec2 { x: Px(bitmap.size.width), y: Px(bitmap.size.height) },
                 child: &MonoTextureBox { color: self.color, texture },
             }),
-        }.draw(params, sp)?;
+        }
+        .draw(params, sp)?;
         Ok(())
     }
 }
@@ -103,7 +108,8 @@ where
             .chars()
             .map(|chr| {
                 Box::from(Letter { chr, size: self.size, color: self.color }) as Box<Drawable<_>>
-            }).collect(): Vec<_>;
+            })
+            .collect(): Vec<_>;
         let drawable_container =
             EqualDistributingContainer::Horizontal(letters as Vec<Box<Drawable<_>>>);
 
@@ -114,6 +120,7 @@ where
                 y: Px(self.size),
             },
             child: &drawable_container,
-        }.draw(params, sp)
+        }
+        .draw(params, sp)
     }
 }

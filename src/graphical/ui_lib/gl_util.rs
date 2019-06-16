@@ -34,11 +34,13 @@ impl Vertex {
             ([end.0, start.1], [1., 0.]),
             ([start.0, end.1], [0., 1.]),
             ([end.0, end.1], [1., 1.]),
-        ].iter()
+        ]
+        .iter()
         .map(|(absolute, relative)| Vertex {
             absolute_position: *absolute,
             relative_position: *relative,
-        }).collect();
+        })
+        .collect();
 
         VertexBuffer::new(context, &vertices).unwrap()
     }

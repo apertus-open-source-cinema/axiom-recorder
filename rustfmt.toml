@@ -8,5 +8,5 @@ use_try_shorthand=true
 wrap_comments=true
 blank_lines_upper_bound=2
 unstable_features=true
-edition="Edition2018"
+edition="2018"
 imports_layout="HorizontalVertical"

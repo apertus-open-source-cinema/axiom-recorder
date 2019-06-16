@@ -1,8 +1,6 @@
-#![feature(type_ascription)]
 use clap::{App, Arg};
 
-mod graphical;
-mod video_io;
+use recorder::{video_io, graphical};
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -19,8 +17,10 @@ fn main() {
                     2 => Result::Ok(()),
                     _ => Result::Err(String::from("invalid source URI format.")),
                 }),
-        ).arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
+        )
+        .arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
+        .arg(Arg::with_name("no-histogram"))
         .get_matches();
 
     let source = arguments.value_of("video_source").unwrap();
@@ -38,10 +38,11 @@ fn main() {
             })),
             "file" => {
                 println!("{}", (*parts.get(1).unwrap()).to_string());
-                Result::Ok(Box::new(video_io::source::FileVideoSource {
+                Result::Ok(Box::new(video_io::source::Raw8FileVideoSource {
                     path: (*parts.get(1).unwrap()).to_string(),
                     height,
                     width,
+                    repeat: false
                 }))
             }
             _ => Result::Err(()),

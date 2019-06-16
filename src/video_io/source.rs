@@ -1,17 +1,20 @@
 use super::Image;
 use bus::{Bus, BusReader};
 use std::{
-    fs::File,
+    error,
+    fs::{self, File},
     io::prelude::*,
     net::TcpStream,
-    rc::Rc,
+    path::Path,
     sync::{Arc, Mutex},
     thread,
     time::SystemTime,
 };
 
+type Res = Result<(), Box<error::Error>>;
+
 pub trait VideoSource: Send {
-    fn get_images(&self, callback: &dyn Fn(Image));
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res;
 }
 
 pub struct BufferedVideoSource {
@@ -29,9 +32,13 @@ impl BufferedVideoSource {
             let tx = tx.clone();
             thread::spawn(move || {
                 let vs = vs_send.lock().unwrap();
-                vs.get_images(&|img| {
+                let result = vs.get_images(&|img| {
                     tx.lock().unwrap().broadcast(Arc::new(img));
-                })
+                });
+
+                if result.is_err() {
+                    eprintln!("{}", result.err().unwrap());
+                }
             });
         }
 
@@ -42,23 +49,49 @@ impl BufferedVideoSource {
 }
 
 // File video source
-pub struct FileVideoSource {
+pub struct Raw8FileVideoSource {
     pub path: String,
+    pub width: u32,
+    pub height: u32,
+    pub repeat: bool,
+}
+
+impl VideoSource for Raw8FileVideoSource {
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res {
+        let mut file = File::open(&self.path)?;
+        let mut bytes = vec![0u8; (self.width * self.height) as usize];
+        file.read_exact(&mut bytes)?;
+
+        loop {
+            let image =
+            Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
+            callback(image);
+            if !self.repeat { return Ok(()); }
+        }
+    }
+}
+
+// File video source
+pub struct Raw8FilesVideoSource {
+    pub folder_path: String,
     pub width: u32,
     pub height: u32,
 }
 
-impl VideoSource for FileVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) {
-        let mut file = File::open(&self.path).unwrap();
-        let mut bytes = vec![0u8; (self.width * self.height) as usize];
-        file.read_exact(&mut bytes).unwrap();
+impl VideoSource for Raw8FilesVideoSource {
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res {
+        let path = Path::new(&self.folder_path);
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let mut file = File::open(entry.path())?;
+            let mut bytes = vec![0u8; (self.width * self.height) as usize];
+            file.read_exact(&mut bytes)?;
 
-        loop {
             let image =
                 Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
             callback(image)
         }
+        Ok(())
     }
 }
 
@@ -70,8 +103,8 @@ pub struct EthernetVideoSource {
 }
 
 impl VideoSource for EthernetVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) {
-        let mut stream = TcpStream::connect(&self.url).unwrap();
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res {
+        let mut stream = TcpStream::connect(&self.url)?;
 
         let mut image_count = 0;
         let mut start = SystemTime::now();
@@ -81,7 +114,7 @@ impl VideoSource for EthernetVideoSource {
             // usize);
             let mut bytes = vec![0u8; (self.width * self.height) as usize];
 
-            stream.read_exact(&mut bytes).unwrap();
+            stream.read_exact(&mut bytes)?;
 
             let image = Image { width: self.width, height: self.height, bit_depth: 8, data: bytes };
 
@@ -101,52 +134,3 @@ impl VideoSource for EthernetVideoSource {
         }
     }
 }
-
-/*
-// USB3
-struct Usb3VideoSource {
-    size : Option<(u32, u32)>,
-}
-
-impl VideoSource for Usb3VideoSource {
-    fn get_image(mut self, callbackFunction: fn(Image)) {
-
-    }
-
-    fn get_size(&self) -> (u32, u32) {
-        (0, 0)
-    }
-}
-
-
-// Ethernet
-struct EthernetVideoSource {
-    url: String,
-
-    _rx: spmc::Receiver<Image>,
-    _tx: spmc::Sender<Image>,
-}
-
-impl EthernetVideoSource {
-    fn new(&self, host: String) -> EthernetVideoSource {
-        let (tx, rx) = spmc::channel();
-        let instance = EthernetVideoSource {url: host, _rx: rx, _tx: tx};
-
-        thread::spawn(move || {
-            
-        });
-
-        instance
-    }
-}
-
-impl VideoSource for EthernetVideoSource {
-    fn get_image(self, callback: fn(Image)) -> spmc::Receiver<Image> {
-        self._rx.clone()
-    }
-
-    fn get_size(&self) -> (u32, u32) {
-        (0, 0)
-    }
-}
-*/

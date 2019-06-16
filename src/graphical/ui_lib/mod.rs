@@ -100,7 +100,8 @@ where
                 PASSTHROUGH_VERTEX_SHADER_SRC,
                 self.fragment_shader.as_str(),
                 None,
-            ).unwrap()
+            )
+            .unwrap()
         });
 
 

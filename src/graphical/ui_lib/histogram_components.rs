@@ -1,13 +1,9 @@
-use self::basic_components::TextureBox;
 use super::*;
 use crate::video_io::Image;
 use glium::{
-    backend::Facade,
-    implement_vertex,
-    texture::{self, MipmapsOption, UncompressedFloatFormat},
+    texture::{self},
     uniform,
     uniforms::{MagnifySamplerFilter::Nearest, Sampler},
-    DrawError,
     Surface,
 };
 use std::borrow::Cow;
@@ -43,7 +39,8 @@ where
                 height: 1,
                 format: texture::ClientFormat::U8,
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let sampler = Sampler::new(&source_texture).magnify_filter(Nearest);
 
@@ -62,10 +59,12 @@ where
                         color = vec4(0);
                     }
                 }
-            "#.to_string(),
+            "#
+            .to_string(),
             uniforms: uniform! {
                 data: sampler,
             },
-        }.draw(params, sp)
+        }
+        .draw(params, sp)
     }
 }

@@ -1,5 +1,5 @@
-use bus::BusReader;
 use crate::video_io::Image;
+use bus::BusReader;
 use std::{
     fs::{create_dir, File},
     io::prelude::*,

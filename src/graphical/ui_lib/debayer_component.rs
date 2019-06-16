@@ -26,7 +26,8 @@ impl<'a> Debayer<'a> {
             MipmapsOption::NoMipmap,
             raw_image.width / 2,
             raw_image.height / 2,
-        ).unwrap();
+        )
+        .unwrap();
 
         let source_texture = texture::Texture2d::new(
             context,
@@ -36,12 +37,14 @@ impl<'a> Debayer<'a> {
                 height: raw_image.height,
                 format: texture::ClientFormat::U8,
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         ShaderBox {
             fragment_shader: include_str!("debayer.frag").to_string(),
             uniforms: uniform! {raw_image: &source_texture},
-        }.draw(
+        }
+        .draw(
             &mut DrawParams {
                 surface: &mut target_texture.as_surface(),
                 facade: context,

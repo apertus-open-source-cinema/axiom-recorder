@@ -10,8 +10,8 @@ use self::{
         *,
     },
 };
-use bus::BusReader;
 use crate::video_io::Image;
+use bus::BusReader;
 use glium::{
     glutin::{ContextBuilder, EventsLoop, WindowBuilder},
     *,
@@ -119,7 +119,8 @@ impl Manager {
                                 .map(|text| {
                                     Box::from(Text { str: text, size: 25, color: [1., 1., 1., 1.] })
                                         as Box<Drawable<_>>
-                                }).collect(),
+                                })
+                                .collect(),
                         ),
                     },
                 ]: &Vec<&Drawable<_>>,

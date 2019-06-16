@@ -20,11 +20,13 @@ where
                 void main(void) {
                     color = in_color;
                 }
-            "#.to_string(),
+            "#
+            .to_string(),
             uniforms: uniform! {
                 in_color: self.color,
             },
-        }.draw(params, sp)
+        }
+        .draw(params, sp)
     }
 }
 
@@ -49,11 +51,13 @@ where
                     vec2 pos = position * vec2(1, -1);
                     color = vec4(texture(in_image, pos));
                 }
-           "#.to_string(),
+           "#
+            .to_string(),
             uniforms: uniform! {
                 in_image: &self.texture,
             },
-        }.draw(params, sp)
+        }
+        .draw(params, sp)
     }
 }
 
@@ -80,11 +84,13 @@ where
                     vec2 pos = position * vec2(1, -1);
                     color = texture(in_image, pos).r * in_color;
                 }
-           "#.to_string(),
+           "#
+            .to_string(),
             uniforms: uniform! {
                 in_image: &self.texture,
                 in_color: self.color
             },
-        }.draw(params, sp)
+        }
+        .draw(params, sp)
     }
 }
