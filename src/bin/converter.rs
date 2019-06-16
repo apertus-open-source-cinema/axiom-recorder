@@ -1,5 +1,8 @@
 use clap::{App, Arg};
 
+use recorder::video_io::{Image, source, writer};
+use recorder::video_io::source::VideoSource;
+
 fn main() {
     let arguments = App::new("Raw Image / Video Converter")
         .version("0.1")
@@ -28,6 +31,19 @@ fn main() {
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
         .get_matches();
 
-    let source = arguments.value_of("input").unwrap();
-    let output = arguments.value_of("output").unwrap();
+    let source_str = arguments.value_of("input").unwrap();
+    let sink_str = arguments.value_of("output").unwrap();
+
+    let height = arguments.value_of("height").unwrap().parse().unwrap();
+    let width = arguments.value_of("width").unwrap().parse().unwrap();
+
+    let source = source::Raw8BlobVideoSource {
+        path: source_str.to_string(),
+        width,
+        height,
+    };
+
+    source.get_images(&|img| {
+
+    });
 }

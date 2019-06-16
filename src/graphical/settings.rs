@@ -5,6 +5,7 @@ pub struct Settings {
     pub fps: f64,
     pub recording_format: RecordingFormat,
     pub grid: Grid,
+    pub draw_histogram: bool,
 }
 
 impl Settings {

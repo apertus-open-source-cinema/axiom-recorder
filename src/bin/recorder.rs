@@ -1,6 +1,12 @@
 use clap::{App, Arg};
 
-use recorder::{video_io, graphical};
+use recorder::{
+    graphical::{
+        self,
+        settings::{self, Settings},
+    },
+    video_io,
+};
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -20,7 +26,11 @@ fn main() {
         )
         .arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
-        .arg(Arg::with_name("no-histogram"))
+        .arg(
+            Arg::with_name("no-histogram").long("no-histogram").help(
+                "disables the histogram calculation. potentially saves A LOT of cpu ressources",
+            ),
+        )
         .get_matches();
 
     let source = arguments.value_of("video_source").unwrap();
@@ -38,17 +48,25 @@ fn main() {
             })),
             "file" => {
                 println!("{}", (*parts.get(1).unwrap()).to_string());
-                Result::Ok(Box::new(video_io::source::Raw8FileVideoSource {
+                Result::Ok(Box::new(video_io::source::Raw8BlobVideoSource {
                     path: (*parts.get(1).unwrap()).to_string(),
                     height,
                     width,
-                    repeat: false
                 }))
             }
             _ => Result::Err(()),
         };
     let video_source = video_io::source::BufferedVideoSource::new(unbuffered_video_source.unwrap());
 
-    let mut graphical_manager = graphical::Manager::new(video_source.subscribe());
+    let initial_settings = Settings {
+        shutter_angle: 270.0,
+        iso: 800.0,
+        fps: 24.0,
+        recording_format: settings::RecordingFormat::Raw8,
+        grid: settings::Grid::NoGrid,
+        draw_histogram: !arguments.is_present("no-histogram"),
+    };
+
+    let mut graphical_manager = graphical::Manager::new(video_source.subscribe(), initial_settings);
     graphical_manager.run_event_loop();
 }

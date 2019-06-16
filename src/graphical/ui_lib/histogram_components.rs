@@ -1,7 +1,7 @@
 use super::*;
 use crate::video_io::Image;
 use glium::{
-    texture::{self},
+    texture,
     uniform,
     uniforms::{MagnifySamplerFilter::Nearest, Sampler},
     Surface,
@@ -20,7 +20,7 @@ impl<'a> Histogram<'a> {
         }
 
         let max = arr.iter().max().unwrap();
-        arr.iter().map(|x| (x / (max / 256)) as u8).collect()
+        arr.iter().map(|x| (x / 1) as u8).collect()
     }
 }
 

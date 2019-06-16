@@ -8,8 +8,10 @@ use std::{
     path::Path,
     sync::{Arc, Mutex},
     thread,
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
+use glium::framebuffer::ValidationError;
+use std::io::{Error, ErrorKind};
 
 type Res = Result<(), Box<error::Error>>;
 
@@ -32,12 +34,17 @@ impl BufferedVideoSource {
             let tx = tx.clone();
             thread::spawn(move || {
                 let vs = vs_send.lock().unwrap();
+                let now = Box::into_raw(Box::new(Instant::now()));
                 let result = vs.get_images(&|img| {
                     tx.lock().unwrap().broadcast(Arc::new(img));
+                    unsafe { // TODO: This is a big, ugly hack
+                        println!("{} fps (recv)", 1000 / (*now).elapsed().subsec_millis());
+                        now.write(Instant::now());
+                    }
                 });
 
                 if result.is_err() {
-                    eprintln!("{}", result.err().unwrap());
+                    eprintln!("Source Error: {}", result.err().unwrap());
                 }
             });
         }
@@ -48,30 +55,34 @@ impl BufferedVideoSource {
     pub fn subscribe(&self) -> BusReader<Arc<Image>> { self._tx.lock().unwrap().add_rx() }
 }
 
-// File video source
-pub struct Raw8FileVideoSource {
+// Reads frames from a single file
+pub struct Raw8BlobVideoSource {
     pub path: String,
     pub width: u32,
     pub height: u32,
-    pub repeat: bool,
 }
 
-impl VideoSource for Raw8FileVideoSource {
+impl VideoSource for Raw8BlobVideoSource {
     fn get_images(&self, callback: &dyn Fn(Image)) -> Res {
         let mut file = File::open(&self.path)?;
         let mut bytes = vec![0u8; (self.width * self.height) as usize];
-        file.read_exact(&mut bytes)?;
 
         loop {
-            let image =
-            Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
-            callback(image);
-            if !self.repeat { return Ok(()); }
+            let read_size = file.read(&mut bytes)?;
+
+            if read_size == bytes.len() {
+                callback(Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() });
+            } else if read_size == 0 {
+                // we are at the end of the stream
+                return Ok(())
+            } else {
+                return Err(Box::new(Error::new(ErrorKind::InvalidData, "File could not be fully consumed. is the resolution set right?")))
+            }
         }
     }
 }
 
-// File video source
+// Reads a directory of raw8 files
 pub struct Raw8FilesVideoSource {
     pub folder_path: String,
     pub width: u32,
