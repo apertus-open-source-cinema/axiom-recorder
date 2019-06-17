@@ -106,6 +106,7 @@ impl Writer for CinemaDngWriter {
             }
         });
 
+
         Self { stop_channel: stop_tx }
     }
 

@@ -1,6 +1,7 @@
 use super::Image;
 use bus::{Bus, BusReader};
 use glium::framebuffer::ValidationError;
+use itertools::Itertools;
 use std::{
     error,
     fs::{self, File},
@@ -8,14 +9,14 @@ use std::{
     net::TcpStream,
     path::Path,
     sync::{Arc, Mutex},
-    thread,
+    thread::{self, sleep_ms},
     time::{Instant, SystemTime},
 };
 
-type Res = Result<(), Box<error::Error>>;
+type Res<a> = Result<a, Box<error::Error>>;
 
 pub trait VideoSource: Send {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res;
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()>;
 }
 
 pub struct BufferedVideoSource {
@@ -52,6 +53,56 @@ impl BufferedVideoSource {
         BufferedVideoSource { _tx: tx }
     }
 
+    pub fn from_file(
+        path: String,
+        width: u32,
+        height: u32,
+        fps: Option<f32>,
+    ) -> Res<BufferedVideoSource> {
+        if path.ends_with(".raw8") {
+            Ok(Self::new(Box::new(Raw8BlobVideoSource {
+                path: path.to_string(),
+                width,
+                height,
+                fps,
+            })))
+        } else if Path::new(&path).is_dir() {
+            Ok(Self::new(Box::new(Raw8FilesVideoSource {
+                folder_path: path.to_string(),
+                width,
+                height,
+                fps,
+            })))
+        } else {
+            Err(Box::new(Error::new(ErrorKind::InvalidData, "file type is not supported")))
+        }
+    }
+
+    pub fn from_uri(
+        uri: String,
+        width: u32,
+        height: u32,
+        fps: Option<f32>,
+    ) -> Res<BufferedVideoSource> {
+        match uri
+            .split("://")
+            .next_tuple()
+            .ok_or(Error::new(ErrorKind::InvalidInput, "malformad URI"))?
+        {
+            ("file", path) => Ok(Self::from_file(path.to_string(), width, height, fps)?),
+            ("tcp", address) => Ok(Self::new(Box::new(TcpVideoSource {
+                address: address.to_string(),
+                width,
+                height,
+            }))),
+            (uri_type, _) => Err(Box::new(Error::new(
+                ErrorKind::InvalidInput,
+                format!("URI type {} is not supported", uri_type),
+            ))),
+        }
+    }
+
+
     pub fn subscribe(&self) -> BusReader<Arc<Image>> { self._tx.lock().unwrap().add_rx() }
 }
 
@@ -60,10 +111,11 @@ pub struct Raw8BlobVideoSource {
     pub path: String,
     pub width: u32,
     pub height: u32,
+    pub fps: Option<f32>,
 }
 
 impl VideoSource for Raw8BlobVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res {
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> {
         let mut file = File::open(&self.path)?;
         let mut bytes = vec![0u8; (self.width * self.height) as usize];
 
@@ -86,6 +138,9 @@ impl VideoSource for Raw8BlobVideoSource {
                     "File could not be fully consumed. is the resolution set right?",
                 )));
             }
+            if self.fps.is_some() {
+                sleep_ms((1000.0 / self.fps.unwrap()) as u32)
+            }
         }
     }
 }
@@ -95,10 +150,11 @@ pub struct Raw8FilesVideoSource {
     pub folder_path: String,
     pub width: u32,
     pub height: u32,
+    pub fps: Option<f32>,
 }
 
 impl VideoSource for Raw8FilesVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res {
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> {
         let path = Path::new(&self.folder_path);
         for entry in fs::read_dir(path)? {
             let entry = entry?;
@@ -108,22 +164,25 @@ impl VideoSource for Raw8FilesVideoSource {
 
             let image =
                 Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
-            callback(image)
+            callback(image);
+            if self.fps.is_some() {
+                sleep_ms((1000.0 / self.fps.unwrap()) as u32);
+            }
         }
         Ok(())
     }
 }
 
 #[derive(Debug)]
-pub struct EthernetVideoSource {
-    pub url: String,
+pub struct TcpVideoSource {
+    pub address: String,
     pub width: u32,
     pub height: u32,
 }
 
-impl VideoSource for EthernetVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res {
-        let mut stream = TcpStream::connect(&self.url)?;
+impl VideoSource for TcpVideoSource {
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> {
+        let mut stream = TcpStream::connect(&self.address)?;
 
         let mut image_count = 0;
         let mut start = SystemTime::now();

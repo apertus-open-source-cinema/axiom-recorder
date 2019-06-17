@@ -47,7 +47,8 @@ fn main() {
     let height = arguments.value_of("height").unwrap().parse().unwrap();
     let width = arguments.value_of("width").unwrap().parse().unwrap();
 
-    let source = source::Raw8BlobVideoSource { path: source_str.to_string(), width, height };
+    let source =
+        source::Raw8BlobVideoSource { path: source_str.to_string(), width, height, fps: None };
 
     source.get_images(&|img| {});
 }

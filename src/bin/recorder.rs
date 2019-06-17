@@ -5,8 +5,9 @@ use recorder::{
         self,
         settings::{self, Settings},
     },
-    video_io,
+    video_io::source::BufferedVideoSource,
 };
+use std::f32::NAN;
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -31,37 +32,23 @@ fn main() {
                 "disables the histogram calculation. potentially saves A LOT of cpu ressources",
             ),
         )
+        .arg(Arg::with_name("fps").long("fps").takes_value(true))
         .get_matches();
 
     let source = arguments.value_of("video_source").unwrap();
-    let parts = source.split("://").collect::<Vec<_>>();
-
     let height = arguments.value_of("height").unwrap().parse().unwrap();
     let width = arguments.value_of("width").unwrap().parse().unwrap();
-
-    let unbuffered_video_source: Result<Box<dyn video_io::source::VideoSource>, ()> =
-        match *parts.get(0).unwrap() {
-            "tcp" => Result::Ok(Box::new(video_io::source::EthernetVideoSource {
-                url: (*parts.get(1).unwrap()).to_string(),
-                height,
-                width,
-            })),
-            "file" => {
-                println!("{}", (*parts.get(1).unwrap()).to_string());
-                Result::Ok(Box::new(video_io::source::Raw8BlobVideoSource {
-                    path: (*parts.get(1).unwrap()).to_string(),
-                    height,
-                    width,
-                }))
-            }
-            _ => Result::Err(()),
-        };
-    let video_source = video_io::source::BufferedVideoSource::new(unbuffered_video_source.unwrap());
+    let fps = arguments.value_of("fps").map(|x| x.parse().unwrap());
+    let video_source =
+        BufferedVideoSource::from_uri(String::from(source), width, height, fps).unwrap();
 
     let initial_settings = Settings {
-        shutter_angle: 270.0,
+        shutter_angle: 180.0,
         iso: 800.0,
-        fps: 24.0,
+        fps: match fps {
+            Some(fps) => fps,
+            None => NAN
+        } as f64,
         recording_format: settings::RecordingFormat::Raw8,
         grid: settings::Grid::NoGrid,
         draw_histogram: !arguments.is_present("no-histogram"),
