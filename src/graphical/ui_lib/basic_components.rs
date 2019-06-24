@@ -1,6 +1,6 @@
 use super::*;
 use glium::{
-    texture::{RawImage2d, Texture2d, Texture2dDataSource},
+    texture::{RawImage2d, Texture2d},
     uniform,
     Surface,
 };

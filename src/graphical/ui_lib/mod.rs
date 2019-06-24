@@ -1,5 +1,5 @@
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
-use glium::{backend::Facade, index, uniforms::Uniforms, Blend, DrawError, Program, Surface};
+use glium::{backend::Facade, index, uniforms::Uniforms, Blend, Program, Surface};
 use std::{any::Any, collections::BTreeMap, error};
 
 pub mod basic_components;
@@ -11,7 +11,7 @@ pub mod list_components;
 pub mod text_components;
 
 // Util type aliases, that allows to pass draw Params easier
-pub struct Cache(pub BTreeMap<String, Box<Any>>);
+pub struct Cache(pub BTreeMap<String, Box<dyn Any>>);
 
 impl Cache {
     fn memoize<T, F>(&mut self, key: &String, block: F) -> &T
@@ -108,7 +108,7 @@ where
             params.facade,
             (sp.start.x, sp.start.y, sp.start.x + sp.size.x, sp.start.y + sp.size.y),
         );
-        let result = (*params.surface).draw(
+        let _result = (*params.surface).draw(
             vertices,
             &index::NoIndices(index::PrimitiveType::TriangleStrip),
             program,

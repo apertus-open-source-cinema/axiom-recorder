@@ -6,8 +6,8 @@ pub enum EqualDistributingContainer<S>
 where
     S: Surface,
 {
-    Horizontal(Vec<Box<Drawable<S>>>),
-    Vertical(Vec<Box<Drawable<S>>>),
+    Horizontal(Vec<Box<dyn Drawable<S>>>),
+    Vertical(Vec<Box<dyn Drawable<S>>>),
 }
 
 impl<S> Drawable<S> for EqualDistributingContainer<S>
@@ -29,7 +29,7 @@ where
                     size: Vec2 { x: 1. / len as f64, y: 1. },
                 },
             };
-            (container as &Drawable<_>).draw(param, sp.clone())?
+            (container as &dyn Drawable<_>).draw(param, sp.clone())?
         }
 
         Ok(())

@@ -86,7 +86,7 @@ impl Manager {
 
         let debayered = raw_image.debayer()?;
 
-        let hist_component: Box<Drawable<_>> = if self.settings_gui.draw_histogram {
+        let hist_component: Box<dyn Drawable<_>> = if self.settings_gui.draw_histogram {
             Box::new(Histogram { image: &debayered })
         } else {
             Box::new(vec![])
@@ -113,12 +113,12 @@ impl Manager {
                                 .into_iter()
                                 .map(|text| {
                                     Box::from(Text { str: text, size: 25, color: [1., 1., 1., 1.] })
-                                        as Box<Drawable<_>>
+                                        as Box<dyn Drawable<_>>
                                 })
                                 .collect(),
                         ),
                     },
-                ]: &Vec<&Drawable<_>>,
+                ]: &Vec<&dyn Drawable<_>>,
             },
             // the bottom bar
             &SizeContainer {
@@ -144,9 +144,9 @@ impl Manager {
                         size: Vec2 { x: Px(300 * 2 - 50), y: Px(89) },
                         child: &Text { str: "●".to_string(), size: 30, color: [1., 0., 0., 1.] },
                     },
-                ]: &Vec<&Drawable<_>>,
+                ]: &Vec<&dyn Drawable<_>>,
             },
-        ]: Vec<&Drawable<_>>)
+        ]: Vec<&dyn Drawable<_>>)
             .draw(
                 &mut DrawParams {
                     surface: &mut target,

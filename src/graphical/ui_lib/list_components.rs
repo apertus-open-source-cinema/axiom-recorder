@@ -2,7 +2,7 @@ use crate::graphical::ui_lib::*;
 use glium::Surface;
 
 /// A generic list container. If you want to draw multiple things, use this.
-impl<S> Drawable<S> for Vec<&Drawable<S>>
+impl<S> Drawable<S> for Vec<&dyn Drawable<S>>
 where
     S: Surface,
 {

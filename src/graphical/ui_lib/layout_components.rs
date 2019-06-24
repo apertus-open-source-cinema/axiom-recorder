@@ -8,7 +8,7 @@ where
     S: Surface,
 {
     pub aspect_ratio: f64,
-    pub child: &'a Drawable<S>,
+    pub child: &'a dyn Drawable<S>,
 }
 
 impl<'a, S> Drawable<S> for AspectRatioContainer<'a, S>
@@ -42,7 +42,7 @@ where
 {
     pub size: Vec2<Size>,
     pub anchor: Vec2<f64>,
-    pub child: &'a Drawable<S>,
+    pub child: &'a dyn Drawable<S>,
 }
 
 impl<'a, S> Drawable<S> for SizeContainer<'a, S>
@@ -73,7 +73,7 @@ where
 /// draws a drawable at a given location
 /// especially usefull in combination with a list container
 pub struct LocationContainer<'a, S> {
-    pub child: &'a Drawable<S>,
+    pub child: &'a dyn Drawable<S>,
     pub sp: SpatialProperties,
 }
 

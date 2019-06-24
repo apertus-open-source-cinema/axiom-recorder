@@ -1,12 +1,12 @@
 use super::*;
-use crate::video_io::Image;
+
 use glium::{
     texture::{self, RawImage2d},
     uniform,
     uniforms::{MagnifySamplerFilter::Nearest, Sampler},
     Surface,
 };
-use std::borrow::Cow;
+
 
 pub struct Histogram<'a> {
     pub image: &'a RawImage2d<'a, u8>,
@@ -34,7 +34,7 @@ impl<'a> Histogram<'a> {
                 channel
                     .iter()
                     .map(|x| {
-                        let y: u32 = ((*x as u32) / ((median as u32 + 8 * median_dist_avg) / 256));
+                        let y: u32 = (*x as u32) / ((median as u32 + 8 * median_dist_avg) / 256);
                         if y >= 255 {
                             255 as u8
                         } else {
@@ -53,7 +53,7 @@ where
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         let histogram_data = self.generate_histogram();
-        let mut texture_data: Vec<u8> = (0..256*4).map(|_| 0).collect();
+        let mut texture_data: Vec<u8> = (0..256 * 4).map(|_| 0).collect();
         for i in 0..4 {
             for j in 0..histogram_data[i].len() {
                 texture_data[j * 4 + i] = histogram_data[i][j];

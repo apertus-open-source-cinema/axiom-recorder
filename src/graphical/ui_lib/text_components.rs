@@ -7,7 +7,7 @@ use super::{
 use glium::texture;
 use std::{borrow::Cow, error::Error, result::Result::Ok};
 
-use euclid::{Point2D, Size2D, Transform2D};
+use euclid::{Point2D, Size2D};
 use font_kit::{
     canvas::{Canvas, Format, RasterizationOptions},
     hinting::HintingOptions,
@@ -110,11 +110,12 @@ where
             .str
             .chars()
             .map(|chr| {
-                Box::from(Letter { chr, size: self.size, color: self.color }) as Box<Drawable<_>>
+                Box::from(Letter { chr, size: self.size, color: self.color })
+                    as Box<dyn Drawable<_>>
             })
             .collect(): Vec<_>;
         let drawable_container =
-            EqualDistributingContainer::Horizontal(letters as Vec<Box<Drawable<_>>>);
+            EqualDistributingContainer::Horizontal(letters as Vec<Box<dyn Drawable<_>>>);
 
         SizeContainer {
             anchor: Vec2 { x: 0.5, y: 0.5 },

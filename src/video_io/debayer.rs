@@ -6,7 +6,6 @@ use glium::{
     backend::glutin::headless::Headless,
     texture::{self, MipmapsOption, Texture2d, UncompressedFloatFormat},
     uniform,
-    DrawError,
 };
 use glutin::{ContextBuilder, EventsLoop};
 use std::{borrow::Cow, collections::btree_map::BTreeMap, error, result::Result::Ok};
