@@ -3,14 +3,13 @@ use self::{
     ui_lib::{
         basic_components::*,
         container_components::*,
-        debayer_component::*,
         histogram_components::*,
         layout_components::{Size::*, *},
         text_components::*,
         *,
     },
 };
-use crate::video_io::Image;
+use crate::video_io::{debayer::Debayer, Image};
 use bus::BusReader;
 use glium::{
     glutin::{ContextBuilder, EventsLoop, WindowBuilder},
@@ -24,7 +23,7 @@ use std::{
 };
 
 pub mod settings;
-mod ui_lib;
+pub mod ui_lib;
 
 /// Manage the rendering process and orchestrate the rendering passes
 pub struct Manager {
@@ -85,8 +84,10 @@ impl Manager {
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
+        let debayered = raw_image.debayer()?;
+
         let hist_component: Box<Drawable<_>> = if self.settings_gui.draw_histogram {
-            Box::new(Histogram { raw_image: &raw_image })
+            Box::new(Histogram { image: &debayered })
         } else {
             Box::new(vec![])
         };
@@ -95,7 +96,7 @@ impl Manager {
             // the debayered image
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
-                child: &Debayer { raw_image: &raw_image },
+                child: &ImageComponent { image: &debayered },
             },
             // the top bar
             &SizeContainer {

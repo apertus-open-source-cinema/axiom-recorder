@@ -1,4 +1,4 @@
-use crate::video_io::Image;
+use crate::video_io::{dng::Dng, Image};
 use bus::BusReader;
 use std::{
     fs::{create_dir, File},
@@ -97,10 +97,8 @@ impl Writer for CinemaDngWriter {
                 }
 
                 let mut file = File::create(format!("{}/{:06}.dng", &filename, i)).unwrap();
-                // TODO: format dng, currently raw8 is written
-                unimplemented!();
                 let img = image_rx.recv().unwrap();
-                file.write_all(&img.data).unwrap();
+                file.write_all(&img.format_dng()).unwrap();
 
                 i += 1;
             }

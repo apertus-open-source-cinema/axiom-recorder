@@ -3,7 +3,15 @@ uniform sampler2D raw_image;
 out vec4 color;
 
 float get_intensity(ivec2 pos) {
-    return pow(texelFetch(raw_image, pos, 0).r, 2);
+    float a = 0.021324;
+    float in_bits = 12.0;
+    float out_bits = 8.0;
+
+    float x = texelFetch(raw_image, pos, 0).r * 256.0;
+
+    float i = ((exp(x * log(a * (pow(2.0, in_bits)) - a + 1.0) / (pow(2.0, out_bits) - 1.0)) + a - 1.0) / a) - 1.0;
+
+    return i / 4096.0;
 }
 
 vec3 get_color_value(ivec2 pos) {

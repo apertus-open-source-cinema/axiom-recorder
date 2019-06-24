@@ -1,5 +1,9 @@
 use super::*;
-use glium::{texture, uniform, Surface};
+use glium::{
+    texture::{RawImage2d, Texture2d, Texture2dDataSource},
+    uniform,
+    Surface,
+};
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
 pub struct ColorBox {
@@ -10,7 +14,7 @@ impl<S> Drawable<S> for ColorBox
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -32,14 +36,14 @@ where
 
 /// renders a simple textured box.
 pub struct TextureBox {
-    pub texture: texture::Texture2d,
+    pub texture: Texture2d,
 }
 
 impl<S> Drawable<S> for TextureBox
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -63,7 +67,7 @@ where
 
 /// renders a simple textured box with a single color.
 pub struct MonoTextureBox {
-    pub texture: texture::Texture2d,
+    pub texture: Texture2d,
     pub color: [f32; 4],
 }
 
@@ -71,7 +75,7 @@ impl<S> Drawable<S> for MonoTextureBox
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -92,5 +96,26 @@ where
             },
         }
         .draw(params, sp)
+    }
+}
+
+
+pub struct ImageComponent<'a> {
+    pub image: &'a RawImage2d<'a, u8>,
+}
+
+impl<'a, S> Drawable<S> for ImageComponent<'a>
+where
+    S: Surface,
+{
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+        let image = RawImage2d::from_raw_rgba(
+            self.image.data.to_vec(),
+            (self.image.width, self.image.height),
+        );
+
+        let texture = Texture2d::new(params.facade, image)?;
+
+        TextureBox { texture }.draw(params, sp)
     }
 }

@@ -47,7 +47,7 @@ fn main() {
         iso: 800.0,
         fps: match fps {
             Some(fps) => fps,
-            None => NAN
+            None => NAN,
         } as f64,
         recording_format: settings::RecordingFormat::Raw8,
         grid: settings::Grid::NoGrid,

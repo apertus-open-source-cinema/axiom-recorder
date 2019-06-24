@@ -7,10 +7,11 @@ use super::{
 use glium::texture;
 use std::{borrow::Cow, error::Error, result::Result::Ok};
 
-use euclid::{Point2D, Size2D};
+use euclid::{Point2D, Size2D, Transform2D};
 use font_kit::{
     canvas::{Canvas, Format, RasterizationOptions},
     hinting::HintingOptions,
+    loader::FontTransform,
     loaders::freetype::Font,
 };
 use std::sync::Arc;
@@ -34,6 +35,7 @@ impl Letter {
             .raster_bounds(
                 glyph_id,
                 height as f32,
+                &FontTransform::identity(),
                 &Point2D::origin(),
                 HintingOptions::None,
                 RasterizationOptions::GrayscaleAa,
@@ -46,6 +48,7 @@ impl Letter {
             &mut canvas,
             glyph_id,
             height as f32,
+            &FontTransform::identity(),
             &Point2D::origin(),
             HintingOptions::None,
             RasterizationOptions::GrayscaleAa,
@@ -59,7 +62,7 @@ impl<S> Drawable<S> for Letter
 where
     S: Surface + 'static,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         let (bitmap, offset) = self.get_bitmap(self.size).unwrap();
         let texture = texture::Texture2d::new(
             params.facade,
@@ -101,7 +104,7 @@ impl<S> Drawable<S> for Text
 where
     S: Surface + 'static,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         let len = self.str.len();
         let letters = self
             .str

@@ -9,7 +9,7 @@ use recorder::video_io::{
 fn main() {
     let arguments = App::new("Raw Image / Video Converter")
         .version("0.1")
-        .about("convert raw footage from AXIOM cameras into other formats")
+        .about("convert raw footage from AXIOM cameras into other formats.")
         .arg(
             Arg::with_name("input")
                 .short("i")

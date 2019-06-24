@@ -6,7 +6,7 @@ impl<S> Drawable<S> for Vec<&Drawable<S>>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         for drawable in self {
             drawable.draw(params, sp.clone())?;
         }

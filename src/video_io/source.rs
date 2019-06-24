@@ -1,6 +1,5 @@
 use super::Image;
 use bus::{Bus, BusReader};
-use glium::framebuffer::ValidationError;
 use itertools::Itertools;
 use std::{
     error,
@@ -9,11 +8,11 @@ use std::{
     net::TcpStream,
     path::Path,
     sync::{Arc, Mutex},
-    thread::{self, sleep_ms},
-    time::{Instant, SystemTime},
+    thread::{self, sleep},
+    time::{Duration, Instant, SystemTime},
 };
 
-type Res<a> = Result<a, Box<error::Error>>;
+type Res<T> = Result<T, Box<dyn error::Error>>;
 
 pub trait VideoSource: Send {
     fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()>;
@@ -139,7 +138,7 @@ impl VideoSource for Raw8BlobVideoSource {
                 )));
             }
             if self.fps.is_some() {
-                sleep_ms((1000.0 / self.fps.unwrap()) as u32)
+                sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64))
             }
         }
     }
@@ -166,7 +165,7 @@ impl VideoSource for Raw8FilesVideoSource {
                 Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
             callback(image);
             if self.fps.is_some() {
-                sleep_ms((1000.0 / self.fps.unwrap()) as u32);
+                sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64));
             }
         }
         Ok(())

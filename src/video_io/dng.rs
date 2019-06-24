@@ -1,9 +1,9 @@
+use crate::video_io::Image;
+
 pub trait Dng {
-    fn format_dng(&self) -> vec<u8>;
+    fn format_dng(&self) -> Vec<u8>;
 }
 
 impl Dng for Image {
-    fn format_dng(&self) -> _ {
-        unimplemented!()
-    }
+    fn format_dng(&self) -> Vec<u8> { unimplemented!() }
 }

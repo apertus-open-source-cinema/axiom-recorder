@@ -1,10 +1,9 @@
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, DrawError, Program, Surface};
-use std::{any::Any, collections::BTreeMap};
+use std::{any::Any, collections::BTreeMap, error};
 
 pub mod basic_components;
 pub mod container_components;
-pub mod debayer_component;
 mod gl_util;
 pub mod histogram_components;
 pub mod layout_components;
@@ -37,7 +36,7 @@ where
     pub screen_size: Vec2<u32>,
 }
 
-type DrawResult = Result<(), DrawError>;
+type Res = Result<(), Box<dyn error::Error>>;
 
 /// Util type for representing the "geographical" properties
 #[derive(Debug, Clone)]
@@ -74,7 +73,7 @@ pub trait Drawable<S>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult;
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res;
 }
 
 /// Draws a given fragment shader onto a given Box. The heart of all other
@@ -83,8 +82,8 @@ pub struct ShaderBox<U>
 where
     U: Uniforms,
 {
-    fragment_shader: String,
-    uniforms: U,
+    pub fragment_shader: String,
+    pub uniforms: U,
 }
 
 impl<U, S> Drawable<S> for ShaderBox<U>
@@ -92,7 +91,7 @@ where
     U: Uniforms,
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         let facade = &params.facade;
         let program = params.cache.memoize(&self.fragment_shader, || {
             Program::from_source(
@@ -109,12 +108,13 @@ where
             params.facade,
             (sp.start.x, sp.start.y, sp.start.x + sp.size.x, sp.start.y + sp.size.y),
         );
-        (*params.surface).draw(
+        let result = (*params.surface).draw(
             vertices,
             &index::NoIndices(index::PrimitiveType::TriangleStrip),
             program,
             &self.uniforms,
             &glium::DrawParameters { blend: Blend::alpha_blending(), ..Default::default() },
-        )
+        )?;
+        Ok(())
     }
 }

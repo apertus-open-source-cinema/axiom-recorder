@@ -14,7 +14,7 @@ impl<S> Drawable<S> for EqualDistributingContainer<S>
 where
     S: Surface,
 {
-    fn draw(&self, param: &mut DrawParams<'_, S>, sp: SpatialProperties) -> DrawResult {
+    fn draw(&self, param: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         let children = match self {
             Horizontal(vec) => vec,
             Vertical(vec) => vec,
