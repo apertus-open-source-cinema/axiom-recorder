@@ -6,6 +6,7 @@ use std::{
     fs::{self, File},
     io::{prelude::*, Error, ErrorKind},
     net::TcpStream,
+    ops::Deref,
     path::Path,
     sync::{Arc, Mutex},
     thread::{self, sleep},
@@ -16,15 +17,16 @@ type Res<T> = Result<T, Box<dyn error::Error>>;
 
 pub trait VideoSource: Send {
     fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()>;
+    fn get_frame_count(&self) -> Option<u64>;
 }
 
 pub struct BufferedVideoSource {
-    _tx: Arc<Mutex<Bus<Arc<Image>>>>,
+    tx: Arc<Mutex<Bus<Arc<Image>>>>,
 }
 
 impl BufferedVideoSource {
     pub fn new(vs: Box<dyn VideoSource>) -> BufferedVideoSource {
-        let tx = Bus::new(30); // 1 second footage @30fps
+        let tx = Bus::new(10);
 
         let tx = Arc::new(Mutex::new(tx));
         let vs_send = Arc::new(Mutex::new(vs));
@@ -49,60 +51,58 @@ impl BufferedVideoSource {
             });
         }
 
-        BufferedVideoSource { _tx: tx }
+        BufferedVideoSource { tx }
     }
 
-    pub fn from_file(
-        path: String,
-        width: u32,
-        height: u32,
-        fps: Option<f32>,
-    ) -> Res<BufferedVideoSource> {
+    pub fn subscribe(&self) -> BusReader<Arc<Image>> { self.tx.lock().unwrap().add_rx() }
+}
+
+pub struct VideoSourceHelper {
+    vs: Box<dyn VideoSource>,
+}
+
+impl VideoSourceHelper {
+    pub fn from_file(path: String, width: u32, height: u32, fps: Option<f32>) -> Res<Self> {
         if path.ends_with(".raw8") {
-            Ok(Self::new(Box::new(Raw8BlobVideoSource {
-                path: path.to_string(),
-                width,
-                height,
-                fps,
-            })))
+            Ok(Self {
+                vs: Box::new(Raw8BlobVideoSource { path: path.to_string(), width, height, fps }),
+            })
         } else if Path::new(&path).is_dir() {
-            Ok(Self::new(Box::new(Raw8FilesVideoSource {
-                folder_path: path.to_string(),
-                width,
-                height,
-                fps,
-            })))
+            Ok(Self {
+                vs: (Box::new(Raw8FilesVideoSource {
+                    folder_path: path.to_string(),
+                    width,
+                    height,
+                    fps,
+                })),
+            })
         } else {
             Err(Box::new(Error::new(ErrorKind::InvalidData, "file type is not supported")))
         }
     }
 
-    pub fn from_uri(
-        uri: String,
-        width: u32,
-        height: u32,
-        fps: Option<f32>,
-    ) -> Res<BufferedVideoSource> {
+    pub fn from_uri(uri: String, width: u32, height: u32, fps: Option<f32>) -> Res<Self> {
         match uri
             .split("://")
             .next_tuple()
             .ok_or(Error::new(ErrorKind::InvalidInput, "malformad URI"))?
         {
             ("file", path) => Ok(Self::from_file(path.to_string(), width, height, fps)?),
-            ("tcp", address) => Ok(Self::new(Box::new(TcpVideoSource {
-                address: address.to_string(),
-                width,
-                height,
-            }))),
+            ("tcp", address) => Ok(Self {
+                vs: (Box::new(TcpVideoSource { address: address.to_string(), width, height })),
+            }),
             (uri_type, _) => Err(Box::new(Error::new(
                 ErrorKind::InvalidInput,
                 format!("URI type {} is not supported", uri_type),
             ))),
         }
     }
+}
 
+impl VideoSource for VideoSourceHelper {
+    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> { self.vs.get_images(callback) }
 
-    pub fn subscribe(&self) -> BusReader<Arc<Image>> { self._tx.lock().unwrap().add_rx() }
+    fn get_frame_count(&self) -> Option<u64> { self.vs.get_frame_count() }
 }
 
 // Reads frames from a single file
@@ -142,6 +142,12 @@ impl VideoSource for Raw8BlobVideoSource {
             }
         }
     }
+
+    fn get_frame_count(&self) -> Option<u64> {
+        Some(
+            (Path::new(&self.path).metadata().unwrap().len() / ((self.width * self.height) as u64)),
+        )
+    }
 }
 
 // Reads a directory of raw8 files
@@ -169,6 +175,15 @@ impl VideoSource for Raw8FilesVideoSource {
             }
         }
         Ok(())
+    }
+
+    fn get_frame_count(&self) -> Option<u64> {
+        let path = Path::new(&self.folder_path);
+        let mut frame_cnt = 0;
+        for _ in fs::read_dir(path).unwrap() {
+            frame_cnt += 1;
+        }
+        Some(frame_cnt)
     }
 }
 
@@ -210,4 +225,6 @@ impl VideoSource for TcpVideoSource {
             callback(image)
         }
     }
+
+    fn get_frame_count(&self) -> Option<u64> { None }
 }

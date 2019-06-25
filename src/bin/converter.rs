@@ -1,6 +1,12 @@
 use clap::{App, Arg};
 
-use recorder::video_io::source::{self, VideoSource};
+use bus::Bus;
+use indicatif::{ProgressBar, ProgressStyle};
+use recorder::video_io::{
+    source::{self, BufferedVideoSource, VideoSource, VideoSourceHelper},
+    writer::{PathWriter, Writer},
+};
+use std::sync::{Arc, Mutex};
 
 fn main() {
     let arguments = App::new("Raw Image / Video Converter")
@@ -12,11 +18,7 @@ fn main() {
                 .long("input")
                 .takes_value(true)
                 .required(true)
-                .help("the path of the input video / image")
-                .validator(|filename| match filename.ends_with(".raw8") {
-                    true => Ok(()),
-                    false => Err(String::from("Currently only raw8 input files are supported")),
-                }),
+                .help("the path of the input video / image"),
         )
         .arg(
             Arg::with_name("output")
@@ -38,13 +40,34 @@ fn main() {
         .get_matches();
 
     let source_str = arguments.value_of("input").unwrap();
-    let _sink_str = arguments.value_of("output").unwrap();
+    let sink_str = arguments.value_of("output").unwrap();
 
     let height = arguments.value_of("height").unwrap().parse().unwrap();
     let width = arguments.value_of("width").unwrap().parse().unwrap();
 
-    let source =
-        source::Raw8BlobVideoSource { path: source_str.to_string(), width, height, fps: None };
 
-    source.get_images(&|_img| {});
+    // connect source and sink
+    let video_source =
+        VideoSourceHelper::from_file(String::from(source_str), width, height, None).unwrap();
+    let bus = Arc::new(Mutex::new(Bus::new(10)));
+    let sink = PathWriter::from_path(bus.lock().unwrap().add_rx(), String::from(sink_str)).unwrap();
+
+    let progressbar = match video_source.get_frame_count() {
+        Some(n) => ProgressBar::new(n as u64),
+        None => ProgressBar::new_spinner(),
+    };
+
+    progressbar.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+        .progress_chars("#>-"));
+
+    video_source.get_images(&|frame| {
+        progressbar.tick();
+        progressbar.inc(1);
+        bus.lock().unwrap().broadcast(Arc::new(frame));
+    });
+
+    progressbar.finish_with_message(
+        format!("sucessfully converted {} to {}", source_str, sink_str).as_ref(),
+    );
 }

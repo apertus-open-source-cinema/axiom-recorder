@@ -1,8 +1,11 @@
-use crate::video_io::{dng::Dng, Image};
+use crate::video_io::{debayer::Debayer, dng::Dng, Image};
 use bus::BusReader;
+use mpeg_encoder::Encoder;
 use std::{
+    ffi::OsStr,
     fs::{create_dir, File},
-    io::prelude::*,
+    io::{prelude::*, Error, ErrorKind},
+    path::Path,
     sync::{
         mpsc::{channel, Sender},
         Arc,
@@ -11,9 +14,34 @@ use std::{
 };
 
 /// An image sink, that somehow stores the images it receives
-trait Writer {
-    fn start(image_rx: BusReader<Arc<Image>>, filename: String) -> Self;
+pub trait Writer {
+    fn start(image_rx: BusReader<Arc<Image>>, filename: String) -> Self
+    where
+        Self: Sized;
     fn stop(&self);
+}
+
+pub struct PathWriter {
+    writer: Box<dyn Writer>,
+}
+impl PathWriter {
+    pub fn from_path(
+        image_rx: BusReader<Arc<Image>>,
+        filename: String,
+    ) -> Result<PathWriter, Error> {
+        let extension = Path::new(&filename).extension();
+        match extension.and_then(|s| s.to_str()) {
+            Some("raw8") => {
+                Ok(PathWriter { writer: Box::new(Raw8BlobWriter::start(image_rx, filename)) })
+            }
+            Some("mp4") => {
+                Ok(PathWriter { writer: Box::new(MpegWriter::start(image_rx, filename)) })
+            }
+            Some(_) => Err(Error::new(ErrorKind::InvalidData, "file type is not supported")),
+            None => Ok(PathWriter { writer: Box::new(Raw8FilesWriter::start(image_rx, filename)) }),
+        }
+    }
+    pub fn stop(&self) { self.writer.stop() }
 }
 
 /// A writer, that simply writes the bytes of the received images to a single
@@ -101,6 +129,40 @@ impl Writer for CinemaDngWriter {
                 file.write_all(&img.format_dng()).unwrap();
 
                 i += 1;
+            }
+        });
+
+
+        Self { stop_channel: stop_tx }
+    }
+
+    fn stop(&self) { self.stop_channel.send(()).unwrap(); }
+}
+
+pub struct MpegWriter {
+    stop_channel: Sender<()>,
+}
+
+impl Writer for MpegWriter {
+    fn start(mut image_rx: BusReader<Arc<Image>>, filename: String) -> Self {
+        let (stop_tx, stop_rx) = channel::<()>();
+
+        thread::spawn(move || {
+            let img = image_rx.recv().unwrap();
+            let mut encoder = Encoder::new(filename, img.width as usize, img.height as usize);
+
+            loop {
+                if stop_rx.try_recv().is_ok() {
+                    break;
+                }
+
+                let img = image_rx.recv().unwrap();
+                encoder.encode_rgba(
+                    (img.width / 2) as usize,
+                    (img.height / 2) as usize,
+                    img.debayer().unwrap().data.as_ref(),
+                    false,
+                );
             }
         });
 

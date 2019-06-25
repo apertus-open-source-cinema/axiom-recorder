@@ -86,7 +86,7 @@ where
 
                 void main(void) {
                     vec2 pos = position * vec2(1, -1);
-                    color = texture(in_image, pos).r * in_color;
+                    color = vec4(in_color.rgb * texture(in_image, pos).r, 1.0);
                 }
            "#
             .to_string(),

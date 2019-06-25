@@ -14,16 +14,20 @@ pub struct Histogram<'a> {
 
 impl<'a> Histogram<'a> {
     pub fn generate_histogram(&self) -> Vec<Vec<u8>> {
-        let mut rgba_hist: Vec<Vec<u32>> = (0..4).map(|_| (0..256).map(|_| 0).collect()).collect();
+        let mut rgba_hist: Vec<Vec<u32>> = (0..3).map(|_| (0..256).map(|_| 0).collect()).collect();
         for i in 0..self.image.data.len() {
+            if i % 4 == 3 {
+                continue;
+            };
             rgba_hist[i % 4][self.image.data[i] as usize] += 1;
         }
 
         rgba_hist
-            .iter_mut()
+            .iter()
             .map(|channel| {
-                (*channel).sort();
-                let median_calc = channel[channel.len() / 2];
+                let mut sorted = channel.clone();
+                sorted.sort();
+                let median_calc = sorted[sorted.len() / 2];
                 let median = if median_calc == 0 { 1 } else { median_calc };
                 let median_dist_sum: u32 = channel
                     .iter()
@@ -53,16 +57,16 @@ where
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
         let histogram_data = self.generate_histogram();
-        let mut texture_data: Vec<u8> = (0..256 * 4).map(|_| 0).collect();
-        for i in 0..4 {
+        let mut texture_data: Vec<u8> = (0..256 * 3).map(|_| 0).collect();
+        for i in 0..3 {
             for j in 0..histogram_data[i].len() {
-                texture_data[j * 4 + i] = histogram_data[i][j];
+                texture_data[j * 3 + i] = histogram_data[i][j];
             }
         }
 
         let source_texture = texture::Texture2d::new(
             params.facade,
-            texture::RawImage2d::from_raw_rgba(texture_data, (256, 1)),
+            texture::RawImage2d::from_raw_rgb(texture_data, (256, 1)),
         )
         .unwrap();
 
@@ -76,8 +80,17 @@ where
                 out vec4 color;
 
                 void main(void) {
-                    vec3 point = texture(data, vec2(position.x, 0)).rgb;
-                    vec4 color = vec4(1, 1, 1, 1);
+                    float px_size = 1.0 / 256.0;
+
+                    vec3 p_this = texture(data, vec2(position.x, 0)).rgb;
+                    vec3 p_prev = texture(data, vec2(position.x - px_size, 0)).rgb;
+                    vec3 p_next = texture(data, vec2(position.x + px_size, 0)).rgb;
+
+                    float x = mod(position.x, px_size) / px_size;
+                    //vec3 point = 2.0*p_prev*pow(x, 2.0)  −3.0*p_prev*x  +p_prev  −4.0*p_this*pow(x, 2.0)  +4.0*p_this*x  +2.0*p_next*pow(x,2.0)  −p_next*x;
+
+                    vec3 point = p_this;
+                    color = vec4(0);
                     if (point.r > position.y) {
                         color.r = 1.;
                     }

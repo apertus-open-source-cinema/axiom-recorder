@@ -5,9 +5,9 @@ use recorder::{
         self,
         settings::{self, Settings},
     },
-    video_io::source::BufferedVideoSource,
+    video_io::source::{BufferedVideoSource, VideoSourceHelper},
 };
-use std::f32::NAN;
+use std::{f32::NAN, ops::Deref};
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -40,7 +40,8 @@ fn main() {
     let width = arguments.value_of("width").unwrap().parse().unwrap();
     let fps = arguments.value_of("fps").map(|x| x.parse().unwrap());
     let video_source =
-        BufferedVideoSource::from_uri(String::from(source), width, height, fps).unwrap();
+        VideoSourceHelper::from_uri(String::from(source), width, height, fps).unwrap();
+    let buffered_vs = BufferedVideoSource::new(Box::new(video_source));
 
     let initial_settings = Settings {
         shutter_angle: 180.0,
@@ -54,6 +55,6 @@ fn main() {
         draw_histogram: !arguments.is_present("no-histogram"),
     };
 
-    let mut graphical_manager = graphical::Manager::new(video_source.subscribe(), initial_settings);
+    let mut graphical_manager = graphical::Manager::new(buffered_vs.subscribe(), initial_settings);
     graphical_manager.run_event_loop();
 }
