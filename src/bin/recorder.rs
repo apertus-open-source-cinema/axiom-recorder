@@ -7,7 +7,7 @@ use recorder::{
     },
     video_io::source::{BufferedVideoSource, VideoSourceHelper},
 };
-use std::{f32::NAN, ops::Deref};
+use std::{f32::NAN};
 
 fn main() {
     let arguments = App::new("AXIOM recorder")

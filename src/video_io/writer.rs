@@ -2,7 +2,6 @@ use crate::video_io::{debayer::Debayer, dng::Dng, Image};
 use bus::BusReader;
 use mpeg_encoder::Encoder;
 use std::{
-    ffi::OsStr,
     fs::{create_dir, File},
     io::{prelude::*, Error, ErrorKind},
     path::Path,

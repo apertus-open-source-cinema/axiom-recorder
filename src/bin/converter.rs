@@ -50,7 +50,7 @@ fn main() {
     let video_source =
         VideoSourceHelper::from_file(String::from(source_str), width, height, None).unwrap();
     let bus = Arc::new(Mutex::new(Bus::new(10)));
-    let sink = PathWriter::from_path(bus.lock().unwrap().add_rx(), String::from(sink_str)).unwrap();
+    let _sink = PathWriter::from_path(bus.lock().unwrap().add_rx(), String::from(sink_str)).unwrap();
 
     let progressbar = match video_source.get_frame_count() {
         Some(n) => ProgressBar::new(n as u64),

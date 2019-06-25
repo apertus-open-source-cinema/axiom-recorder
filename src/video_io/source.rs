@@ -6,7 +6,6 @@ use std::{
     fs::{self, File},
     io::{prelude::*, Error, ErrorKind},
     net::TcpStream,
-    ops::Deref,
     path::Path,
     sync::{Arc, Mutex},
     thread::{self, sleep},
@@ -145,7 +144,7 @@ impl VideoSource for Raw8BlobVideoSource {
 
     fn get_frame_count(&self) -> Option<u64> {
         Some(
-            (Path::new(&self.path).metadata().unwrap().len() / ((self.width * self.height) as u64)),
+            Path::new(&self.path).metadata().unwrap().len() / ((self.width * self.height) as u64),
         )
     }
 }
