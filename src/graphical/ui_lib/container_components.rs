@@ -1,5 +1,9 @@
 use self::EqualDistributingContainer::*;
-use crate::graphical::ui_lib::{layout_components::LocationContainer, *};
+use crate::{
+    graphical::ui_lib::{layout_components::LocationContainer, *},
+    ResN,
+};
+use glium::Surface;
 
 // a container, that distributes the space evenly between its children
 pub enum EqualDistributingContainer<S>
@@ -14,7 +18,7 @@ impl<S> Drawable<S> for EqualDistributingContainer<S>
 where
     S: Surface,
 {
-    fn draw(&self, param: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, param: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let children = match self {
             Horizontal(vec) => vec,
             Vertical(vec) => vec,

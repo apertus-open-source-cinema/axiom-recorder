@@ -1,173 +1,176 @@
-use crate::video_io::{debayer::Debayer, dng::Dng, Image};
+use crate::{
+    video_io::{debayer::Debayer, dng::Dng, Image},
+    Res,
+    ResN,
+};
 use bus::BusReader;
+use core::borrow::BorrowMut;
 use mpeg_encoder::Encoder;
 use std::{
+    cell::Cell,
     fs::{create_dir, File},
     io::{prelude::*, Error, ErrorKind},
     path::Path,
     sync::{
+        atomic::AtomicBool,
         mpsc::{channel, Sender},
         Arc,
+        Mutex,
     },
     thread,
 };
 
 /// An image sink, that somehow stores the images it receives
 pub trait Writer {
-    fn start(image_rx: BusReader<Arc<Image>>, filename: String) -> Self
+    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self>
     where
         Self: Sized;
-    fn stop(&self);
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN;
 }
 
-pub struct PathWriter {
-    writer: Box<dyn Writer>,
+pub struct BusWriter {
+    writer: Mutex<Box<dyn Writer>>,
+    bus_writer_running: Arc<Mutex<Cell<bool>>>,
 }
-impl PathWriter {
-    pub fn from_path(
-        image_rx: BusReader<Arc<Image>>,
-        filename: String,
-    ) -> Result<PathWriter, Error> {
+
+pub struct MetaWriter {
+    writer: Arc<Mutex<Box<dyn Writer + Send>>>,
+    bus_writer_running: Arc<Mutex<Cell<bool>>>,
+}
+
+impl Writer for MetaWriter {
+    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
         let extension = Path::new(&filename).extension();
+        let bus_writer_running = Arc::new(Mutex::new(Cell::new(false)));
         match extension.and_then(|s| s.to_str()) {
-            Some("raw8") => {
-                Ok(PathWriter { writer: Box::new(Raw8BlobWriter::start(image_rx, filename)) })
+            Some("raw8") => Ok(Self {
+                writer: Arc::new(Mutex::new(Box::new(Raw8BlobWriter::new(filename, size, fps)?))),
+                bus_writer_running,
+            }),
+            Some("mp4") => Ok(Self {
+                writer: Arc::new(Mutex::new(Box::new(MpegWriter::new(filename, size, fps)?))),
+                bus_writer_running,
+            }),
+            Some(_) => {
+                Err(Box::new(Error::new(ErrorKind::InvalidData, "file type is not supported")))
             }
-            Some("mp4") => {
-                Ok(PathWriter { writer: Box::new(MpegWriter::start(image_rx, filename)) })
-            }
-            Some(_) => Err(Error::new(ErrorKind::InvalidData, "file type is not supported")),
-            None => Ok(PathWriter { writer: Box::new(Raw8FilesWriter::start(image_rx, filename)) }),
+            None => Ok(Self {
+                writer: Arc::new(Mutex::new(Box::new(Raw8FilesWriter::new(filename, size, fps)?))),
+                bus_writer_running,
+            }),
         }
     }
-    pub fn stop(&self) { self.writer.stop() }
+
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        self.writer.lock().unwrap().write_frame(image)
+    }
+}
+
+impl MetaWriter {
+    fn start_write_from_bus(self, mut image_rx: BusReader<Arc<Image>>) {
+        let bus_writer_running = self.bus_writer_running.clone();
+        bus_writer_running.lock().unwrap().replace(false);
+
+        let writer = self.writer.clone();
+
+        thread::spawn(move || loop {
+            if !bus_writer_running.lock().unwrap().get() {
+                return;
+            }
+
+            let img = image_rx.recv().unwrap();
+            writer.lock().unwrap().write_frame(img);
+        });
+    }
+
+    fn stop_write_from_bus(&mut self) { self.bus_writer_running.lock().unwrap().replace(false); }
 }
 
 /// A writer, that simply writes the bytes of the received images to a single
 /// file
 pub struct Raw8BlobWriter {
-    stop_channel: Sender<()>,
+    file: File,
 }
 
 impl Writer for Raw8BlobWriter {
-    fn start(mut image_rx: BusReader<Arc<Image>>, filename: String) -> Self {
-        let (tx, rx) = channel::<()>();
-
-        thread::spawn(move || {
-            let mut file = File::create(filename).unwrap();
-
-            loop {
-                if rx.try_recv().is_ok() {
-                    break;
-                }
-
-                let img = image_rx.recv().unwrap();
-                file.write_all(&img.data).unwrap();
-            }
-        });
-
-        Self { stop_channel: tx }
+    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+        Ok(Self { file: File::create(filename)? })
     }
 
-    fn stop(&self) { self.stop_channel.send(()).unwrap(); }
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        &self.file.write_all(&image.data)?;
+        Ok(())
+    }
 }
 
 // A writer, that writes a folder of individual raw8 files
 pub struct Raw8FilesWriter {
-    stop_channel: Sender<()>,
+    dir_path: String,
+    cnt: u64,
 }
 
 impl Writer for Raw8FilesWriter {
-    fn start(mut image_rx: BusReader<Arc<Image>>, filename: String) -> Self {
-        let (stop_tx, stop_rx) = channel::<()>();
-
-        thread::spawn(move || {
-            create_dir(&filename).unwrap();
-
-            let mut i = 0;
-            loop {
-                if stop_rx.try_recv().is_ok() {
-                    break;
-                }
-
-                let mut file = File::create(format!("{}/{:06}.raw8", &filename, i)).unwrap();
-                let img = image_rx.recv().unwrap();
-                file.write_all(&img.data).unwrap();
-
-                i += 1;
-            }
-        });
-
-        Self { stop_channel: stop_tx }
+    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+        create_dir(&filename)?;
+        Ok(Self { dir_path: filename, cnt: 0 })
     }
 
-    fn stop(&self) { self.stop_channel.send(()).unwrap(); }
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        let mut file = File::create(format!("{}/{:06}.raw8", &self.dir_path, self.cnt)).unwrap();
+        file.write_all(&image.data).unwrap();
+        Ok(())
+    }
 }
 
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
-    stop_channel: Sender<()>,
+    dir_path: String,
+    cnt: u64,
 }
 
 impl Writer for CinemaDngWriter {
-    fn start(mut image_rx: BusReader<Arc<Image>>, filename: String) -> Self {
-        let (stop_tx, stop_rx) = channel::<()>();
-
-        thread::spawn(move || {
-            create_dir(&filename).unwrap();
-
-            let mut i = 0;
-            loop {
-                if stop_rx.try_recv().is_ok() {
-                    break;
-                }
-
-                let mut file = File::create(format!("{}/{:06}.dng", &filename, i)).unwrap();
-                let img = image_rx.recv().unwrap();
-                file.write_all(&img.format_dng()).unwrap();
-
-                i += 1;
-            }
-        });
-
-
-        Self { stop_channel: stop_tx }
+    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+        create_dir(&filename)?;
+        Ok(Self { dir_path: filename, cnt: 0 })
     }
 
-    fn stop(&self) { self.stop_channel.send(()).unwrap(); }
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        unimplemented!();
+    }
 }
 
 pub struct MpegWriter {
-    stop_channel: Sender<()>,
+    encoder: Encoder,
 }
 
+// TODO: WTF, NO!!!
+unsafe impl Send for MpegWriter {}
+
 impl Writer for MpegWriter {
-    fn start(mut image_rx: BusReader<Arc<Image>>, filename: String) -> Self {
-        let (stop_tx, stop_rx) = channel::<()>();
-
-        thread::spawn(move || {
-            let img = image_rx.recv().unwrap();
-            let mut encoder = Encoder::new(filename, img.width as usize, img.height as usize);
-
-            loop {
-                if stop_rx.try_recv().is_ok() {
-                    break;
-                }
-
-                let img = image_rx.recv().unwrap();
-                encoder.encode_rgba(
-                    (img.width / 2) as usize,
-                    (img.height / 2) as usize,
-                    img.debayer().unwrap().data.as_ref(),
-                    false,
-                );
-            }
-        });
-
-
-        Self { stop_channel: stop_tx }
+    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+        println!("{}", fps as usize);
+        let mut encoder = Encoder::new_with_params(
+            filename,
+            size.0 as usize,
+            size.1 as usize,
+            None,
+            Some((1000, (fps * 1000.0) as usize)),
+            None,
+            None,
+            None,
+        );
+        encoder.init();
+        Ok(Self { encoder })
     }
 
-    fn stop(&self) { self.stop_channel.send(()).unwrap(); }
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        self.encoder.encode_rgba(
+            image.width as usize / 2,
+            image.height as usize / 2,
+            image.debayer()?.data.as_ref(),
+            false,
+        );
+        Ok(())
+    }
 }

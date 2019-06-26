@@ -62,6 +62,14 @@ impl Manager {
             let draw_result = match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
                 Result::Err(_) => self.redraw(last_image.clone(), cache),
                 Result::Ok(image) => {
+                    loop {
+                        // read all the frames that are stuck in the pipe to make the display non
+                        // blocking
+                        match self.raw_image_source.try_recv() {
+                            Err(_) => break,
+                            Ok(_) => (),
+                        }
+                    }
                     last_image = image.clone();
                     self.redraw(image, cache)
                 }

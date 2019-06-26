@@ -1,5 +1,5 @@
 use self::Size::{Percent, Px};
-use crate::graphical::ui_lib::*;
+use crate::{graphical::ui_lib::*, ResN};
 
 /// Makes a given child keep the given aspect ratio independent of the aspect
 /// ratio of this container. letterboxing of pillarboxing is the result
@@ -15,7 +15,7 @@ impl<'a, S> Drawable<S> for AspectRatioContainer<'a, S>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let container_ratio =
             (sp.size.x * params.screen_size.x as f64) / (sp.size.y * params.screen_size.y as f64);
         let ratio = container_ratio * (1. / self.aspect_ratio);
@@ -49,7 +49,7 @@ impl<'a, S> Drawable<S> for SizeContainer<'a, S>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let size = Vec2 {
             x: match self.size.x {
                 Px(px) => sp.size.x * (px as f64 / (params.screen_size.x as f64 * sp.size.x)),
@@ -81,7 +81,7 @@ impl<'a, S> Drawable<S> for LocationContainer<'a, S>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let child_sp = &self.sp;
         let absolute_sp = SpatialProperties {
             start: Vec2 {

@@ -7,6 +7,7 @@ use super::{
 use glium::texture;
 use std::{borrow::Cow, error::Error, result::Result::Ok};
 
+use crate::ResN;
 use euclid::{Point2D, Size2D};
 use font_kit::{
     canvas::{Canvas, Format, RasterizationOptions},
@@ -62,7 +63,7 @@ impl<S> Drawable<S> for Letter
 where
     S: Surface + 'static,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let (bitmap, offset) = self.get_bitmap(self.size).unwrap();
         let texture = texture::Texture2d::new(
             params.facade,
@@ -104,7 +105,7 @@ impl<S> Drawable<S> for Text
 where
     S: Surface + 'static,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let len = self.str.len();
         let letters = self
             .str

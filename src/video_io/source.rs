@@ -1,4 +1,5 @@
 use super::Image;
+use crate::{Res, ResN};
 use bus::{Bus, BusReader};
 use itertools::Itertools;
 use std::{
@@ -12,10 +13,8 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-type Res<T> = Result<T, Box<dyn error::Error>>;
-
 pub trait VideoSource: Send {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()>;
+    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> ResN;
     fn get_frame_count(&self) -> Option<u64>;
 }
 
@@ -35,7 +34,7 @@ impl BufferedVideoSource {
             thread::spawn(move || {
                 let vs = vs_send.lock().unwrap();
                 let now = Box::into_raw(Box::new(Instant::now()));
-                let result = vs.get_images(&|img| {
+                let result = vs.get_images(&mut |img| {
                     tx.lock().unwrap().broadcast(Arc::new(img));
                     unsafe {
                         // TODO: This is a big, ugly hack
@@ -56,11 +55,11 @@ impl BufferedVideoSource {
     pub fn subscribe(&self) -> BusReader<Arc<Image>> { self.tx.lock().unwrap().add_rx() }
 }
 
-pub struct VideoSourceHelper {
+pub struct MetaVideoSource {
     vs: Box<dyn VideoSource>,
 }
 
-impl VideoSourceHelper {
+impl MetaVideoSource {
     pub fn from_file(path: String, width: u32, height: u32, fps: Option<f32>) -> Res<Self> {
         if path.ends_with(".raw8") {
             Ok(Self {
@@ -98,8 +97,10 @@ impl VideoSourceHelper {
     }
 }
 
-impl VideoSource for VideoSourceHelper {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> { self.vs.get_images(callback) }
+impl VideoSource for MetaVideoSource {
+    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
+        self.vs.get_images(callback)
+    }
 
     fn get_frame_count(&self) -> Option<u64> { self.vs.get_frame_count() }
 }
@@ -113,7 +114,7 @@ pub struct Raw8BlobVideoSource {
 }
 
 impl VideoSource for Raw8BlobVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> {
+    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
         let mut file = File::open(&self.path)?;
         let mut bytes = vec![0u8; (self.width * self.height) as usize];
 
@@ -143,9 +144,7 @@ impl VideoSource for Raw8BlobVideoSource {
     }
 
     fn get_frame_count(&self) -> Option<u64> {
-        Some(
-            Path::new(&self.path).metadata().unwrap().len() / ((self.width * self.height) as u64),
-        )
+        Some(Path::new(&self.path).metadata().unwrap().len() / ((self.width * self.height) as u64))
     }
 }
 
@@ -158,7 +157,7 @@ pub struct Raw8FilesVideoSource {
 }
 
 impl VideoSource for Raw8FilesVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> {
+    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
         let path = Path::new(&self.folder_path);
         for entry in fs::read_dir(path)? {
             let entry = entry?;
@@ -186,7 +185,7 @@ impl VideoSource for Raw8FilesVideoSource {
     }
 }
 
-#[derive(Debug)]
+// Reads frames from a remote connected camera
 pub struct TcpVideoSource {
     pub address: String,
     pub width: u32,
@@ -194,7 +193,7 @@ pub struct TcpVideoSource {
 }
 
 impl VideoSource for TcpVideoSource {
-    fn get_images(&self, callback: &dyn Fn(Image)) -> Res<()> {
+    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
         let mut stream = TcpStream::connect(&self.address)?;
 
         let mut image_count = 0;

@@ -5,9 +5,9 @@ use recorder::{
         self,
         settings::{self, Settings},
     },
-    video_io::source::{BufferedVideoSource, VideoSourceHelper},
+    video_io::source::{BufferedVideoSource, MetaVideoSource},
 };
-use std::{f32::NAN};
+use std::f32::NAN;
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -39,8 +39,7 @@ fn main() {
     let height = arguments.value_of("height").unwrap().parse().unwrap();
     let width = arguments.value_of("width").unwrap().parse().unwrap();
     let fps = arguments.value_of("fps").map(|x| x.parse().unwrap());
-    let video_source =
-        VideoSourceHelper::from_uri(String::from(source), width, height, fps).unwrap();
+    let video_source = MetaVideoSource::from_uri(String::from(source), width, height, fps).unwrap();
     let buffered_vs = BufferedVideoSource::new(Box::new(video_source));
 
     let initial_settings = Settings {

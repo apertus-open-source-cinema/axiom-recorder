@@ -1,4 +1,5 @@
 use super::*;
+use crate::ResN;
 use glium::{
     texture::{RawImage2d, Texture2d},
     uniform,
@@ -14,7 +15,7 @@ impl<S> Drawable<S> for ColorBox
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -43,7 +44,7 @@ impl<S> Drawable<S> for TextureBox
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -75,7 +76,7 @@ impl<S> Drawable<S> for MonoTextureBox
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -108,7 +109,7 @@ impl<'a, S> Drawable<S> for ImageComponent<'a>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let image = RawImage2d::from_raw_rgba(
             self.image.data.to_vec(),
             (self.image.width, self.image.height),

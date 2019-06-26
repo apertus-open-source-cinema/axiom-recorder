@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::ResN;
 use glium::{
     texture::{self, RawImage2d},
     uniform,
@@ -55,7 +56,7 @@ impl<'a, S> Drawable<S> for Histogram<'a>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let histogram_data = self.generate_histogram();
         let mut texture_data: Vec<u8> = (0..256 * 3).map(|_| 0).collect();
         for i in 0..3 {

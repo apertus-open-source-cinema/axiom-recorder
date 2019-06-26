@@ -1,4 +1,5 @@
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
+use crate::ResN;
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, Program, Surface};
 use std::{any::Any, collections::BTreeMap, error};
 
@@ -36,8 +37,6 @@ where
     pub screen_size: Vec2<u32>,
 }
 
-type Res = Result<(), Box<dyn error::Error>>;
-
 /// Util type for representing the "geographical" properties
 #[derive(Debug, Clone)]
 pub struct Vec2<T> {
@@ -73,7 +72,7 @@ pub trait Drawable<S>
 where
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res;
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN;
 }
 
 /// Draws a given fragment shader onto a given Box. The heart of all other
@@ -91,7 +90,7 @@ where
     U: Uniforms,
     S: Surface,
 {
-    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> Res {
+    fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let facade = &params.facade;
         let program = params.cache.memoize(&self.fragment_shader, || {
             Program::from_source(
