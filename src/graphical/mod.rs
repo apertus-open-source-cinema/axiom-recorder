@@ -9,7 +9,7 @@ use self::{
         *,
     },
 };
-use crate::video_io::{debayer::Debayer, Image};
+use crate::{debayer::Debayer, video_io::Image};
 use bus::BusReader;
 use glium::{
     glutin::{ContextBuilder, EventsLoop, WindowBuilder},
@@ -31,16 +31,21 @@ pub struct Manager {
     raw_image_source: BusReader<Arc<Image>>,
     event_loop: EventsLoop,
     settings_gui: Settings,
+    debayer_options: String,
 }
 
 impl Manager {
-    pub fn new(raw_image_source: BusReader<Arc<Image>>, settings_gui: Settings) -> Self {
+    pub fn new(
+        raw_image_source: BusReader<Arc<Image>>,
+        settings_gui: Settings,
+        debayer_options: String,
+    ) -> Self {
         let event_loop = EventsLoop::new();
         let window = WindowBuilder::new();
         let context = ContextBuilder::new();
         let display = Display::new(window, context, &event_loop).unwrap();
 
-        Manager { display, raw_image_source, event_loop, settings_gui }
+        Manager { display, raw_image_source, event_loop, settings_gui, debayer_options }
     }
 
     pub fn run_event_loop(&mut self) {
@@ -92,7 +97,7 @@ impl Manager {
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
-        let debayered = raw_image.debayer()?;
+        let debayered = raw_image.debayer(&self.debayer_options)?;
 
         let hist_component: Box<dyn Drawable<_>> = if self.settings_gui.draw_histogram {
             Box::new(Histogram { image: &debayered })

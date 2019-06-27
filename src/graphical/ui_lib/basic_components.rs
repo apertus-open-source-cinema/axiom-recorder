@@ -1,5 +1,5 @@
 use super::*;
-use crate::ResN;
+use crate::util::error::ResN;
 use glium::{
     texture::{RawImage2d, Texture2d},
     uniform,

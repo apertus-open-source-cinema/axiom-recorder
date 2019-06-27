@@ -1,5 +1,5 @@
 use self::Size::{Percent, Px};
-use crate::{graphical::ui_lib::*, ResN};
+use crate::{graphical::ui_lib::*, util::error::ResN};
 
 /// Makes a given child keep the given aspect ratio independent of the aspect
 /// ratio of this container. letterboxing of pillarboxing is the result

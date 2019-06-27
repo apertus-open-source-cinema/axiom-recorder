@@ -2,11 +2,15 @@ use clap::{App, Arg};
 
 use bus::Bus;
 use indicatif::{ProgressBar, ProgressStyle};
-use recorder::video_io::{
-    source::{self, BufferedVideoSource, MetaVideoSource, VideoSource},
-    writer::{MetaWriter, Writer},
+use recorder::{
+    util::options::OptionsStorage,
+    video_io::{
+        source::{self, BufferedVideoSource, MetaVideoSource, VideoSource},
+        writer::{MetaWriter, Writer},
+    },
 };
 use std::{
+    collections::HashMap,
     sync::{Arc, Mutex},
     thread::sleep,
     time::Duration,
@@ -39,26 +43,23 @@ fn main() {
                 .allow_hyphen_values(true)
                 .case_insensitive(true),
         )
-        .arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
-        .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
-        .arg(Arg::with_name("fps").long("fps").takes_value(true).required(true))
+        .arg(Arg::with_name("width").short("w").long("width").takes_value(true))
+        .arg(Arg::with_name("height").short("h").long("height").takes_value(true))
+        .arg(Arg::with_name("fps").long("fps").takes_value(true))
         .get_matches();
 
     let source_str = arguments.value_of("input").unwrap();
     let sink_str = arguments.value_of("output").unwrap();
 
-    let height = arguments.value_of("height").unwrap().parse().unwrap();
-    let width = arguments.value_of("width").unwrap().parse().unwrap();
-    let fps = arguments.value_of("fps").unwrap().parse().unwrap();
+    let options = &OptionsStorage::from_args(arguments.clone(), vec!["width", "height", "fps"]);
 
     println!("\nconverting {} to {} ...\n", source_str, sink_str);
 
     {
         // connect source and sink
-        let video_source =
-            MetaVideoSource::from_file(String::from(source_str), width, height, None).unwrap();
+        let video_source = MetaVideoSource::from_file(String::from(source_str), options).unwrap();
 
-        let mut sink = MetaWriter::new(String::from(sink_str), (width, height), fps).unwrap();
+        let mut sink = MetaWriter::new(String::from(sink_str), options).unwrap();
 
         let progressbar = match video_source.get_frame_count() {
             Some(n) => ProgressBar::new(n as u64),

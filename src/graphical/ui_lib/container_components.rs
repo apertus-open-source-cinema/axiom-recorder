@@ -1,7 +1,7 @@
 use self::EqualDistributingContainer::*;
 use crate::{
     graphical::ui_lib::{layout_components::LocationContainer, *},
-    ResN,
+    util::error::ResN,
 };
 use glium::Surface;
 

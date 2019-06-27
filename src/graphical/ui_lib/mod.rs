@@ -1,5 +1,5 @@
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
-use crate::ResN;
+use crate::util::error::ResN;
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, Program, Surface};
 use std::{any::Any, collections::BTreeMap, error};
 

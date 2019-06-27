@@ -1,15 +1,20 @@
 use crate::{
-    video_io::{debayer::Debayer, dng::Dng, Image},
-    Res,
-    ResN,
+    debayer::Debayer,
+    util::{
+        error::{Error, Res, ResN},
+        options::OptionsStorage,
+    },
+    video_io::{dng::Dng, Image},
 };
 use bus::BusReader;
 use core::borrow::BorrowMut;
 use mpeg_encoder::Encoder;
 use std::{
+    any::Any,
     cell::Cell,
+    collections::HashMap,
     fs::{create_dir, File},
-    io::{prelude::*, Error, ErrorKind},
+    io::{prelude::*, ErrorKind},
     path::Path,
     sync::{
         atomic::AtomicBool,
@@ -22,7 +27,7 @@ use std::{
 
 /// An image sink, that somehow stores the images it receives
 pub trait Writer {
-    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self>
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self>
     where
         Self: Sized;
     fn write_frame(&mut self, image: Arc<Image>) -> ResN;
@@ -39,23 +44,21 @@ pub struct MetaWriter {
 }
 
 impl Writer for MetaWriter {
-    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
         let extension = Path::new(&filename).extension();
         let bus_writer_running = Arc::new(Mutex::new(Cell::new(false)));
         match extension.and_then(|s| s.to_str()) {
             Some("raw8") => Ok(Self {
-                writer: Arc::new(Mutex::new(Box::new(Raw8BlobWriter::new(filename, size, fps)?))),
+                writer: Arc::new(Mutex::new(Box::new(Raw8BlobWriter::new(filename, options)?))),
                 bus_writer_running,
             }),
             Some("mp4") => Ok(Self {
-                writer: Arc::new(Mutex::new(Box::new(MpegWriter::new(filename, size, fps)?))),
+                writer: Arc::new(Mutex::new(Box::new(MpegWriter::new(filename, options)?))),
                 bus_writer_running,
             }),
-            Some(_) => {
-                Err(Box::new(Error::new(ErrorKind::InvalidData, "file type is not supported")))
-            }
+            Some(extention) => Error::error(format!("No writer for file type .{}", extention)),
             None => Ok(Self {
-                writer: Arc::new(Mutex::new(Box::new(Raw8FilesWriter::new(filename, size, fps)?))),
+                writer: Arc::new(Mutex::new(Box::new(Raw8FilesWriter::new(filename, options)?))),
                 bus_writer_running,
             }),
         }
@@ -93,7 +96,7 @@ pub struct Raw8BlobWriter {
 }
 
 impl Writer for Raw8BlobWriter {
-    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
         Ok(Self { file: File::create(filename)? })
     }
 
@@ -110,7 +113,7 @@ pub struct Raw8FilesWriter {
 }
 
 impl Writer for Raw8FilesWriter {
-    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
         create_dir(&filename)?;
         Ok(Self { dir_path: filename, cnt: 0 })
     }
@@ -130,7 +133,7 @@ pub struct CinemaDngWriter {
 }
 
 impl Writer for CinemaDngWriter {
-    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
         create_dir(&filename)?;
         Ok(Self { dir_path: filename, cnt: 0 })
     }
@@ -142,18 +145,23 @@ impl Writer for CinemaDngWriter {
 
 pub struct MpegWriter {
     encoder: Encoder,
+    debayer_options: String,
 }
 
 // TODO: WTF, NO!!!
 unsafe impl Send for MpegWriter {}
 
 impl Writer for MpegWriter {
-    fn new(filename: String, size: (u32, u32), fps: f64) -> Res<Self> {
-        println!("{}", fps as usize);
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
+        let fps: f32 = options.get_opt_parse("fps")?;
+        let width: u64 = options.get_opt_parse("width")?;
+        let height: u64 = options.get_opt_parse("height")?;
+        let debayer_options: String = ((options.get_opt_parse("debayer_options")?): String).clone();
+
         let mut encoder = Encoder::new_with_params(
             filename,
-            size.0 as usize,
-            size.1 as usize,
+            width as usize,
+            height as usize,
             None,
             Some((1000, (fps * 1000.0) as usize)),
             None,
@@ -161,14 +169,14 @@ impl Writer for MpegWriter {
             None,
         );
         encoder.init();
-        Ok(Self { encoder })
+        Ok(Self { encoder, debayer_options })
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
         self.encoder.encode_rgba(
             image.width as usize / 2,
             image.height as usize / 2,
-            image.debayer()?.data.as_ref(),
+            image.debayer(&self.debayer_options)?.data.as_ref(),
             false,
         );
         Ok(())

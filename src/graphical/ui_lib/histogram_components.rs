@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::ResN;
+use crate::util::error::ResN;
 use glium::{
     texture::{self, RawImage2d},
     uniform,

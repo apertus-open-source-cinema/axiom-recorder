@@ -1,3 +1,5 @@
+#![feature(type_ascription)]
+
 use clap::{App, Arg};
 
 use recorder::{
@@ -5,9 +7,10 @@ use recorder::{
         self,
         settings::{self, Settings},
     },
+    util::options::OptionsStorage,
     video_io::source::{BufferedVideoSource, MetaVideoSource},
 };
-use std::f32::NAN;
+use std::{any::Any, collections::HashMap, f64::NAN};
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -33,27 +36,34 @@ fn main() {
             ),
         )
         .arg(Arg::with_name("fps").long("fps").takes_value(true))
+        .arg(Arg::with_name("debayer-settings").takes_value(true))
         .get_matches();
 
     let source = arguments.value_of("video_source").unwrap();
-    let height = arguments.value_of("height").unwrap().parse().unwrap();
-    let width = arguments.value_of("width").unwrap().parse().unwrap();
-    let fps = arguments.value_of("fps").map(|x| x.parse().unwrap());
-    let video_source = MetaVideoSource::from_uri(String::from(source), width, height, fps).unwrap();
+
+    let options = &OptionsStorage::from_args(arguments.clone(), vec!["width", "height", "fps"]);
+
+    let debayer_settings = arguments.value_of("debayer-settings").unwrap_or("");
+
+    let video_source = MetaVideoSource::from_uri(String::from(source), options).unwrap();
     let buffered_vs = BufferedVideoSource::new(Box::new(video_source));
 
     let initial_settings = Settings {
         shutter_angle: 180.0,
         iso: 800.0,
-        fps: match fps {
-            Some(fps) => fps,
-            None => NAN,
-        } as f64,
+        fps: match options.get_opt_parse("fps") {
+            Ok(fps) => fps,
+            Err(_) => NAN,
+        },
         recording_format: settings::RecordingFormat::Raw8,
         grid: settings::Grid::NoGrid,
         draw_histogram: !arguments.is_present("no-histogram"),
     };
 
-    let mut graphical_manager = graphical::Manager::new(buffered_vs.subscribe(), initial_settings);
+    let mut graphical_manager = graphical::Manager::new(
+        buffered_vs.subscribe(),
+        initial_settings,
+        String::from(debayer_settings),
+    );
     graphical_manager.run_event_loop();
 }

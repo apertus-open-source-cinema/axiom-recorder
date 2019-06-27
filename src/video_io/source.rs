@@ -1,5 +1,8 @@
 use super::Image;
-use crate::{Res, ResN};
+use crate::util::{
+    error::{Res, ResN},
+    options::OptionsStorage,
+};
 use bus::{Bus, BusReader};
 use itertools::Itertools;
 use std::{
@@ -60,7 +63,11 @@ pub struct MetaVideoSource {
 }
 
 impl MetaVideoSource {
-    pub fn from_file(path: String, width: u32, height: u32, fps: Option<f32>) -> Res<Self> {
+    pub fn from_file(path: String, options: &OptionsStorage) -> Res<Self> {
+        let width = options.get_opt_parse("width")?;
+        let height = options.get_opt_parse("height")?;
+        let fps = options.get_opt_parse("fps").ok();
+
         if path.ends_with(".raw8") {
             Ok(Self {
                 vs: Box::new(Raw8BlobVideoSource { path: path.to_string(), width, height, fps }),
@@ -79,16 +86,21 @@ impl MetaVideoSource {
         }
     }
 
-    pub fn from_uri(uri: String, width: u32, height: u32, fps: Option<f32>) -> Res<Self> {
+    pub fn from_uri(uri: String, options: &OptionsStorage) -> Res<Self> {
         match uri
             .split("://")
             .next_tuple()
             .ok_or(Error::new(ErrorKind::InvalidInput, "malformad URI"))?
         {
-            ("file", path) => Ok(Self::from_file(path.to_string(), width, height, fps)?),
-            ("tcp", address) => Ok(Self {
-                vs: (Box::new(TcpVideoSource { address: address.to_string(), width, height })),
-            }),
+            ("file", path) => Ok(Self::from_file(path.to_string(), options)?),
+            ("tcp", address) => {
+                let width = options.get_opt_parse("width")?;
+                let height = options.get_opt_parse("height")?;
+
+                Ok(Self {
+                    vs: (Box::new(TcpVideoSource { address: address.to_string(), width, height })),
+                })
+            }
             (uri_type, _) => Err(Box::new(Error::new(
                 ErrorKind::InvalidInput,
                 format!("URI type {} is not supported", uri_type),
