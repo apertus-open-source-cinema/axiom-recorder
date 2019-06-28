@@ -10,15 +10,11 @@ use bus::BusReader;
 
 use mpeg_encoder::Encoder;
 use std::{
-    any::Any,
     cell::Cell,
-    collections::HashMap,
     fs::{create_dir, File},
-    io::{prelude::*, ErrorKind},
+    io::{prelude::*},
     path::Path,
     sync::{
-        atomic::AtomicBool,
-        mpsc::{channel, Sender},
         Arc,
         Mutex,
     },
@@ -31,11 +27,6 @@ pub trait Writer {
     where
         Self: Sized;
     fn write_frame(&mut self, image: Arc<Image>) -> ResN;
-}
-
-pub struct BusWriter {
-    writer: Mutex<Box<dyn Writer>>,
-    bus_writer_running: Arc<Mutex<Cell<bool>>>,
 }
 
 pub struct MetaWriter {
@@ -82,7 +73,13 @@ impl MetaWriter {
             }
 
             let img = image_rx.recv().unwrap();
-            writer.lock().unwrap().write_frame(img);
+            let result = writer.lock().unwrap().write_frame(img);
+
+
+            if result.is_err() {
+                eprintln!("Source Error: {}", result.err().unwrap());
+                return;
+            }
         });
     }
 

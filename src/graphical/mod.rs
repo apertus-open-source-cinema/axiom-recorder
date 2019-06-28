@@ -101,7 +101,7 @@ impl Manager {
 
         let debayered = match raw_image.debayer(&self.debayer_options) {
             Err(e) => {
-                target.finish();
+                target.finish()?;
                 return Err(e);
             }
             Ok(v) => v,

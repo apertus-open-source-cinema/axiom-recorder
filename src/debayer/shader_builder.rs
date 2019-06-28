@@ -8,13 +8,10 @@ use std::{result::Result::Ok};
 
 use crate::util::formatting_helpers::format_hash_map_option;
 use glium::{
-    buffer::BufferType::ShaderStorageBuffer,
-    texture::RawImage2d,
-    uniforms::{AsUniformValue, EmptyUniforms, UniformValue, Uniforms, UniformsStorage},
+    uniforms::{UniformValue, Uniforms},
 };
 
 use include_dir::{Dir, *};
-use itertools::Itertools;
 use regex::Regex;
 use std::{collections::HashMap};
 

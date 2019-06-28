@@ -10,10 +10,7 @@ use recorder::{
     },
 };
 use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-    thread::sleep,
-    time::Duration,
+    sync::{Arc},
 };
 
 fn main() {

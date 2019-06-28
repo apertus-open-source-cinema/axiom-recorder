@@ -49,6 +49,7 @@ impl BufferedVideoSource {
 
                 if result.is_err() {
                     eprintln!("Source Error: {}", result.err().unwrap());
+                    return;
                 }
             });
         }
