@@ -8,7 +8,8 @@ use std::{result::Result::Ok};
 
 use crate::util::formatting_helpers::format_hash_map_option;
 use glium::{
-    uniforms::{UniformValue, Uniforms},
+    uniforms::{UniformValue, Uniforms, AsUniformValue},
+    texture::Texture2d
 };
 
 use include_dir::{Dir, *};
@@ -17,17 +18,19 @@ use std::{collections::HashMap};
 
 
 type Implications = HashMap<String, Option<String>>;
+pub type F32OptionMap = HashMap<String, Option<f32>>;
 
 // this is only a newtype because rusts prohibition of implementing foreign
 // traits for foreign Types sucks
-#[derive(Clone)]
-pub struct F32Uniforms(pub HashMap<String, Option<f32>>);
+pub struct F32OptionMapTextureUniforms(pub (F32OptionMap, Box<Texture2d>));
 
-impl Uniforms for F32Uniforms {
+impl Uniforms for F32OptionMapTextureUniforms {
     fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut callback: F) {
-        for (k, v) in &self.0 {
-            callback(k, UniformValue::Float(v.unwrap()));
+        let (f32map, texture2d) = &self.0;
+        for (k, v) in f32map.clone() {
+            callback(&k, UniformValue::Float(v.unwrap()));
         }
+        callback("texture", UniformValue::Texture2d(texture2d.as_ref(), None))
     }
 }
 
@@ -59,7 +62,7 @@ impl ShaderBuilder {
                             format!(
                                 "\t* {}({}) [{}]",
                                 name,
-                                format_hash_map_option(&uniforms.0),
+                                format_hash_map_option(&uniforms),
                                 format_hash_map_option(implications),
                             )
                         }).collect::<Vec<String>>().join("\n")
@@ -78,7 +81,7 @@ impl ShaderBuilder {
         Ok(Self { shader_parts })
     }
 
-    pub fn get_available() -> Res<HashMap<String, (F32Uniforms, Implications)>> {
+    pub fn get_available() -> Res<HashMap<String, (F32OptionMap, Implications)>> {
         let mut result = HashMap::new();
         for file in SHADERS.files() {
             let filepath = file.path().to_str().unwrap();
@@ -107,14 +110,14 @@ impl ShaderBuilder {
         to_return
     }
 
-    pub fn get_uniforms(&self) -> F32Uniforms {
+    pub fn get_uniforms(&self) -> F32OptionMap {
         let mut to_return = HashMap::new();
         for part in &self.shader_parts {
-            for (k, v) in part.get_uniforms().0 {
+            for (k, v) in part.get_uniforms() {
                 to_return.insert(k, v);
             }
         }
-        F32Uniforms(to_return)
+        to_return
     }
 
     pub fn get_code(&self) -> String {
@@ -122,7 +125,7 @@ impl ShaderBuilder {
 
         to_return += r#"
             #version 450
-            uniform sampler2D raw_image;
+            uniform sampler2D texture;
             out vec4 color;
         "#;
 
@@ -134,7 +137,7 @@ impl ShaderBuilder {
         to_return += &format!("\n\n///////////// main /////////////////\n");
         to_return += r#"
             void main(void) {
-                ivec2 size = textureSize(raw_image, 0);
+                ivec2 size = textureSize(texture, 0);
                 ivec2 icord = ivec2(gl_FragCoord);
                 ivec2 rotcord = ivec2(icord.x, size.y - icord.y);
 
@@ -150,15 +153,15 @@ impl ShaderBuilder {
 
 pub struct ShaderBuilderPart {
     code: String,
-    uniforms: F32Uniforms,
+    uniforms: F32OptionMap,
     name: String,
 }
 
 impl ShaderBuilderPart {
-    fn new(code: String, non_default_uniforms: Option<F32Uniforms>, name: String) -> Res<Self> {
+    fn new(code: String, non_default_uniforms: Option<F32OptionMap>, name: String) -> Res<Self> {
         let re =
             Regex::new("uniform\\s+float\\s+(\\w+)\\s*;\\s*//\\s*=\\s*(\\d*\\.?\\d*)").unwrap();
-        let mut uniforms = F32Uniforms(HashMap::new()).0;
+        let mut uniforms = HashMap::new();
 
         let mut taken = 0;
         for cap in re.captures_iter(code.as_str()) {
@@ -166,7 +169,7 @@ impl ShaderBuilderPart {
             let default_value: Option<f32> = cap.get(2).map(|v| v.as_str().parse().unwrap());
 
             let value = match &non_default_uniforms {
-                Some(ndu) => match ndu.0.get(uniform_name) {
+                Some(ndu) => match ndu.get(uniform_name) {
                     Some(v) => {
                         taken += 1;
                         Some(v.unwrap_or(1.0))
@@ -188,12 +191,12 @@ impl ShaderBuilderPart {
         }
 
         if non_default_uniforms.is_some() {
-            if taken != non_default_uniforms.unwrap().0.len() {
+            if taken != non_default_uniforms.unwrap().len() {
                 throw!("some uniform values were not consumed by that shader. maybe you set nonexistent uniforms?")
             }
         }
 
-        Ok(ShaderBuilderPart { code, uniforms: F32Uniforms(uniforms), name })
+        Ok(ShaderBuilderPart { code, uniforms: uniforms, name })
     }
 
     fn new_with_str_params(code: String, params: String, name: String) -> Res<Self> {
@@ -206,10 +209,10 @@ impl ShaderBuilderPart {
             );
         }
 
-        Self::new(code, Some(F32Uniforms(non_default_uniforms)), name)
+        Self::new(code, Some(non_default_uniforms), name)
     }
 
-    fn get_uniforms(&self) -> F32Uniforms { self.uniforms.clone() }
+    fn get_uniforms(&self) -> F32OptionMap { self.uniforms.clone() }
 
     fn get_implications(&self) -> Implications {
         let re = Regex::new("! (.*)(\\s?=\\s?(.*))").unwrap();

@@ -72,7 +72,8 @@ fn work(source: String, options: &OptionsStorage) -> Res<()> {
     let mut graphical_manager = graphical::Manager::new(
         buffered_vs.subscribe(),
         initial_settings,
-        options.get_opt_or("debayer-options", "source_lin(); debayer_halfresolution()"),
+        (options.get_opt_parse("width")?, options.get_opt_parse("height")?),
+        &options.get_opt_or("debayer-options", "source_lin(); debayer_halfresolution()"),
     )?;
     graphical_manager.run_event_loop()?;
     Ok(())

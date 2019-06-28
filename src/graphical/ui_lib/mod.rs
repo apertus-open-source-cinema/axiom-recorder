@@ -134,7 +134,7 @@ where
             params.facade,
             (sp.start.x, sp.start.y, sp.start.x + sp.size.x, sp.start.y + sp.size.y),
         );
-        let _result = (*params.surface).draw(
+        (*params.surface).draw(
             vertices,
             &index::NoIndices(index::PrimitiveType::TriangleStrip),
             program,

@@ -24,6 +24,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use crate::debayer::Debayerer;
 
 pub mod settings;
 pub mod ui_lib;
@@ -34,21 +35,24 @@ pub struct Manager {
     raw_image_source: BusReader<Arc<Image>>,
     event_loop: EventsLoop,
     settings_gui: Settings,
-    debayer_options: String,
+    debayerer: Box<Debayerer>,
 }
 
 impl Manager {
     pub fn new(
         raw_image_source: BusReader<Arc<Image>>,
         settings_gui: Settings,
-        debayer_options: String,
+        size: (u32, u32),
+        debayer_settings: &str,
     ) -> Res<Self> {
         let event_loop = EventsLoop::new();
         let window = WindowBuilder::new();
         let context = ContextBuilder::new();
         let display = Display::new(window, context, &event_loop)?;
 
-        Ok(Manager { display, raw_image_source, event_loop, settings_gui, debayer_options })
+        let debayerer = Box::new(Debayerer::new(debayer_settings, size)?);
+
+        Ok(Manager { display, raw_image_source, event_loop, settings_gui, debayerer })
     }
 
     pub fn run_event_loop(&mut self) -> Res<()> {
@@ -67,7 +71,7 @@ impl Manager {
                 _ => (),
             });
 
-            let _draw_result = match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
+            match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
                 Result::Err(_) => self.redraw(last_image.clone(), cache),
                 Result::Ok(image) => {
                     loop {
@@ -93,13 +97,11 @@ impl Manager {
         raw_image: Arc<Image>,
         cache: &mut Cache,
     ) -> Result<(), Box<dyn Error>> {
-        let _res: Res<()> = Ok(());
-
         let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
-        let debayered = match raw_image.debayer(&self.debayer_options) {
+        let debayered = match raw_image.debayer(self.debayerer.as_mut()) {
             Err(e) => {
                 target.finish()?;
                 return Err(e);

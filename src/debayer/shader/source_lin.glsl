@@ -4,5 +4,5 @@
 */
 
 float get_intensity(ivec2 pos) {
-    return texelFetch(raw_image, pos, 0).r;
+    return texelFetch(texture, pos, 0).r;
 }

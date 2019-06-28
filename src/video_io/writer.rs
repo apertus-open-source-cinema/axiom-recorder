@@ -20,6 +20,7 @@ use std::{
     },
     thread,
 };
+use crate::debayer::Debayerer;
 
 /// An image sink, that somehow stores the images it receives
 pub trait Writer {
@@ -142,7 +143,7 @@ impl Writer for CinemaDngWriter {
 
 pub struct MpegWriter {
     encoder: Encoder,
-    debayer_options: String,
+    debayerer: Box<Debayerer>,
 }
 
 // TODO: WTF, NO!!!
@@ -151,18 +152,21 @@ unsafe impl Send for MpegWriter {}
 impl Writer for MpegWriter {
     fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
         let fps: f32 = options.get_opt_parse("fps")?;
-        let width: u64 = options.get_opt_parse("width")?;
-        let height: u64 = options.get_opt_parse("height")?;
+        let width: u32 = options.get_opt_parse("width")?;
+        let height: u32 = options.get_opt_parse("height")?;
         let debayer_options: String = ((options
             .get_opt_parse("debayer-options")
             .unwrap_or(String::from("source_lin() debayer_halfresolution()"))):
             String)
             .clone();
 
+        let debayerer = Box::new(Debayerer::new(&debayer_options, (width, height))?);
+        let size = debayerer.get_size();
+
         let mut encoder = Encoder::new_with_params(
             filename,
-            width as usize,
-            height as usize,
+            size.0 as usize,
+            size.1 as usize,
             None,
             Some((1000, (fps * 1000.0) as usize)),
             None,
@@ -170,14 +174,14 @@ impl Writer for MpegWriter {
             None,
         );
         encoder.init();
-        Ok(Self { encoder, debayer_options })
+        Ok(Self { encoder, debayerer })
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
         self.encoder.encode_rgba(
             image.width as usize / 2,
             image.height as usize / 2,
-            image.debayer(&self.debayer_options)?.data.as_ref(),
+            image.debayer(self.debayerer.as_mut())?.data.as_ref(),
             false,
         );
         Ok(())
