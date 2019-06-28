@@ -100,6 +100,19 @@ impl ShaderBuilder {
         Ok(result)
     }
 
+    pub fn get_available_str() -> Res<String> {
+        Ok(format!(
+            "Combine a 'source_*' with a 'debayer_*'. Builtin available options are \n{}",
+            ShaderBuilder::get_available()?.iter().map(|(name, (uniforms, implications))| {
+                format!(
+                    "* {}({}) [{}]",
+                    name,
+                    format_hash_map_option(&uniforms),
+                    format_hash_map_option(implications),
+                )
+            }).collect::<Vec<String>>().join("\n")))
+    }
+
     pub fn get_implications(&self) -> Implications {
         let mut to_return = HashMap::new();
         for part in &self.shader_parts {

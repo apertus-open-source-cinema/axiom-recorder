@@ -4,7 +4,7 @@ use clap::{App, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
 use recorder::{
     debayer::shader_builder::ShaderBuilder,
-    util::{error::Res, formatting_helpers::format_hash_map_option, options::OptionsStorage},
+    util::{error::Res, options::OptionsStorage},
     video_io::{
         source::{MetaVideoSource, VideoSource},
         writer::{MetaWriter, Writer},
@@ -37,17 +37,7 @@ fn main() {
         .arg(Arg::with_name("width").short("w").long("width").takes_value(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true))
         .arg(Arg::with_name("fps").long("fps").takes_value(true))
-        .arg(Arg::with_name("debayer-options").long("debayer-options").help(
-            &format!(
-                "Combine a source_ with a debayer_. Builtin available options are {}",
-                 ShaderBuilder::get_available().unwrap().iter().map(|(name, (uniforms, implications))| {
-                            format!(
-                                "{}({}) [{}]",
-                                name,
-                                format_hash_map_option(&uniforms),
-                                format_hash_map_option(implications),
-                            )
-                        }).collect::<Vec<String>>().join(", "))).takes_value(true))
+        .arg(Arg::with_name("debayer-options").long("debayer-options").help(ShaderBuilder::get_available_str().unwrap().as_str()).takes_value(true))
         .arg(Arg::with_name("bitrate").long("bitrate").takes_value(true))
         .arg(Arg::with_name("gop-size").long("gop-size").takes_value(true))
         .arg(Arg::with_name("max-b-frames").long("max-b-frames").takes_value(true))

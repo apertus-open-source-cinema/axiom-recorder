@@ -26,7 +26,6 @@ pub trait Debayer {
 
 impl Debayer for Image {
     fn debayer(&self, debayerer: &mut Debayerer) -> Res<RawImage2d<u8>> {
-        // TODO: lolwut??? this absolutely MUSTN'T work!
         let source_texture = Box::new(Texture2d::new(
             debayerer.facade.as_mut(),
             texture::RawImage2d {

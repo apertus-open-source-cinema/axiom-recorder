@@ -12,6 +12,7 @@ use recorder::{
     video_io::source::{BufferedVideoSource, MetaVideoSource},
 };
 use std::f64::NAN;
+use glium::buffer::BufferType::ShaderStorageBuffer;
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -40,22 +41,7 @@ fn main() {
         .arg(
             Arg::with_name("debayer-options")
                 .long("debayer-options")
-                .help(&format!(
-                    "Combine a source_ with a debayer_. Builtin available options are {}",
-                    ShaderBuilder::get_available()
-                        .unwrap()
-                        .iter()
-                        .map(|(name, (uniforms, implications))| {
-                            format!(
-                                "{}({}) [{}]",
-                                name,
-                                format_hash_map_option(&uniforms),
-                                format_hash_map_option(implications),
-                            )
-                        })
-                        .collect::<Vec<String>>()
-                        .join(", ")
-                ))
+                .help(ShaderBuilder::get_available_str().unwrap().as_str())
                 .takes_value(true),
         )
         .get_matches();
