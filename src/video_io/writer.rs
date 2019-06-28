@@ -2,9 +2,10 @@ use crate::{
     debayer::Debayer,
     util::{
         error::{Error, Res, ResN},
+        image::Image,
         options::OptionsStorage,
     },
-    video_io::{dng::Dng, Image},
+    video_io::dng::Dng,
 };
 use bus::BusReader;
 use core::borrow::BorrowMut;
@@ -119,8 +120,8 @@ impl Writer for Raw8FilesWriter {
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
-        let mut file = File::create(format!("{}/{:06}.raw8", &self.dir_path, self.cnt)).unwrap();
-        file.write_all(&image.data).unwrap();
+        let mut file = File::create(format!("{}/{:06}.raw8", &self.dir_path, self.cnt))?;
+        file.write_all(&image.data)?;
         Ok(())
     }
 }
@@ -156,7 +157,11 @@ impl Writer for MpegWriter {
         let fps: f32 = options.get_opt_parse("fps")?;
         let width: u64 = options.get_opt_parse("width")?;
         let height: u64 = options.get_opt_parse("height")?;
-        let debayer_options: String = ((options.get_opt_parse("debayer_options")?): String).clone();
+        let debayer_options: String = ((options
+            .get_opt_parse("debayer-options")
+            .unwrap_or(String::from("source_lin() debayer_halfresolution()"))):
+            String)
+            .clone();
 
         let mut encoder = Encoder::new_with_params(
             filename,

@@ -1,6 +1,6 @@
-use super::Image;
 use crate::util::{
     error::{Res, ResN},
+    image::Image,
     options::OptionsStorage,
 };
 use bus::{Bus, BusReader};
@@ -17,7 +17,7 @@ use std::{
 };
 
 pub trait VideoSource: Send {
-    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> ResN;
+    fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> ResN;
     fn get_frame_count(&self) -> Option<u64>;
 }
 
@@ -44,6 +44,8 @@ impl BufferedVideoSource {
                         println!("{} fps (recv)", 1000 / (*now).elapsed().subsec_millis());
                         now.write(Instant::now());
                     }
+
+                    Ok(())
                 });
 
                 if result.is_err() {
@@ -110,7 +112,7 @@ impl MetaVideoSource {
 }
 
 impl VideoSource for MetaVideoSource {
-    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
+    fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
         self.vs.get_images(callback)
     }
 
@@ -126,7 +128,7 @@ pub struct Raw8BlobVideoSource {
 }
 
 impl VideoSource for Raw8BlobVideoSource {
-    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
+    fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
         let mut file = File::open(&self.path)?;
         let mut bytes = vec![0u8; (self.width * self.height) as usize];
 
@@ -139,7 +141,7 @@ impl VideoSource for Raw8BlobVideoSource {
                     height: self.height,
                     bit_depth: 8,
                     data: bytes.clone(),
-                });
+                })?;
             } else if read_size == 0 {
                 // we are at the end of the stream
                 return Ok(());
@@ -169,7 +171,7 @@ pub struct Raw8FilesVideoSource {
 }
 
 impl VideoSource for Raw8FilesVideoSource {
-    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
+    fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
         let path = Path::new(&self.folder_path);
         for entry in fs::read_dir(path)? {
             let entry = entry?;
@@ -179,7 +181,7 @@ impl VideoSource for Raw8FilesVideoSource {
 
             let image =
                 Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
-            callback(image);
+            callback(image)?;
             if self.fps.is_some() {
                 sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64));
             }
@@ -205,7 +207,7 @@ pub struct TcpVideoSource {
 }
 
 impl VideoSource for TcpVideoSource {
-    fn get_images(&self, callback: &mut dyn FnMut(Image)) -> Res<()> {
+    fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
         let mut stream = TcpStream::connect(&self.address)?;
 
         let mut image_count = 0;
@@ -232,7 +234,7 @@ impl VideoSource for TcpVideoSource {
                 image_count += 1;
             }
 
-            callback(image)
+            callback(image)?;
         }
     }
 

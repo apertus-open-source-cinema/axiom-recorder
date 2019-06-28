@@ -9,7 +9,10 @@ use self::{
         *,
     },
 };
-use crate::{debayer::Debayer, video_io::Image};
+use crate::{
+    debayer::Debayer,
+    util::{error::Res, image::Image},
+};
 use bus::BusReader;
 use glium::{
     glutin::{ContextBuilder, EventsLoop, WindowBuilder},
@@ -39,16 +42,16 @@ impl Manager {
         raw_image_source: BusReader<Arc<Image>>,
         settings_gui: Settings,
         debayer_options: String,
-    ) -> Self {
+    ) -> Res<Self> {
         let event_loop = EventsLoop::new();
         let window = WindowBuilder::new();
         let context = ContextBuilder::new();
-        let display = Display::new(window, context, &event_loop).unwrap();
+        let display = Display::new(window, context, &event_loop)?;
 
-        Manager { display, raw_image_source, event_loop, settings_gui, debayer_options }
+        Ok(Manager { display, raw_image_source, event_loop, settings_gui, debayer_options })
     }
 
-    pub fn run_event_loop(&mut self) {
+    pub fn run_event_loop(&mut self) -> Res<()> {
         let cache = &mut Cache(BTreeMap::new());
 
         let mut closed = false;
@@ -78,14 +81,11 @@ impl Manager {
                     last_image = image.clone();
                     self.redraw(image, cache)
                 }
-            };
-
-            if draw_result.is_err() {
-                println!("A draw error occured: \n {:#?}", draw_result.err().unwrap());
-            }
+            }?;
 
             println!("{} fps (ui)", 1000 / now.elapsed().subsec_millis());
         }
+        Ok(())
     }
 
     pub fn redraw(
@@ -93,11 +93,19 @@ impl Manager {
         raw_image: Arc<Image>,
         cache: &mut Cache,
     ) -> Result<(), Box<dyn Error>> {
+        let res: Res<()> = Ok(());
+
         let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
-        let debayered = raw_image.debayer(&self.debayer_options)?;
+        let debayered = match raw_image.debayer(&self.debayer_options) {
+            Err(e) => {
+                target.finish();
+                return Err(e);
+            }
+            Ok(v) => v,
+        };
 
         let hist_component: Box<dyn Drawable<_>> = if self.settings_gui.draw_histogram {
             Box::new(Histogram { image: &debayered })

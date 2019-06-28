@@ -1,6 +1,13 @@
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
-use crate::util::error::ResN;
+use crate::{
+    error,
+    util::{
+        error::{Res, ResN},
+        formatting_helpers::code_with_line_numbers,
+    },
+};
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, Program, Surface};
+use itertools::Itertools;
 use std::{any::Any, collections::BTreeMap, error};
 
 pub mod basic_components;
@@ -24,6 +31,17 @@ impl Cache {
             self.0.insert(key.clone(), Box::from(block()));
         }
         self.0.get(key).unwrap().as_ref().downcast_ref::<T>().unwrap()
+    }
+
+    fn memoize_result<T, F>(&mut self, key: &String, block: F) -> Res<&T>
+    where
+        F: Fn() -> Res<T>,
+        T: 'static,
+    {
+        if !self.0.contains_key(key) {
+            self.0.insert(key.clone(), Box::from(block()?));
+        }
+        Ok(self.0.get(key).unwrap().as_ref().downcast_ref::<T>().unwrap())
     }
 }
 
@@ -92,15 +110,24 @@ where
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let facade = &params.facade;
-        let program = params.cache.memoize(&self.fragment_shader, || {
-            Program::from_source(
-                *facade,
-                PASSTHROUGH_VERTEX_SHADER_SRC,
-                self.fragment_shader.as_str(),
-                None,
-            )
-            .unwrap()
-        });
+        let program = params
+            .cache
+            .memoize_result(&self.fragment_shader, || {
+                let program = Program::from_source(
+                    *facade,
+                    PASSTHROUGH_VERTEX_SHADER_SRC,
+                    self.fragment_shader.as_str(),
+                    None,
+                )?;
+                Ok(program)
+            })
+            .map_err(|e| {
+                error!(
+                    "{} \nfragment shader was: \n{}\n",
+                    e,
+                    code_with_line_numbers(&self.fragment_shader)
+                )
+            })?;
 
 
         let vertices = &Vertex::triangle_strip_surface(

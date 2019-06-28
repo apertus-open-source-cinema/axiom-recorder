@@ -1,7 +1,6 @@
 use crate::{
     graphical::ui_lib::{Cache, DrawParams, Drawable, ShaderBox, SpatialProperties, Vec2},
     util::error::Res,
-    video_io::Image,
 };
 use glium::{
     backend::glutin::headless::Headless,
@@ -11,7 +10,7 @@ use glium::{
 use glutin::{ContextBuilder, EventsLoop};
 use std::{borrow::Cow, collections::btree_map::BTreeMap, error, result::Result::Ok};
 
-use crate::debayer::shader_builder::ShaderBuilder;
+use crate::{debayer::shader_builder::ShaderBuilder, util::image::Image};
 use glium::{
     texture::RawImage2d,
     uniforms::{Uniforms, UniformsStorage},
@@ -38,10 +37,9 @@ impl Debayer for Image {
             facade,
             UncompressedFloatFormat::U8U8U8U8,
             MipmapsOption::NoMipmap,
-            self.width,
-            self.height,
-        )
-        .unwrap();
+            self.width / 2,
+            self.height / 2,
+        )?;
 
         let source_texture = Texture2d::new(
             facade,
@@ -51,8 +49,7 @@ impl Debayer for Image {
                 height: self.height,
                 format: texture::ClientFormat::U8,
             },
-        )
-        .unwrap();
+        )?;
 
         let shader_builder = ShaderBuilder::from_descr_str(debayer_options)?;
 

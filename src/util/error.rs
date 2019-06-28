@@ -24,10 +24,10 @@ impl Error {
 
 #[macro_export]
 macro_rules! error {
-    ($($arg:tt)+) => {Error::new(format!($($arg)+))};
+    ($($arg:tt)+) => {crate::util::error::Error::new(format!($($arg)+))}
 }
 
 #[macro_export]
 macro_rules! throw {
-    ($($arg:tt)+) => {Error::error(format!($($arg)+))?};
+    ($($arg:tt)+) => {crate::util::error::Error::error(format!($($arg)+))?};
 }

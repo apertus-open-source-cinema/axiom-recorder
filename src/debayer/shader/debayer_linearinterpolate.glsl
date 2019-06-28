@@ -4,7 +4,7 @@ vec3 get_color_value(ivec2 pos) {
     vec3 g = vec3(0., 1., 0.);
     vec3 b = vec3(0., 0., 1.);
 
-    vec3 pixel_color = vec3(offset - .5);
+    vec3 pixel_color = vec3(0.0);
     if(pos.x % 2 == 1 && pos.y % 2 == 0) {
         // red sensel
         pixel_color += r * get_intensity(pos - ivec2(0, 0));
