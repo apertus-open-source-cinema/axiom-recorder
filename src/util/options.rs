@@ -1,4 +1,7 @@
-use crate::util::error::{Error, Res};
+use crate::{
+    error,
+    util::error::{Error, Res},
+};
 use clap::ArgMatches;
 use std::{collections::HashMap, str::FromStr};
 
@@ -35,6 +38,19 @@ impl OptionsStorage {
         String::from(got.unwrap_or(&String::from(alternative)))
     }
 
+    pub fn get_opt_parse_or<T>(&self, key: &str, alternative: T) -> Res<T>
+    where
+        T: FromStr,
+    {
+        let got = &self.0.get(key);
+        match got {
+            Some(str_repr) => Ok(str_repr
+                .parse::<T>()
+                .map_err(|_| error!("couldnt parse value of key '{}' ('{}')", key, str_repr))?),
+            None => Ok(alternative),
+        }
+    }
+
     pub fn get_opt_parse<T>(&self, key: &str) -> Res<T>
     where
         T: 'static + FromStr,
@@ -42,6 +58,7 @@ impl OptionsStorage {
     {
         Ok(self.get_opt(key)?.parse::<T>()?)
     }
+
 
     pub fn is_present(&self, key: &str) -> bool { *&self.0.contains_key(key) }
 }

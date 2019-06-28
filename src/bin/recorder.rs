@@ -3,14 +3,15 @@
 use clap::{App, Arg};
 
 use recorder::{
+    debayer::shader_builder::ShaderBuilder,
     graphical::{
         self,
         settings::{self, Settings},
     },
-    util::{error::Res, options::OptionsStorage},
+    util::{error::Res, formatting_helpers::format_hash_map_option, options::OptionsStorage},
     video_io::source::{BufferedVideoSource, MetaVideoSource},
 };
-use std::{f64::NAN};
+use std::f64::NAN;
 
 fn main() {
     let arguments = App::new("AXIOM recorder")
@@ -36,13 +37,39 @@ fn main() {
         .arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
         .arg(Arg::with_name("fps").long("fps").takes_value(true))
-        .arg(Arg::with_name("debayer-options").long("debayer-options").takes_value(true))
+        .arg(
+            Arg::with_name("debayer-options")
+                .long("debayer-options")
+                .help(&format!(
+                    "Combine a source_ with a debayer_. Builtin available options are {}",
+                    ShaderBuilder::get_available()
+                        .unwrap()
+                        .iter()
+                        .map(|(name, (uniforms, implications))| {
+                            format!(
+                                "{}({}) [{}]",
+                                name,
+                                format_hash_map_option(&uniforms),
+                                format_hash_map_option(implications),
+                            )
+                        })
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ))
+                .takes_value(true),
+        )
         .get_matches();
 
     let source_str = arguments.value_of("video_source").unwrap();
     let options = &OptionsStorage::from_args(
         arguments.clone(),
-        vec!["width", "height", "fps", "debayer-options", "no-histogram"],
+        vec![
+            "width",
+            "height",
+            "fps",
+            "debayer-options",
+            "no-histogram",
+        ],
     );
 
     let res = work(String::from(source_str), options);

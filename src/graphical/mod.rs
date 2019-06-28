@@ -10,7 +10,7 @@ use self::{
     },
 };
 use crate::{
-    debayer::Debayer,
+    debayer::{Debayer, Debayerer},
     util::{error::Res, image::Image},
 };
 use bus::BusReader;
@@ -24,7 +24,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use crate::debayer::Debayerer;
 
 pub mod settings;
 pub mod ui_lib;

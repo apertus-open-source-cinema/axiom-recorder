@@ -3,15 +3,14 @@ use clap::{App, Arg};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use recorder::{
-    util::{error::Res, options::OptionsStorage},
+    debayer::shader_builder::ShaderBuilder,
+    util::{error::Res, formatting_helpers::format_hash_map_option, options::OptionsStorage},
     video_io::{
         source::{MetaVideoSource, VideoSource},
         writer::{MetaWriter, Writer},
     },
 };
-use std::{
-    sync::{Arc},
-};
+use std::sync::Arc;
 
 fn main() {
     let arguments = App::new("Raw Image / Video Converter")
@@ -38,7 +37,20 @@ fn main() {
         .arg(Arg::with_name("width").short("w").long("width").takes_value(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true))
         .arg(Arg::with_name("fps").long("fps").takes_value(true))
-        .arg(Arg::with_name("debayer-options").long("debayer-options").takes_value(true))
+        .arg(Arg::with_name("debayer-options").long("debayer-options").help(
+            &format!(
+                "Combine a source_ with a debayer_. Builtin available options are {}",
+                 ShaderBuilder::get_available().unwrap().iter().map(|(name, (uniforms, implications))| {
+                            format!(
+                                "{}({}) [{}]",
+                                name,
+                                format_hash_map_option(&uniforms),
+                                format_hash_map_option(implications),
+                            )
+                        }).collect::<Vec<String>>().join(", "))).takes_value(true))
+        .arg(Arg::with_name("bitrate").long("bitrate").takes_value(true))
+        .arg(Arg::with_name("gop-size").long("gop-size").takes_value(true))
+        .arg(Arg::with_name("max-b-frames").long("max-b-frames").takes_value(true))
         .get_matches();
 
     let source_str = arguments.value_of("input").unwrap();
@@ -46,7 +58,7 @@ fn main() {
 
     let options = &OptionsStorage::from_args(
         arguments.clone(),
-        vec!["width", "height", "fps", "debayer-options"],
+        vec!["width", "height", "fps", "debayer-options", "bitrate", "gop-size", "max-b-frames"],
     );
 
     println!("\nconverting {} to {} ...\n", source_str, sink_str);

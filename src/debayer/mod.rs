@@ -7,18 +7,18 @@ use glium::{
     backend::glutin::headless::Headless,
     texture::{self, MipmapsOption, Texture2d, UncompressedFloatFormat},
 };
-use glutin::{ContextBuilder, EventsLoop, NotCurrent};
+use glutin::{ContextBuilder, EventsLoop};
 use std::{borrow::Cow, collections::btree_map::BTreeMap, error, result::Result::Ok};
 
-use crate::{debayer::shader_builder::ShaderBuilder, util::image::Image};
-use glium::{
-    texture::RawImage2d,
+use crate::{
+    debayer::shader_builder::{F32OptionMap, F32OptionMapTextureUniforms, ShaderBuilder},
+    util::image::Image,
 };
+use glium::texture::RawImage2d;
 use glutin::dpi::PhysicalSize;
-use crate::debayer::shader_builder::{F32OptionMap, F32OptionMapTextureUniforms};
 
 
-mod shader_builder;
+pub mod shader_builder;
 
 pub trait Debayer {
     fn debayer(&self, debayerer: &mut Debayerer) -> Result<RawImage2d<u8>, Box<dyn error::Error>>;
@@ -42,8 +42,8 @@ impl Debayer for Image {
             debayerer.facade.as_mut(),
             UncompressedFloatFormat::U8U8U8U8,
             MipmapsOption::NoMipmap,
-            self.width / 2,
-            self.height / 2,
+            target_size.0,
+            target_size.1,
         )?;
 
         ShaderBox {
@@ -86,9 +86,12 @@ impl Debayerer {
         let implications = shader_builder.get_implications();
         let size = match implications.get("resolution_div") {
             Some(div) => {
-                let divider: u32 = div.as_ref().ok_or(error!("implication resolution_div needs a parameter!"))?.parse()?;
+                let divider: u32 = div
+                    .as_ref()
+                    .ok_or(error!("implication resolution_div needs a parameter!"))?
+                    .parse()?;
                 (size.0 / divider, size.1 / divider)
-            },
+            }
             None => size,
         };
 
@@ -97,17 +100,15 @@ impl Debayerer {
             cache: Box::new(cache),
             code: shader_builder.get_code(),
             size,
-            uniforms: shader_builder.get_uniforms()
+            uniforms: shader_builder.get_uniforms(),
         })
     }
 
-    fn get_code(&self) -> String {
-        self.code.clone()
-    }
+    fn get_code(&self) -> String { self.code.clone() }
 
-    pub fn get_size(&self) -> (u32, u32) {
-        self.size.clone()
-    }
+    pub fn get_size(&self) -> (u32, u32) { self.size.clone() }
 
-    fn get_uniforms(&self, texture: Box<Texture2d>) -> F32OptionMapTextureUniforms { F32OptionMapTextureUniforms((self.uniforms.clone(), texture)) }
+    fn get_uniforms(&self, texture: Box<Texture2d>) -> F32OptionMapTextureUniforms {
+        F32OptionMapTextureUniforms((self.uniforms.clone(), texture))
+    }
 }

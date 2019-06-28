@@ -8,19 +8,16 @@ use crate::{
 };
 use bus::BusReader;
 
+use crate::debayer::Debayerer;
 use mpeg_encoder::Encoder;
 use std::{
     cell::Cell,
     fs::{create_dir, File},
-    io::{prelude::*},
+    io::prelude::*,
     path::Path,
-    sync::{
-        Arc,
-        Mutex,
-    },
+    sync::{Arc, Mutex},
     thread,
 };
-use crate::debayer::Debayerer;
 
 /// An image sink, that somehow stores the images it receives
 pub trait Writer {
@@ -167,10 +164,10 @@ impl Writer for MpegWriter {
             filename,
             size.0 as usize,
             size.1 as usize,
-            None,
+            Some(options.get_opt_parse_or("bitrate", 40_0000)?),
             Some((1000, (fps * 1000.0) as usize)),
-            None,
-            None,
+            Some(options.get_opt_parse_or("gop-size", 10)?),
+            Some(options.get_opt_parse_or("max-b-frames", 1)?),
             None,
         );
         encoder.init();
@@ -178,10 +175,11 @@ impl Writer for MpegWriter {
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        let debayered = image.debayer(self.debayerer.as_mut())?;
         self.encoder.encode_rgba(
-            image.width as usize / 2,
-            image.height as usize / 2,
-            image.debayer(self.debayerer.as_mut())?.data.as_ref(),
+            debayered.width as usize,
+            debayered.height as usize,
+            debayered.data.as_ref(),
             false,
         );
         Ok(())

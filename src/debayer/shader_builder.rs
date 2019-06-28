@@ -4,17 +4,17 @@ use crate::{
 };
 
 
-use std::{result::Result::Ok};
+use std::result::Result::Ok;
 
 use crate::util::formatting_helpers::format_hash_map_option;
 use glium::{
-    uniforms::{UniformValue, Uniforms, AsUniformValue},
-    texture::Texture2d
+    texture::Texture2d,
+    uniforms::{UniformValue, Uniforms},
 };
 
 use include_dir::{Dir, *};
 use regex::Regex;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 
 type Implications = HashMap<String, Option<String>>;
@@ -196,7 +196,7 @@ impl ShaderBuilderPart {
             }
         }
 
-        Ok(ShaderBuilderPart { code, uniforms: uniforms, name })
+        Ok(ShaderBuilderPart { code, uniforms, name })
     }
 
     fn new_with_str_params(code: String, params: String, name: String) -> Res<Self> {
