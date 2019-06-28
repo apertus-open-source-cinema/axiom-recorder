@@ -67,7 +67,7 @@ impl Manager {
                 _ => (),
             });
 
-            let draw_result = match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
+            let _draw_result = match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
                 Result::Err(_) => self.redraw(last_image.clone(), cache),
                 Result::Ok(image) => {
                     loop {
@@ -93,7 +93,7 @@ impl Manager {
         raw_image: Arc<Image>,
         cache: &mut Cache,
     ) -> Result<(), Box<dyn Error>> {
-        let res: Res<()> = Ok(());
+        let _res: Res<()> = Ok(());
 
         let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
         let mut target = self.display.draw();

@@ -6,7 +6,6 @@ use crate::util::{
 use bus::{Bus, BusReader};
 use itertools::Itertools;
 use std::{
-    error,
     fs::{self, File},
     io::{prelude::*, Error, ErrorKind},
     net::TcpStream,

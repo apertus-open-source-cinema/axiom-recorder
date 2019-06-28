@@ -1,11 +1,11 @@
 use clap::{App, Arg};
 
-use bus::Bus;
+
 use indicatif::{ProgressBar, ProgressStyle};
 use recorder::{
     util::{error::Res, options::OptionsStorage},
     video_io::{
-        source::{self, BufferedVideoSource, MetaVideoSource, VideoSource},
+        source::{MetaVideoSource, VideoSource},
         writer::{MetaWriter, Writer},
     },
 };

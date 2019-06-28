@@ -1,6 +1,6 @@
 use crate::util::error::{Error, Res};
 use clap::ArgMatches;
-use std::{any::Any, collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 pub struct OptionsStorage(pub HashMap<String, String>);
 

@@ -5,10 +5,9 @@ use crate::{
         image::Image,
         options::OptionsStorage,
     },
-    video_io::dng::Dng,
 };
 use bus::BusReader;
-use core::borrow::BorrowMut;
+
 use mpeg_encoder::Encoder;
 use std::{
     any::Any,
@@ -97,7 +96,7 @@ pub struct Raw8BlobWriter {
 }
 
 impl Writer for Raw8BlobWriter {
-    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
+    fn new(filename: String, _options: &OptionsStorage) -> Res<Self> {
         Ok(Self { file: File::create(filename)? })
     }
 
@@ -114,7 +113,7 @@ pub struct Raw8FilesWriter {
 }
 
 impl Writer for Raw8FilesWriter {
-    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
+    fn new(filename: String, _options: &OptionsStorage) -> Res<Self> {
         create_dir(&filename)?;
         Ok(Self { dir_path: filename, cnt: 0 })
     }
@@ -134,12 +133,12 @@ pub struct CinemaDngWriter {
 }
 
 impl Writer for CinemaDngWriter {
-    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
+    fn new(filename: String, _options: &OptionsStorage) -> Res<Self> {
         create_dir(&filename)?;
         Ok(Self { dir_path: filename, cnt: 0 })
     }
 
-    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+    fn write_frame(&mut self, _image: Arc<Image>) -> ResN {
         unimplemented!();
     }
 }

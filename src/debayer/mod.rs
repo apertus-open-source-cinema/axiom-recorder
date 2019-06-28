@@ -5,7 +5,6 @@ use crate::{
 use glium::{
     backend::glutin::headless::Headless,
     texture::{self, MipmapsOption, Texture2d, UncompressedFloatFormat},
-    uniform,
 };
 use glutin::{ContextBuilder, EventsLoop};
 use std::{borrow::Cow, collections::btree_map::BTreeMap, error, result::Result::Ok};
@@ -13,12 +12,11 @@ use std::{borrow::Cow, collections::btree_map::BTreeMap, error, result::Result::
 use crate::{debayer::shader_builder::ShaderBuilder, util::image::Image};
 use glium::{
     texture::RawImage2d,
-    uniforms::{Uniforms, UniformsStorage},
 };
 use glutin::dpi::PhysicalSize;
-use include_dir::{Dir, *};
-use regex::Regex;
-use std::{collections::HashMap, hash::Hash, io::Error, panic::set_hook};
+
+
+
 
 mod shader_builder;
 
@@ -41,7 +39,7 @@ impl Debayer for Image {
             self.height / 2,
         )?;
 
-        let source_texture = Texture2d::new(
+        let _source_texture = Texture2d::new(
             facade,
             texture::RawImage2d {
                 data: Cow::from(self.data.clone()),

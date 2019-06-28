@@ -7,8 +7,8 @@ use crate::{
     },
 };
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, Program, Surface};
-use itertools::Itertools;
-use std::{any::Any, collections::BTreeMap, error};
+
+use std::{any::Any, collections::BTreeMap};
 
 pub mod basic_components;
 pub mod container_components;

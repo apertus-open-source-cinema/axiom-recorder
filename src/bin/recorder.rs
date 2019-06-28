@@ -10,7 +10,7 @@ use recorder::{
     util::{error::Res, options::OptionsStorage},
     video_io::source::{BufferedVideoSource, MetaVideoSource},
 };
-use std::{any::Any, collections::HashMap, f64::NAN};
+use std::{f64::NAN};
 
 fn main() {
     let arguments = App::new("AXIOM recorder")

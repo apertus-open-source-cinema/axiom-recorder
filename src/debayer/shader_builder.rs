@@ -1,16 +1,10 @@
 use crate::{
-    error,
-    graphical::ui_lib::{Cache, DrawParams, Drawable, ShaderBox, SpatialProperties, Vec2},
     throw,
     util::error::{Error, Res},
 };
-use glium::{
-    backend::glutin::headless::Headless,
-    texture::{self, MipmapsOption, Texture2d, UncompressedFloatFormat},
-    uniform,
-};
-use glutin::{ContextBuilder, EventsLoop};
-use std::{borrow::Cow, collections::btree_map::BTreeMap, error, result::Result::Ok};
+
+
+use std::{result::Result::Ok};
 
 use crate::util::formatting_helpers::format_hash_map_option;
 use glium::{
@@ -18,11 +12,11 @@ use glium::{
     texture::RawImage2d,
     uniforms::{AsUniformValue, EmptyUniforms, UniformValue, Uniforms, UniformsStorage},
 };
-use glutin::dpi::PhysicalSize;
+
 use include_dir::{Dir, *};
 use itertools::Itertools;
 use regex::Regex;
-use std::{collections::HashMap, hash::Hash, panic::set_hook};
+use std::{collections::HashMap};
 
 
 type Implications = HashMap<String, Option<String>>;
