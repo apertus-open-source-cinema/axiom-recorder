@@ -32,16 +32,17 @@ impl Letter {
         )
         .unwrap();
         let glyph_id = font.glyph_for_char(self.chr).unwrap();
-        let raster_bounds = font
-            .raster_bounds(
-                glyph_id,
-                height as f32,
-                &FontTransform::identity(),
-                &Point2D::origin(),
-                HintingOptions::None,
-                RasterizationOptions::GrayscaleAa,
-            )
-            .unwrap();
+        let raster_bounds = font.raster_bounds(
+            glyph_id,
+            height as f32,
+            &FontTransform::identity(),
+            &Point2D::zero(),
+            HintingOptions::None,
+            RasterizationOptions::GrayscaleAa,
+        )?;
+        let origin =
+            Point2D::new(-raster_bounds.origin.x, raster_bounds.size.height + raster_bounds.origin.y)
+                .to_f32();
         let size = &Size2D::new(raster_bounds.size.width as u32, raster_bounds.size.height as u32);
         let mut canvas = Canvas::new(size, Format::A8);
 
@@ -50,11 +51,10 @@ impl Letter {
             glyph_id,
             height as f32,
             &FontTransform::identity(),
-            &Point2D::origin(),
+            &origin,
             HintingOptions::None,
             RasterizationOptions::GrayscaleAa,
-        )
-        .unwrap();
+        )?;
         Ok((canvas, Vec2 { x: raster_bounds.origin.x, y: raster_bounds.origin.y }))
     }
 }
@@ -64,7 +64,7 @@ where
     S: Surface + 'static,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
-        let (bitmap, offset) = self.get_bitmap(self.size).unwrap();
+        let (bitmap, offset) = self.get_bitmap(self.size)?;
         let texture = texture::Texture2d::new(
             params.facade,
             texture::RawImage2d {
@@ -73,8 +73,8 @@ where
                 height: bitmap.size.height as u32,
                 format: texture::ClientFormat::U8,
             },
-        )
-        .unwrap();
+        )?;
+
         SizeContainer {
             anchor: Vec2::one(),
             size: Vec2 {

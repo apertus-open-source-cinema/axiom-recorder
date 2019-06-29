@@ -5,6 +5,7 @@ use glium::{
     uniform,
     Surface,
 };
+use glium::uniforms::{Sampler, SamplerWrapFunction};
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
 pub struct ColorBox {
@@ -77,6 +78,8 @@ where
     S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
+        let sampler = Sampler::new(&self.texture).wrap_function(SamplerWrapFunction::Clamp);
+
         ShaderBox {
             fragment_shader: r#"
                 #version 450
@@ -86,13 +89,14 @@ where
                 out vec4 color;
 
                 void main(void) {
-                    vec2 pos = position * vec2(1, -1);
-                    color = vec4(in_color.rgb * texture(in_image, pos).r, 1.0);
+                    ivec2 size = textureSize(in_image, 0);
+                    vec2 pos = position * vec2(1, -1) + vec2(0, 1. + (0.5 / size.y));
+                    color = in_color * texture(in_image, pos).r;
                 }
            "#
             .to_string(),
             uniforms: uniform! {
-                in_image: &self.texture,
+                in_image: sampler,
                 in_color: self.color
             },
         }
