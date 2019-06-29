@@ -26,14 +26,16 @@ pub trait Debayer {
 
 impl Debayer for Image {
     fn debayer(&self, debayerer: &mut Debayerer) -> Res<RawImage2d<u8>> {
-        let source_texture = Box::new(Texture2d::new(
+        let source_texture = Box::new(Texture2d::empty(
             debayerer.facade.as_mut(),
+            self.width,
+            self.height/*
             texture::RawImage2d {
                 data: Cow::from(self.data.clone()),
                 width: self.width,
                 height: self.height,
                 format: texture::ClientFormat::U8,
-            },
+            },*/
         )?);
 
         let target_size = debayerer.get_size();
@@ -54,6 +56,7 @@ impl Debayer for Image {
                 surface: &mut target_texture.as_surface(),
                 facade: debayerer.facade.as_mut(),
                 cache: debayerer.cache.as_mut(),
+                deferrer: None,
                 screen_size: Vec2 { x: self.width, y: self.height },
             },
             SpatialProperties::full(),
@@ -79,7 +82,7 @@ impl Debayerer {
         let context = ContextBuilder::new()
             .build_headless(&EventsLoop::new(), PhysicalSize::new(1.0, 1.0))?;
         let facade = Headless::new(context)?;
-        let cache = Cache(BTreeMap::new());
+        let cache = Cache::new();
 
         let shader_builder = ShaderBuilder::from_descr_str(debayer_options)?;
         let implications = shader_builder.get_implications();

@@ -64,7 +64,7 @@ where
     S: Surface + 'static,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
-        let (bitmap, offset) = self.get_bitmap(self.size)?;
+        let (bitmap, offset) = params.cache.memoize_result(format!("{}_bitmap", self.chr), || self.get_bitmap(self.size))?;
         let texture = texture::Texture2d::new(
             params.facade,
             texture::RawImage2d {

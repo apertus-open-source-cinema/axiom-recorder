@@ -14,7 +14,7 @@ pub struct Histogram<'a> {
 }
 
 impl<'a> Histogram<'a> {
-    pub fn generate_histogram(&self) -> Vec<Vec<u8>> {
+    pub fn generate_histogram(&self) -> Vec<u8> {
         let mut rgba_hist: Vec<Vec<u32>> = (0..3).map(|_| (0..256).map(|_| 0).collect()).collect();
         for i in 0..self.image.data.len() {
             if i % 4 == 3 {
@@ -23,6 +23,7 @@ impl<'a> Histogram<'a> {
             rgba_hist[i % 4][self.image.data[i] as usize] += 1;
         }
 
+        let histogram_data : Vec<Vec<u8>> =
         rgba_hist
             .iter()
             .map(|channel| {
@@ -48,7 +49,16 @@ impl<'a> Histogram<'a> {
                     })
                     .collect()
             })
-            .collect()
+            .collect();
+
+        let mut texture_data: Vec<u8> = (0..256 * 3).map(|_| 0).collect();
+        for i in 0..3 {
+            for j in 0..histogram_data[i].len() {
+                texture_data[j * 3 + i] = histogram_data[i][j];
+            }
+        }
+
+        texture_data
     }
 }
 
@@ -57,17 +67,12 @@ where
     S: Surface,
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
-        let histogram_data = self.generate_histogram();
-        let mut texture_data: Vec<u8> = (0..256 * 3).map(|_| 0).collect();
-        for i in 0..3 {
-            for j in 0..histogram_data[i].len() {
-                texture_data[j * 3 + i] = histogram_data[i][j];
-            }
-        }
+        let default_texture_data: Vec<u8> = (0..256 * 3).map(|_| 0).collect();
+        let texture_data = params.deferrer.unwrap().deferred_do(String::from("histogram"), || { self.generate_histogram() }, default_texture_data);
 
         let source_texture = texture::Texture2d::new(
             params.facade,
-            texture::RawImage2d::from_raw_rgb(texture_data, (256, 1)),
+            texture::RawImage2d::from_raw_rgb(texture_data.clone(), (256, 1)),
         )
         .unwrap();
 

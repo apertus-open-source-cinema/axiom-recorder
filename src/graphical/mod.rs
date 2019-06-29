@@ -55,7 +55,8 @@ impl Manager {
     }
 
     pub fn run_event_loop(&mut self) -> Res<()> {
-        let cache = &mut Cache(BTreeMap::new());
+        let cache = &mut Cache::new();
+        let deferrer = &mut Deferrer::new();
 
         let mut closed = false;
         let mut last_image = Arc::new(Image { width: 1, height: 1, bit_depth: 1, data: vec![0] });
@@ -71,7 +72,7 @@ impl Manager {
             });
 
             match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
-                Result::Err(_) => self.redraw(last_image.clone(), cache),
+                Result::Err(_) => self.redraw(last_image.clone(), cache, deferrer),
                 Result::Ok(image) => {
                     loop {
                         // read all the frames that are stuck in the pipe to make the display non
@@ -82,7 +83,7 @@ impl Manager {
                         }
                     }
                     last_image = image.clone();
-                    self.redraw(image, cache)
+                    self.redraw(image, cache, deferrer)
                 }
             }?;
 
@@ -95,6 +96,7 @@ impl Manager {
         &mut self,
         raw_image: Arc<Image>,
         cache: &mut Cache,
+        deferrer: &mut Deferrer,
     ) -> Result<(), Box<dyn Error>> {
         let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
         let mut target = self.display.draw();
@@ -174,6 +176,7 @@ impl Manager {
                     surface: &mut target,
                     facade: &mut self.display,
                     cache,
+                    deferrer: Some(deferrer),
                     screen_size,
                 },
                 SpatialProperties::full(),

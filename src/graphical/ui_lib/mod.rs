@@ -9,6 +9,8 @@ use crate::{
 use glium::{backend::Facade, index, uniforms::Uniforms, Blend, Program, Surface};
 
 use std::{any::Any, collections::BTreeMap};
+use threadpool::ThreadPool;
+use std::sync::{Mutex, Arc};
 
 pub mod basic_components;
 pub mod container_components;
@@ -19,29 +21,64 @@ pub mod list_components;
 pub mod text_components;
 
 // Util type aliases, that allows to pass draw Params easier
-pub struct Cache(pub BTreeMap<String, Box<dyn Any>>);
+pub struct Cache {
+    map: BTreeMap<String, Box<dyn Any>>,
+}
 
 impl Cache {
-    fn memoize<T, F>(&mut self, key: &String, block: F) -> &T
+    pub fn new() -> Self {
+        Cache { map: BTreeMap::new() }
+    }
+
+    pub fn memoize<T, F>(&mut self, key: String, block: F) -> &T
     where
         F: Fn() -> T,
         T: 'static,
     {
-        if !self.0.contains_key(key) {
-            self.0.insert(key.clone(), Box::from(block()));
+        if !self.map.contains_key(&key.clone()) {
+            self.map.insert(key.clone(), Box::from(block()));
         }
-        self.0.get(key).unwrap().as_ref().downcast_ref::<T>().unwrap()
+        self.map.get(&key.clone()).unwrap().as_ref().downcast_ref::<T>().unwrap()
     }
 
-    fn memoize_result<T, F>(&mut self, key: &String, block: F) -> Res<&T>
+    pub fn memoize_result<T, F>(&mut self, key: String, block: F) -> Res<&T>
     where
         F: Fn() -> Res<T>,
         T: 'static,
     {
-        if !self.0.contains_key(key) {
-            self.0.insert(key.clone(), Box::from(block()?));
+        if !self.map.contains_key(&key) {
+            self.map.insert(key.clone(), Box::from(block()?));
         }
-        Ok(self.0.get(key).unwrap().as_ref().downcast_ref::<T>().unwrap())
+        Ok(self.map.get(&key).unwrap().as_ref().downcast_ref::<T>().unwrap())
+    }
+}
+
+pub struct Deferrer {
+    map: Arc<Mutex<Box<BTreeMap<String, Arc<Mutex<Box<dyn Any + Send>>>>>>>,
+    threadpool: ThreadPool,
+}
+
+impl Deferrer {
+    pub fn new() -> Self {
+        Self { map: Arc::new(Mutex::new(Box::new(BTreeMap::new()))), threadpool: ThreadPool::new(num_cpus::get() - 1) }
+    }
+
+    pub fn deferred_do<T, F>(&mut self, key: String, block: F, default: T) -> &T
+    where
+        F: 'static + Fn() -> T + Send,
+        T: 'static + Send
+    {
+        let mut map = &self.map.clone();
+        let key_for_thread = key.clone();
+
+        self.threadpool.execute(move || {
+            map.lock().unwrap().insert(key_for_thread, Arc::new(Mutex::new(Box::from(block()))));
+        });
+
+        match self.map.lock().unwrap().get(&key) {
+            Some(v) => v.as_ref().lock().unwrap().downcast_ref::<T>().unwrap().clone(),
+            None => &default
+        }
     }
 }
 
@@ -52,6 +89,7 @@ where
     pub surface: &'a mut S,
     pub facade: &'a mut dyn Facade,
     pub cache: &'a mut Cache,
+    pub deferrer: Option<&'a mut Deferrer>,
     pub screen_size: Vec2<u32>,
 }
 
@@ -112,7 +150,7 @@ where
         let facade = &params.facade;
         let program = params
             .cache
-            .memoize_result(&self.fragment_shader, || {
+            .memoize_result(self.fragment_shader.clone(), || {
                 let program = Program::from_source(
                     *facade,
                     PASSTHROUGH_VERTEX_SHADER_SRC,
