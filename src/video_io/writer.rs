@@ -1,5 +1,4 @@
 use crate::{
-    debayer::Debayer,
     util::{
         error::{Error, Res, ResN},
         image::Image,
@@ -8,7 +7,9 @@ use crate::{
 };
 use bus::BusReader;
 
+#[cfg(feature = "mp4_encoder")]
 use crate::debayer::Debayerer;
+#[cfg(feature = "mp4_encoder")]
 use mpeg_encoder::Encoder;
 use std::{
     cell::Cell,
@@ -41,6 +42,7 @@ impl Writer for MetaWriter {
                 writer: Arc::new(Mutex::new(Box::new(Raw8BlobWriter::new(filename, options)?))),
                 bus_writer_running,
             }),
+            #[cfg(feature = "mp4_encoder")]
             Some("mp4") => Ok(Self {
                 writer: Arc::new(Mutex::new(Box::new(MpegWriter::new(filename, options)?))),
                 bus_writer_running,
@@ -138,50 +140,53 @@ impl Writer for CinemaDngWriter {
     }
 }
 
+#[cfg(feature = "mp4_encoder")]
 pub struct MpegWriter {
     encoder: Encoder,
     debayerer: Box<Debayerer>,
 }
 
 // TODO: WTF, NO!!!
+#[cfg(feature = "mp4_encoder")]
 unsafe impl Send for MpegWriter {}
 
+#[cfg(feature = "mp4_encoder")]
 impl Writer for MpegWriter {
-    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
-        let fps: f32 = options.get_opt_parse("fps")?;
-        let width: u32 = options.get_opt_parse("width")?;
-        let height: u32 = options.get_opt_parse("height")?;
-        let debayer_options: String = ((options
-            .get_opt_parse("debayer-options")
-            .unwrap_or(String::from("source_lin() debayer_halfresolution()"))):
-            String)
-            .clone();
+fn new(filename: String, options: &OptionsStorage) -> Res < Self > {
+let fps: f32 = options.get_opt_parse("fps") ?;
+let width: u32 = options.get_opt_parse("width") ?;
+let height: u32 = options.get_opt_parse("height") ?;
+let debayer_options: String = ((options
+.get_opt_parse("debayer-options")
+.unwrap_or(String::from("source_lin() debayer_halfresolution()"))):
+String)
+.clone();
 
-        let debayerer = Box::new(Debayerer::new(&debayer_options, (width, height))?);
-        let size = debayerer.get_size();
+let debayerer = Box::new(Debayerer::new( & debayer_options, (width, height)) ? );
+let size = debayerer.get_size();
 
-        let mut encoder = Encoder::new_with_params(
-            filename,
-            size.0 as usize,
-            size.1 as usize,
-            Some(options.get_opt_parse_or("bitrate", 40_0000)?),
-            Some((1000, (fps * 1000.0) as usize)),
-            Some(options.get_opt_parse_or("gop-size", 10)?),
-            Some(options.get_opt_parse_or("max-b-frames", 1)?),
-            None,
-        );
-        encoder.init();
-        Ok(Self { encoder, debayerer })
-    }
+let mut encoder = Encoder::new_with_params(
+filename,
+size.0 as usize,
+size.1 as usize,
+Some(options.get_opt_parse_or("bitrate", 40_0000) ? ),
+Some((1000, (fps * 1000.0) as usize)),
+Some(options.get_opt_parse_or("gop-size", 10) ? ),
+Some(options.get_opt_parse_or("max-b-frames", 1) ? ),
+None,
+);
+encoder.init();
+Ok( Self { encoder, debayerer })
+}
 
-    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
-        let debayered = image.debayer(self.debayerer.as_mut())?;
-        self.encoder.encode_rgba(
-            debayered.width as usize,
-            debayered.height as usize,
-            debayered.data.as_ref(),
-            false,
-        );
-        Ok(())
-    }
+fn write_frame( & mut self, image: Arc< Image > ) -> ResN {
+let debayered = image.debayer( self.debayerer.as_mut()) ?;
+self.encoder.encode_rgba(
+debayered.width as usize,
+debayered.height as usize,
+debayered.data.as_ref(),
+false,
+);
+Ok(())
+}
 }

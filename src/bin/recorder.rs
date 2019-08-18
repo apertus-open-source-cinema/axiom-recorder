@@ -1,5 +1,3 @@
-#![feature(type_ascription)]
-
 use clap::{App, Arg};
 
 use recorder::{
@@ -8,11 +6,10 @@ use recorder::{
         self,
         settings::{self, Settings},
     },
-    util::{error::Res, formatting_helpers::format_hash_map_option, options::OptionsStorage},
+    util::{error::Res, options::OptionsStorage},
     video_io::source::{BufferedVideoSource, MetaVideoSource},
 };
 use std::f64::NAN;
-use glium::buffer::BufferType::ShaderStorageBuffer;
 
 fn main() {
     let arguments = App::new("AXIOM recorder")

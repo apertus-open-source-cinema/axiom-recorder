@@ -19,7 +19,7 @@ where
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         ShaderBox {
             fragment_shader: r#"
-                #version 450
+                #version 330
                 out vec4 color;
                 uniform vec4 in_color;
 
@@ -48,7 +48,7 @@ where
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         ShaderBox {
             fragment_shader: r#"
-                #version 450
+                #version 330
                 uniform sampler2D in_image;
                 in vec2 position;
                 out vec4 color;
@@ -82,7 +82,7 @@ where
 
         ShaderBox {
             fragment_shader: r#"
-                #version 450
+                #version 330
                 uniform sampler2D in_image;
                 uniform vec4 in_color;
                 in vec2 position;

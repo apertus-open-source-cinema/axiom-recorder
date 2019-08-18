@@ -137,7 +137,7 @@ impl ShaderBuilder {
         let mut to_return = String::new();
 
         to_return += r#"
-            #version 450
+            #version 330
             uniform sampler2D texture;
             out vec4 color;
         "#;

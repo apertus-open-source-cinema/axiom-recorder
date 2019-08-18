@@ -13,7 +13,7 @@ use font_kit::{
     canvas::{Canvas, Format, RasterizationOptions},
     hinting::HintingOptions,
     loader::FontTransform,
-    loaders::freetype::Font,
+    loaders::default::Font,
 };
 use std::sync::Arc;
 
@@ -107,14 +107,14 @@ where
 {
     fn draw(&self, params: &mut DrawParams<'_, S>, sp: SpatialProperties) -> ResN {
         let len = self.str.len();
-        let letters = self
+        let letters: Vec<_> = self
             .str
             .chars()
             .map(|chr| {
                 Box::from(Letter { chr, size: self.size, color: self.color })
                     as Box<dyn Drawable<_>>
             })
-            .collect(): Vec<_>;
+            .collect();
         let drawable_container =
             EqualDistributingContainer::Horizontal(letters as Vec<Box<dyn Drawable<_>>>);
 

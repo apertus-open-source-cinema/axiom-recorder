@@ -119,13 +119,13 @@ impl Manager {
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
                 child: &ImageComponent { image: &debayered },
-            },
+            } as &dyn Drawable<_>,
             // the top bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 1. },
                 size: Vec2 { x: Percent(1.0), y: Px(50) },
                 child: &vec![
-                    &ColorBox { color: [0.0, 0.0, 0.0, 0.5] },
+                    &ColorBox { color: [0.0, 0.0, 0.0, 0.5] } as &dyn Drawable<_>,
                     &SizeContainer {
                         anchor: Vec2::one(),
                         size: Vec2 { x: Percent(1.0), y: Px(42) },
@@ -140,7 +140,7 @@ impl Manager {
                                 .collect(),
                         ),
                     },
-                ]: &Vec<&dyn Drawable<_>>,
+                ],
             },
             // the bottom bar
             &SizeContainer {
@@ -151,7 +151,7 @@ impl Manager {
                         anchor: Vec2 { x: 0., y: 0. },
                         size: Vec2 { x: Px(600), y: Px(80) },
                         child: hist_component.as_ref(),
-                    },
+                    } as &dyn Drawable<_>,
                     &SizeContainer {
                         anchor: Vec2 { x: 1., y: 0. },
                         size: Vec2 { x: Px(300), y: Px(80) },
@@ -166,9 +166,9 @@ impl Manager {
                         size: Vec2 { x: Px(300 * 2 - 50), y: Px(89) },
                         child: &Text { str: "●".to_string(), size: 30, color: [1., 0., 0., 1.] },
                     },
-                ]: &Vec<&dyn Drawable<_>>,
+                ],
             },
-        ]: Vec<&dyn Drawable<_>>)
+        ])
             .draw(
                 &mut DrawParams {
                     surface: &mut target,

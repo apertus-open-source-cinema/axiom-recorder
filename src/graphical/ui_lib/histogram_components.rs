@@ -75,7 +75,7 @@ where
 
         ShaderBox {
             fragment_shader: r#"
-                #version 450
+                #version 330
                 uniform sampler2D data;
                 in vec2 position;
                 out vec4 color;
