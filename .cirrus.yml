@@ -7,6 +7,6 @@ test_task:
     fingerprint_script: cat Cargo.lock
   matrix:
     - build_script: cargo build --all-targets
-    - build_script: cargo build --all-targets --features mp4-encoder
+    - build_script: cargo build --all-targets --features mp4_encoder
   test_script: cargo test
   before_cache_script: rm -rf $CARGO_HOME/registry/index
