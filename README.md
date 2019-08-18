@@ -10,13 +10,16 @@ cd recorder
 cargo run buid --release --all  # add --features mp4_encoder if you want to write .mp4 files
 ```
 
+If you want to be able to use the mpeg-encoder, add `--features mp4_encoder`
+to your `cargo` commands. This requires you to install the following packages
+(on ubuntu): `libavformat-dev`, `libavcodec-dev`, `libavfilter-dev`, `libavdevice-dev`, `clang`, `libclang`
 # Usage
 This project contains two binaries. One GUI tool for recording / previewing footage and one CLI tool for offline 
 converting already recorded footage.
 
 ## recorder
 ```shell script
-$ cargo run --bin recorder -- --help
+$ cargo run --release --bin recorder -- --help
 AXIOM recorder 0.1
 record raw footage from AXIOM cameras
 
@@ -42,7 +45,7 @@ OPTIONS:
 
 ## converter
 ```shell script
-$ cargo run --bin converter -- --help
+$ cargo run --release --bin converter -- --help
 Raw Image / Video Converter 0.1
 convert raw footage from AXIOM cameras into other formats.
 
