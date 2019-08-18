@@ -8,7 +8,7 @@ test_task:
   matrix:
     - build_script: cargo build --all-targets
     - build_script:
-      - apt-get -y update && apt-get -y install libavformat-dev libavcodec-dev libavfilter-dev
+      - apt-get -y update && apt-get -y install libavformat-dev libavcodec-dev libavfilter-dev libavdevice-dev
       - cargo build --all-targets --features mp4_encoder
   test_script: cargo test
   before_cache_script: rm -rf $CARGO_HOME/registry/index
