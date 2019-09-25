@@ -17,6 +17,7 @@ to your `cargo` commands. This requires you to install the following packages
 This project contains two binaries. One GUI tool for recording / previewing footage and one CLI tool for offline 
 converting already recorded footage.
 
+
 ## recorder
 ```shell script
 $ cargo run --release --bin recorder -- --help
@@ -41,6 +42,15 @@ OPTIONS:
     -h, --height <height>                      
     -s, --video-source <video_source>          a URI that describes the video source to use. Can be file:// or tcp://
     -w, --width <width>                      
+```
+### beta raw12 example
+Assuming you have a set of files ending in `.raw12` in the directory `test/Darkbox-Timelapse-Clock-Sequence/` you can play them debayered at half resolution using:
+```shell script
+cargo run --release -- --loop --no-histogram --height 3072 --width 4096 --video-source 'file://test/Darkbox-Timelapse-Clock-Sequence/*.raw12' --debayer-options 'source_beta(); debayer_halfresolution_real();'
+```
+For full resolution debayering use
+```shell script
+cargo run --release -- --loop --no-histogram --height 3072 --width 4096 --video-source 'file://test/Darkbox-Timelapse-Clock-Sequence/*.raw12' --debayer-options 'source_beta(); debayer_beta_linearinterpolate_quick();'
 ```
 
 ## converter
