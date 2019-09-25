@@ -32,6 +32,11 @@ fn main() {
                 "disables the histogram calculation. potentially saves A LOT of cpu ressources",
             ),
         )
+        .arg(
+            Arg::with_name("loop").long("loop").help(
+                "loops the video (only relevant for file sources)",
+            ),
+        )
         .arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
         .arg(Arg::with_name("fps").long("fps").takes_value(true))
@@ -52,6 +57,7 @@ fn main() {
             "fps",
             "debayer-options",
             "no-histogram",
+            "loop"
         ],
     );
 

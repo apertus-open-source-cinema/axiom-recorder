@@ -4,7 +4,8 @@ use crate::{
     util::error::Res,
 };
 use glium::{
-    backend::glutin::headless::Headless,
+    Surface,
+    backend::{glutin::headless::Headless, Facade},
     texture::{self, MipmapsOption, Texture2d, UncompressedFloatFormat},
 };
 use glutin::{ContextBuilder, EventsLoop};
@@ -22,23 +23,58 @@ pub mod shader_builder;
 
 pub trait Debayer {
     fn debayer(&self, debayerer: &mut Debayerer) -> Result<RawImage2d<u8>, Box<dyn error::Error>>;
+    fn debayer_drawable(&self, debayerer: &mut Debayerer, facade: Option<&mut dyn Facade>) -> Res<Texture2d>;
 }
 
 impl Debayer for Image {
-    fn debayer(&self, debayerer: &mut Debayerer) -> Res<RawImage2d<u8>> {
-        let source_texture = Box::new(Texture2d::new(
-            debayerer.facade.as_mut(),
-            texture::RawImage2d {
-                data: Cow::from(self.data.clone()),
-                width: self.width,
-                height: self.height,
-                format: texture::ClientFormat::U8,
-            },
-        )?);
-
+    fn debayer_drawable(&self, debayerer: &mut Debayerer, facade: Option<&mut dyn Facade>) -> Res<Texture2d> {
+        let fragment_shader = debayerer.get_code();
         let target_size = debayerer.get_size();
+
+
+        if debayerer.source_textures.is_none() {
+            (*debayerer).source_textures =
+                Some(Box::new(Texture2d::with_format(
+                        match facade {
+                            Some(ref f) => *f,
+                            None => debayerer.facade.as_mut()
+                        },
+                        texture::RawImage2d {
+                            data: Cow::from(self.data.clone()),
+                            width: self.width,
+                            height: self.height,
+                            format: texture::ClientFormat::U8,
+                        },
+                        UncompressedFloatFormat::U8,
+                        MipmapsOption::NoMipmap
+                    )?))
+        }
+
+        use std::mem;
+
+        let source_texture = mem::replace(&mut debayerer.source_textures, Some(
+                    Box::new(Texture2d::with_format(
+                        match facade {
+                            Some(ref f) => *f,
+                            None => debayerer.facade.as_mut()
+                        },
+                        texture::RawImage2d {
+                            data: Cow::from(&self.data),
+                            width: self.width,
+                            height: self.height,
+                            format: texture::ClientFormat::U8,
+                        },
+                        UncompressedFloatFormat::U8,
+                        MipmapsOption::NoMipmap
+                    )?))).unwrap();
+
+        let uniforms = debayerer.get_uniforms(source_texture);
+
         let target_texture: Texture2d = Texture2d::empty_with_format(
-            debayerer.facade.as_mut(),
+            match facade {
+                Some(ref f) => *f,
+                None => debayerer.facade.as_mut()
+            },
             UncompressedFloatFormat::U8U8U8U8,
             MipmapsOption::NoMipmap,
             target_size.0,
@@ -46,27 +82,34 @@ impl Debayer for Image {
         )?;
 
         ShaderBox {
-            fragment_shader: debayerer.get_code(),
-            uniforms: debayerer.get_uniforms(source_texture),
-        }
-        .draw(
+            fragment_shader: fragment_shader,
+            uniforms: uniforms,
+        }.draw(
             &mut DrawParams {
                 surface: &mut target_texture.as_surface(),
-                facade: debayerer.facade.as_mut(),
+                facade: match facade {
+                    Some(f) => f,
+                    None => debayerer.facade.as_mut()
+                },
                 cache: debayerer.cache.as_mut(),
                 screen_size: Vec2 { x: self.width, y: self.height },
             },
             SpatialProperties::full(),
         )?;
 
+        Ok(target_texture)
+    }
 
-        let texture_data_sink = target_texture.read();
+    fn debayer(&self, debayerer: &mut Debayerer) -> Res<RawImage2d<u8>> {
+        let texture_data_sink = self.debayer_drawable(debayerer, None)?.read();
 
         Ok(texture_data_sink)
     }
 }
 
 pub struct Debayerer {
+    pub source_textures: Option<Box<Texture2d>>,
+    pub target_texture: Option<Box<Texture2d>>,
     pub facade: Box<Headless>,
     pub cache: Box<Cache>,
     code: String,
@@ -100,6 +143,8 @@ impl Debayerer {
             code: shader_builder.get_code(),
             size,
             uniforms: shader_builder.get_uniforms(),
+            source_textures: None,
+            target_texture: None,
         })
     }
 

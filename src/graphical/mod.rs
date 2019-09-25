@@ -100,6 +100,7 @@ impl Manager {
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);
 
+        /*
         let debayered = match raw_image.debayer(self.debayerer.as_mut()) {
             Err(e) => {
                 target.finish()?;
@@ -108,17 +109,23 @@ impl Manager {
             Ok(v) => v,
         };
 
+
         let hist_component: Box<dyn Drawable<_>> = if self.settings_gui.draw_histogram {
             Box::new(Histogram { image: &debayered })
         } else {
             Box::new(vec![])
         };
+        */
+
+
+         let hist_component = Box::new(vec![]);
 
         let draw_result = (vec![
             // the debayered image
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
-                child: &ImageComponent { image: &debayered },
+//                child: &ImageComponent { image: &debayered },
+                child: &TextureBox { texture: raw_image.debayer_drawable(self.debayerer.as_mut(), Some(&mut self.display))? }
             } as &dyn Drawable<_>,
             // the top bar
             &SizeContainer {

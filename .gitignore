@@ -3,3 +3,8 @@
 **/*~.idea/
 .idea/
 
+.cargo
+flamegraph*.svg
+perf.data*
+test
+tmp

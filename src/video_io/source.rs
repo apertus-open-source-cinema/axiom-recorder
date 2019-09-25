@@ -3,13 +3,14 @@ use crate::util::{
     image::Image,
     options::OptionsStorage,
 };
+use glob::glob;
 use bus::{Bus, BusReader};
 use itertools::Itertools;
 use std::{
     fs::{self, File},
     io::{prelude::*, Error, ErrorKind},
     net::TcpStream,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread::{self, sleep},
     time::{Duration, Instant, SystemTime},
@@ -69,23 +70,45 @@ impl MetaVideoSource {
         let width = options.get_opt_parse("width")?;
         let height = options.get_opt_parse("height")?;
         let fps = options.get_opt_parse("fps").ok();
+        let loop_source = options.is_present("loop");
 
-        if path.ends_with(".raw8") {
-            Ok(Self {
-                vs: Box::new(Raw8BlobVideoSource { path: path.to_string(), width, height, fps }),
-            })
-        } else if Path::new(&path).is_dir() {
-            Ok(Self {
-                vs: (Box::new(Raw8FilesVideoSource {
-                    folder_path: path.to_string(),
-                    width,
-                    height,
-                    fps,
-                })),
-            })
-        } else {
-            Err(Box::new(Error::new(ErrorKind::InvalidData, "file type is not supported")))
+        let entries = glob(&path)?.collect::<Result<Vec<PathBuf>, _>>()?;
+
+        if entries.len() == 1 {
+            if path.ends_with(".raw8") {
+                return Ok(Self {
+                    vs: Box::new(Raw8BlobVideoSource { path: path.to_string(), width, height, fps, loop_source }),
+                });
+            } else if path.ends_with(".raw12") {
+                return Ok(Self {
+                    vs: Box::new(Raw12BlobVideoSource { path: path.to_string(), width, height, fps, loop_source }),
+                });
+            }
+        } else {                      // the PathBuf ends_with only considers full childs / path elements
+            if entries.iter().all(|p| p.to_str().unwrap().ends_with(".raw8")) {
+                return Ok(Self {
+                    vs: (Box::new(Raw8FilesVideoSource {
+                        files: entries,
+                        width,
+                        height,
+                        fps,
+                        loop_source
+                    })),
+                });
+            } else if entries.iter().all(|p| p.to_str().unwrap().ends_with(".raw12")) {
+                return Ok(Self {
+                    vs: (Box::new(Raw12FilesVideoSource {
+                        files: entries,
+                        width,
+                        height,
+                        fps,
+                        loop_source
+                    })),
+                });
+            }
         }
+
+        Err(Box::new(Error::new(ErrorKind::InvalidData, "file type is not supported")))
     }
 
     pub fn from_uri(uri: String, options: &OptionsStorage) -> Res<Self> {
@@ -125,34 +148,37 @@ pub struct Raw8BlobVideoSource {
     pub width: u32,
     pub height: u32,
     pub fps: Option<f32>,
+    pub loop_source: bool,
 }
 
 impl VideoSource for Raw8BlobVideoSource {
     fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
-        let mut file = File::open(&self.path)?;
-        let mut bytes = vec![0u8; (self.width * self.height) as usize];
-
         loop {
-            let read_size = file.read(&mut bytes)?;
+            let mut file = File::open(&self.path)?;
+            let mut bytes = vec![0u8; (self.width * self.height) as usize];
 
-            if read_size == bytes.len() {
-                callback(Image {
-                    width: self.width,
-                    height: self.height,
-                    bit_depth: 8,
-                    data: bytes.clone(),
-                })?;
-            } else if read_size == 0 {
-                // we are at the end of the stream
-                return Ok(());
-            } else {
-                return Err(Box::new(Error::new(
-                    ErrorKind::InvalidData,
-                    "File could not be fully consumed. is the resolution set right?",
-                )));
-            }
-            if self.fps.is_some() {
-                sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64))
+            loop {
+                let read_size = file.read(&mut bytes)?;
+
+                if read_size == bytes.len() {
+                    callback(Image {
+                        width: self.width,
+                        height: self.height,
+                        bit_depth: 8,
+                        data: bytes.clone(),
+                    })?;
+                } else if read_size == 0 {
+                    // we are at the end of the stream
+                    if !self.loop_source { return Ok(()); }
+                } else {
+                    return Err(Box::new(Error::new(
+                        ErrorKind::InvalidData,
+                        "File could not be fully consumed. is the resolution set right?",
+                    )));
+                }
+                if self.fps.is_some() {
+                    sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64))
+                }
             }
         }
     }
@@ -164,40 +190,137 @@ impl VideoSource for Raw8BlobVideoSource {
 
 // Reads a directory of raw8 files
 pub struct Raw8FilesVideoSource {
-    pub folder_path: String,
+    pub files: Vec<PathBuf>,
     pub width: u32,
     pub height: u32,
     pub fps: Option<f32>,
+    pub loop_source: bool,
 }
 
 impl VideoSource for Raw8FilesVideoSource {
     fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
-        let path = Path::new(&self.folder_path);
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let mut file = File::open(entry.path())?;
-            let mut bytes = vec![0u8; (self.width * self.height) as usize];
-            file.read_exact(&mut bytes)?;
+        loop {
+            for entry in &self.files {
+                let mut file = File::open(entry)?;
+                let mut bytes = vec![0u8; (self.width * self.height) as usize];
+                file.read_exact(&mut bytes)?;
 
-            let image =
-                Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
-            callback(image)?;
-            if self.fps.is_some() {
-                sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64));
+                let image =
+                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
+                callback(image)?;
+                if self.fps.is_some() {
+                    sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64));
+                }
             }
+
+            if !self.loop_source { return Ok(()) }
         }
-        Ok(())
     }
 
     fn get_frame_count(&self) -> Option<u64> {
-        let path = Path::new(&self.folder_path);
-        let mut frame_cnt = 0;
-        for _ in fs::read_dir(path).unwrap() {
-            frame_cnt += 1;
-        }
-        Some(frame_cnt)
+        Some(self.files.len() as u64)
     }
 }
+
+// Reads frames from a single file
+pub struct Raw12BlobVideoSource {
+    pub path: String,
+    pub width: u32,
+    pub height: u32,
+    pub fps: Option<f32>,
+    pub loop_source: bool,
+}
+
+impl VideoSource for Raw12BlobVideoSource {
+    fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
+        loop {
+            let mut file = File::open(&self.path)?;
+            let mut bytes = vec![0u8; (self.width * self.height) as usize];
+
+            loop {
+                let read_size = file.read(&mut bytes)?;
+
+                if read_size == bytes.len() {
+                    callback(Image {
+                        width: self.width,
+                        height: self.height,
+                        bit_depth: 8,
+                        data: bytes.clone(),
+                    })?;
+                } else if read_size == 0 {
+                    // we are at the end of the stream
+                    if !self.loop_source { return Ok(()) };
+                } else {
+                    return Err(Box::new(Error::new(
+                        ErrorKind::InvalidData,
+                        "File could not be fully consumed. is the resolution set right?",
+                    )));
+                }
+                if self.fps.is_some() {
+                    sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64))
+                }
+            }
+        }
+    }
+
+    fn get_frame_count(&self) -> Option<u64> {
+        Some(Path::new(&self.path).metadata().unwrap().len() / ((self.width * self.height) as u64))
+    }
+}
+
+// Reads a directory of raw12 files
+pub struct Raw12FilesVideoSource {
+    pub files: Vec<PathBuf>,
+    pub width: u32,
+    pub height: u32,
+    pub fps: Option<f32>,
+    pub loop_source: bool,
+}
+
+impl VideoSource for Raw12FilesVideoSource {
+    fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
+        loop {
+            for entry in &self.files {
+                let mut file = File::open(entry)?;
+                let len = (self.width * self.height + (self.width * self.height / 2)) as usize;
+                let mut bytes_as_raw12 = Vec::with_capacity(len);
+
+                unsafe { bytes_as_raw12.set_len(len); }
+
+                // let mut bytes_as_raw8 = vec![0u8; (self.width * self.height) as usize];
+
+                //            println!("{:?}", bytes);
+
+                file.read_exact(&mut bytes_as_raw12)?;
+
+                for i in 0usize..((self.width * self.height / 2) as usize) {
+                    let part_a = bytes_as_raw12[3 * i + 0];
+                    let part_b = bytes_as_raw12[3 * i + 1];
+                    let part_c = bytes_as_raw12[3 * i + 2];
+
+                    bytes_as_raw12[2 * i + 0] = part_a;
+                    bytes_as_raw12[2 * i + 1] = ((part_b << 4) & 0xf0) | ((part_c >> 4) | 0x0f);
+                }
+
+                bytes_as_raw12.resize((self.width * self.height) as usize, 0);
+
+                let image =
+                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes_as_raw12 };
+                callback(image)?;
+                if self.fps.is_some() {
+                    sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64));
+                }
+            }
+
+            if !self.loop_source { return Ok(()) }
+        }
+    }
+
+    fn get_frame_count(&self) -> Option<u64> {
+        Some(self.files.len() as u64)
+    }
+}
+
 
 // Reads frames from a remote connected camera
 pub struct TcpVideoSource {
