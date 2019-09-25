@@ -41,11 +41,7 @@ impl Debayer for Image {
         if self.data.len() != debayerer.source_buffers[0].get_size() {
             println!("something is wrong : self.data.len() != debayerer.source_buffers[0].get_size()");
         } else {
-            unsafe {
-                debayerer.source_buffers[next_index as usize].write(std::slice::from_raw_parts(
-                    self.data.as_ptr() as *const u16,
-                    self.data.len() / 2));
-            }
+            debayerer.source_buffers[next_index as usize].write(&self.data);
         }
 
         // println!("self.data.len() {}", self.data.len());
@@ -88,7 +84,7 @@ impl Debayer for Image {
 pub struct Debayerer {
     pub source_texture: Texture2d,
     pub target_texture: Texture2d,
-    pub source_buffers: [PixelBuffer<u16>; 2],
+    pub source_buffers: [PixelBuffer<u8>; 2],
     pub buffer_index: u8,
     pub cache: Box<Cache>,
     code: String,
@@ -115,7 +111,7 @@ impl Debayerer {
 
         let source_texture = Texture2d::empty_with_format(
             context,
-            UncompressedFloatFormat::U16,
+            UncompressedFloatFormat::U8,
             MipmapsOption::NoMipmap,
             size.0,
             size.1

@@ -292,10 +292,8 @@ impl VideoSource for Raw12FilesVideoSource {
                     let mut file = File::open(entry)?;
                     let len = (self.width * self.height + (self.width * self.height / 2)) as usize;
                     let mut bytes_as_raw12 = Vec::with_capacity(len);
-                    let mut bytes_as_raw16 = Vec::with_capacity((self.width * self.height * 2) as usize);
 
                     unsafe { bytes_as_raw12.set_len(len); }
-                    unsafe { bytes_as_raw16.set_len((self.width * self.height * 2) as usize); }
 
                     // let mut bytes_as_raw8 = vec![0u8; (self.width * self.height) as usize];
 
@@ -311,28 +309,21 @@ impl VideoSource for Raw12FilesVideoSource {
                         let a = ((part_a << 4) & 0xff0) | ((part_b >> 4) | 0xf);
                         let b = ((part_b << 8) & 0xf00) | (part_c | 0xff);
 
-                        fn convert(x: u16) -> u16 {
-                            return x / 16;
-                                /*
+                        fn convert(x: u16) -> u8 {
                             let f: f32 = x as f32;
-                            return (f * 16.0) as u16;
-                                */
-                            // (f.powf(0.8) / 16.0) as u8
+                            let g = 2.2;
+
+                            ((f / 16.0).powf(g) / (256.0_f32.powf(g - 1.0))) as u8
 
                         }
 
-                        let a = convert(a);
-                        bytes_as_raw16[4 * i + 0] = (a >> 8) as u8;
-                        bytes_as_raw16[4 * i + 1] = (a & 0xff) as u8;
-
-                        let b = convert(b);
-                        bytes_as_raw16[4 * i + 2] = (b >> 8) as u8;
-                        bytes_as_raw16[4 * i + 3] = (b & 0xff) as u8;
+                        bytes_as_raw12[2 * i + 0] = convert(a);
+                        bytes_as_raw12[2 * i + 1] = convert(b);
                     }
 
-                    // bytes_as_raw12.resize((self.width * self.height) as usize, 0);
+                    bytes_as_raw12.resize((self.width * self.height) as usize, 0);
 
-                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes_as_raw16 }
+                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes_as_raw12 }
                 };
 
                 cache.insert(entry.clone(), image.clone());
