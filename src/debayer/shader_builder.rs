@@ -22,15 +22,15 @@ pub type F32OptionMap = HashMap<String, Option<f32>>;
 
 // this is only a newtype because rusts prohibition of implementing foreign
 // traits for foreign Types sucks
-pub struct F32OptionMapTextureUniforms(pub (F32OptionMap, Box<Texture2d>));
+pub struct F32OptionMapTextureUniforms<'a>(pub (F32OptionMap, &'a Texture2d));
 
-impl Uniforms for F32OptionMapTextureUniforms {
+impl<'texture> Uniforms for F32OptionMapTextureUniforms<'texture> {
     fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut callback: F) {
         let (f32map, texture2d) = &self.0;
         for (k, v) in f32map.clone() {
             callback(&k, UniformValue::Float(v.unwrap()));
         }
-        callback("texture", UniformValue::Texture2d(texture2d.as_ref(), None))
+        callback("texture", UniformValue::Texture2d(texture2d, None))
     }
 }
 

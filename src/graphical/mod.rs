@@ -47,15 +47,17 @@ impl Manager {
         let event_loop = EventsLoop::new();
         let window = WindowBuilder::new();
         let context = ContextBuilder::new();
-        let display = Display::new(window, context, &event_loop)?;
+        let mut display = Display::new(window, context, &event_loop)?;
 
-        let debayerer = Box::new(Debayerer::new(debayer_settings, size)?);
+        let debayerer = Box::new(Debayerer::new(debayer_settings, size, &mut display)?);
 
         Ok(Manager { display, raw_image_source, event_loop, settings_gui, debayerer })
     }
 
     pub fn run_event_loop(&mut self) -> Res<()> {
         let cache = &mut Cache(BTreeMap::new());
+
+        let mut screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
 
         let mut closed = false;
         let mut last_image = Arc::new(Image { width: 1, height: 1, bit_depth: 1, data: vec![0] });
@@ -65,14 +67,19 @@ impl Manager {
             self.event_loop.poll_events(|ev| match ev {
                 glutin::Event::WindowEvent { event, .. } => match event {
                     glutin::WindowEvent::CloseRequested => closed = true,
+                    glutin::WindowEvent::Resized(new_size) => {
+                        let new_size: (u32, u32) = new_size.into();
+                        screen_size = Vec2::from(new_size);
+                    },
                     _ => (),
                 },
                 _ => (),
             });
 
-            match self.raw_image_source.recv_timeout(Duration::from_millis(10)) {
-                Result::Err(_) => self.redraw(last_image.clone(), cache),
+            match self.raw_image_source.try_recv() {
+                Result::Err(_) => self.redraw(last_image.clone(), cache, screen_size.clone()),
                 Result::Ok(image) => {
+                    /*
                     loop {
                         // read all the frames that are stuck in the pipe to make the display non
                         // blocking
@@ -81,8 +88,10 @@ impl Manager {
                             Ok(_) => (),
                         }
                     }
+                    */
+
                     last_image = image.clone();
-                    self.redraw(image, cache)
+                    self.redraw(image, cache, screen_size.clone())
                 }
             }?;
 
@@ -95,10 +104,13 @@ impl Manager {
         &mut self,
         raw_image: Arc<Image>,
         cache: &mut Cache,
+        screen_size: Vec2<u32>
     ) -> Result<(), Box<dyn Error>> {
-        let screen_size = Vec2::from(self.display.get_framebuffer_dimensions());
+        let now = Instant::now();
+
+
         let mut target = self.display.draw();
-        target.clear_color(0.0, 0.0, 0.0, 0.0);
+        target.clear_color_srgb(0.0, 0.0, 0.0, 0.0);
 
         /*
         let debayered = match raw_image.debayer(self.debayerer.as_mut()) {
@@ -118,15 +130,19 @@ impl Manager {
         */
 
 
-         let hist_component = Box::new(vec![]);
+        // let hist_component = Box::new(vec![]);
 
+        
         let draw_result = (vec![
             // the debayered image
             &AspectRatioContainer {
                 aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
 //                child: &ImageComponent { image: &debayered },
-                child: &TextureBox { texture: raw_image.debayer_drawable(self.debayerer.as_mut(), Some(&mut self.display))? }
+                child: &TextureBox { texture: raw_image.debayer_drawable(self.debayerer.as_mut(), &mut self.display)? }
             } as &dyn Drawable<_>,
+
+            /*
+
             // the top bar
             &SizeContainer {
                 anchor: Vec2 { x: 0., y: 1. },
@@ -175,6 +191,7 @@ impl Manager {
                     },
                 ],
             },
+            */
         ])
             .draw(
                 &mut DrawParams {
@@ -188,6 +205,8 @@ impl Manager {
 
         target.finish()?;
         draw_result?;
+
+        println!("{} fps (ui redraw)", 1000 / now.elapsed().subsec_millis());
 
         Ok(())
     }

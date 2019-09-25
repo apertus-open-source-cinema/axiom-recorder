@@ -26,5 +26,5 @@ glob = "0.3.0"
 [features]
 mp4_encoder = ["mpeg_encoder"]
 
-[profile.release]
-debug = true
+# [profile.release]
+# debug = true

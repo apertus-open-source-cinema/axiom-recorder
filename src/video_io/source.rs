@@ -7,6 +7,8 @@ use glob::glob;
 use bus::{Bus, BusReader};
 use itertools::Itertools;
 use std::{
+    collections::BTreeMap,
+    cell::RefCell,
     fs::{self, File},
     io::{prelude::*, Error, ErrorKind},
     net::TcpStream,
@@ -102,7 +104,8 @@ impl MetaVideoSource {
                         width,
                         height,
                         fps,
-                        loop_source
+                        loop_source,
+                        cache: RefCell::new(BTreeMap::new())
                     })),
                 });
             }
@@ -275,37 +278,65 @@ pub struct Raw12FilesVideoSource {
     pub height: u32,
     pub fps: Option<f32>,
     pub loop_source: bool,
+    pub cache: RefCell<BTreeMap<PathBuf, Image>>
 }
 
 impl VideoSource for Raw12FilesVideoSource {
     fn get_images(&self, callback: &mut dyn FnMut(Image) -> Res<()>) -> Res<()> {
         loop {
             for entry in &self.files {
-                let mut file = File::open(entry)?;
-                let len = (self.width * self.height + (self.width * self.height / 2)) as usize;
-                let mut bytes_as_raw12 = Vec::with_capacity(len);
+                let mut cache = self.cache.borrow_mut();
+                let image = if cache.contains_key(entry) {
+                    (&cache[entry]).clone()
+                } else {
+                    let mut file = File::open(entry)?;
+                    let len = (self.width * self.height + (self.width * self.height / 2)) as usize;
+                    let mut bytes_as_raw12 = Vec::with_capacity(len);
+                    let mut bytes_as_raw16 = Vec::with_capacity((self.width * self.height * 2) as usize);
 
-                unsafe { bytes_as_raw12.set_len(len); }
+                    unsafe { bytes_as_raw12.set_len(len); }
+                    unsafe { bytes_as_raw16.set_len((self.width * self.height * 2) as usize); }
 
-                // let mut bytes_as_raw8 = vec![0u8; (self.width * self.height) as usize];
+                    // let mut bytes_as_raw8 = vec![0u8; (self.width * self.height) as usize];
 
-                //            println!("{:?}", bytes);
+                    //            println!("{:?}", bytes);
 
-                file.read_exact(&mut bytes_as_raw12)?;
+                    file.read_exact(&mut bytes_as_raw12)?;
 
-                for i in 0usize..((self.width * self.height / 2) as usize) {
-                    let part_a = bytes_as_raw12[3 * i + 0];
-                    let part_b = bytes_as_raw12[3 * i + 1];
-                    let part_c = bytes_as_raw12[3 * i + 2];
+                    for i in 0usize..((self.width * self.height / 2) as usize) {
+                        let part_a: u16 = bytes_as_raw12[3 * i + 0] as u16;
+                        let part_b: u16 = bytes_as_raw12[3 * i + 1] as u16;
+                        let part_c: u16 = bytes_as_raw12[3 * i + 2] as u16;
 
-                    bytes_as_raw12[2 * i + 0] = part_a;
-                    bytes_as_raw12[2 * i + 1] = ((part_b << 4) & 0xf0) | ((part_c >> 4) | 0x0f);
-                }
+                        let a = ((part_a << 4) & 0xff0) | ((part_b >> 4) | 0xf);
+                        let b = ((part_b << 8) & 0xf00) | (part_c | 0xff);
 
-                bytes_as_raw12.resize((self.width * self.height) as usize, 0);
+                        fn convert(x: u16) -> u16 {
+                            return x / 16;
+                                /*
+                            let f: f32 = x as f32;
+                            return (f * 16.0) as u16;
+                                */
+                            // (f.powf(0.8) / 16.0) as u8
 
-                let image =
-                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes_as_raw12 };
+                        }
+
+                        let a = convert(a);
+                        bytes_as_raw16[4 * i + 0] = (a >> 8) as u8;
+                        bytes_as_raw16[4 * i + 1] = (a & 0xff) as u8;
+
+                        let b = convert(b);
+                        bytes_as_raw16[4 * i + 2] = (b >> 8) as u8;
+                        bytes_as_raw16[4 * i + 3] = (b & 0xff) as u8;
+                    }
+
+                    // bytes_as_raw12.resize((self.width * self.height) as usize, 0);
+
+                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes_as_raw16 }
+                };
+
+                cache.insert(entry.clone(), image.clone());
+
                 callback(image)?;
                 if self.fps.is_some() {
                     sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64));
