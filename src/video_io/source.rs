@@ -3,12 +3,12 @@ use crate::util::{
     image::Image,
     options::OptionsStorage,
 };
-use glob::glob;
 use bus::{Bus, BusReader};
+use glob::glob;
 use itertools::Itertools;
 use std::{
-    collections::BTreeMap,
     cell::RefCell,
+    collections::BTreeMap,
     fs::{self, File},
     io::{prelude::*, Error, ErrorKind},
     net::TcpStream,
@@ -79,14 +79,27 @@ impl MetaVideoSource {
         if entries.len() == 1 {
             if path.ends_with(".raw8") {
                 return Ok(Self {
-                    vs: Box::new(Raw8BlobVideoSource { path: path.to_string(), width, height, fps, loop_source }),
+                    vs: Box::new(Raw8BlobVideoSource {
+                        path: path.to_string(),
+                        width,
+                        height,
+                        fps,
+                        loop_source,
+                    }),
                 });
             } else if path.ends_with(".raw12") {
                 return Ok(Self {
-                    vs: Box::new(Raw12BlobVideoSource { path: path.to_string(), width, height, fps, loop_source }),
+                    vs: Box::new(Raw12BlobVideoSource {
+                        path: path.to_string(),
+                        width,
+                        height,
+                        fps,
+                        loop_source,
+                    }),
                 });
             }
-        } else {                      // the PathBuf ends_with only considers full childs / path elements
+        } else {
+            // the PathBuf ends_with only considers full childs / path elements
             if entries.iter().all(|p| p.to_str().unwrap().ends_with(".raw8")) {
                 return Ok(Self {
                     vs: (Box::new(Raw8FilesVideoSource {
@@ -94,7 +107,7 @@ impl MetaVideoSource {
                         width,
                         height,
                         fps,
-                        loop_source
+                        loop_source,
                     })),
                 });
             } else if entries.iter().all(|p| p.to_str().unwrap().ends_with(".raw12")) {
@@ -105,7 +118,7 @@ impl MetaVideoSource {
                         height,
                         fps,
                         loop_source,
-                        cache: RefCell::new(BTreeMap::new())
+                        cache: RefCell::new(BTreeMap::new()),
                     })),
                 });
             }
@@ -172,7 +185,9 @@ impl VideoSource for Raw8BlobVideoSource {
                     })?;
                 } else if read_size == 0 {
                     // we are at the end of the stream
-                    if !self.loop_source { return Ok(()); }
+                    if !self.loop_source {
+                        return Ok(());
+                    }
                 } else {
                     return Err(Box::new(Error::new(
                         ErrorKind::InvalidData,
@@ -208,21 +223,25 @@ impl VideoSource for Raw8FilesVideoSource {
                 let mut bytes = vec![0u8; (self.width * self.height) as usize];
                 file.read_exact(&mut bytes)?;
 
-                let image =
-                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes.clone() };
+                let image = Image {
+                    width: self.width,
+                    height: self.height,
+                    bit_depth: 8,
+                    data: bytes.clone(),
+                };
                 callback(image)?;
                 if self.fps.is_some() {
                     sleep(Duration::from_millis((1000.0 / self.fps.unwrap()) as u64));
                 }
             }
 
-            if !self.loop_source { return Ok(()) }
+            if !self.loop_source {
+                return Ok(());
+            }
         }
     }
 
-    fn get_frame_count(&self) -> Option<u64> {
-        Some(self.files.len() as u64)
-    }
+    fn get_frame_count(&self) -> Option<u64> { Some(self.files.len() as u64) }
 }
 
 // Reads frames from a single file
@@ -252,7 +271,9 @@ impl VideoSource for Raw12BlobVideoSource {
                     })?;
                 } else if read_size == 0 {
                     // we are at the end of the stream
-                    if !self.loop_source { return Ok(()) };
+                    if !self.loop_source {
+                        return Ok(());
+                    };
                 } else {
                     return Err(Box::new(Error::new(
                         ErrorKind::InvalidData,
@@ -278,7 +299,7 @@ pub struct Raw12FilesVideoSource {
     pub height: u32,
     pub fps: Option<f32>,
     pub loop_source: bool,
-    pub cache: RefCell<BTreeMap<PathBuf, Image>>
+    pub cache: RefCell<BTreeMap<PathBuf, Image>>,
 }
 
 impl VideoSource for Raw12FilesVideoSource {
@@ -293,7 +314,9 @@ impl VideoSource for Raw12FilesVideoSource {
                     let len = (self.width * self.height + (self.width * self.height / 2)) as usize;
                     let mut bytes_as_raw12 = Vec::with_capacity(len);
 
-                    unsafe { bytes_as_raw12.set_len(len); }
+                    unsafe {
+                        bytes_as_raw12.set_len(len);
+                    }
 
                     // let mut bytes_as_raw8 = vec![0u8; (self.width * self.height) as usize];
 
@@ -314,7 +337,6 @@ impl VideoSource for Raw12FilesVideoSource {
                             let g = 2.2;
 
                             ((f / 16.0).powf(g) / (256.0_f32.powf(g - 1.0))) as u8
-
                         }
 
                         bytes_as_raw12[2 * i + 0] = convert(a);
@@ -323,7 +345,12 @@ impl VideoSource for Raw12FilesVideoSource {
 
                     bytes_as_raw12.resize((self.width * self.height) as usize, 0);
 
-                    Image { width: self.width, height: self.height, bit_depth: 8, data: bytes_as_raw12 }
+                    Image {
+                        width: self.width,
+                        height: self.height,
+                        bit_depth: 8,
+                        data: bytes_as_raw12,
+                    }
                 };
 
                 cache.insert(entry.clone(), image.clone());
@@ -334,13 +361,13 @@ impl VideoSource for Raw12FilesVideoSource {
                 }
             }
 
-            if !self.loop_source { return Ok(()) }
+            if !self.loop_source {
+                return Ok(());
+            }
         }
     }
 
-    fn get_frame_count(&self) -> Option<u64> {
-        Some(self.files.len() as u64)
-    }
+    fn get_frame_count(&self) -> Option<u64> { Some(self.files.len() as u64) }
 }
 
 

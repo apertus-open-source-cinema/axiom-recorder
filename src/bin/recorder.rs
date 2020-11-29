@@ -33,9 +33,9 @@ fn main() {
             ),
         )
         .arg(
-            Arg::with_name("loop").long("loop").help(
-                "loops the video (only relevant for file sources)",
-            ),
+            Arg::with_name("loop")
+                .long("loop")
+                .help("loops the video (only relevant for file sources)"),
         )
         .arg(Arg::with_name("width").short("w").long("width").takes_value(true).required(true))
         .arg(Arg::with_name("height").short("h").long("height").takes_value(true).required(true))
@@ -51,14 +51,7 @@ fn main() {
     let source_str = arguments.value_of("video_source").unwrap();
     let options = &OptionsStorage::from_args(
         arguments.clone(),
-        vec![
-            "width",
-            "height",
-            "fps",
-            "debayer-options",
-            "no-histogram",
-            "loop"
-        ],
+        vec!["width", "height", "fps", "debayer-options", "no-histogram", "loop"],
     );
 
     let res = work(String::from(source_str), options);

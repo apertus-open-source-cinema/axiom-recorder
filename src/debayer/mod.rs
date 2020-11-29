@@ -4,12 +4,17 @@ use crate::{
     util::error::Res,
 };
 use glium::{
-    Surface,
     backend::{glutin::headless::Headless, Facade},
-    texture::{self, MipmapsOption, Texture2d, UncompressedFloatFormat, pixel_buffer::PixelBuffer},
+    texture::{self, pixel_buffer::PixelBuffer, MipmapsOption, Texture2d, UncompressedFloatFormat},
+    Surface,
 };
-use glutin::{ContextBuilder, EventsLoop};
-use std::{borrow::Cow, collections::btree_map::BTreeMap, error, result::Result::Ok, time::Instant};
+use std::{
+    borrow::Cow,
+    collections::btree_map::BTreeMap,
+    error,
+    result::Result::Ok,
+    time::Instant,
+};
 
 use crate::{
     debayer::shader_builder::{F32OptionMap, F32OptionMapTextureUniforms, ShaderBuilder},
@@ -22,12 +27,21 @@ use glutin::dpi::PhysicalSize;
 pub mod shader_builder;
 
 pub trait Debayer {
-//    fn debayer(&self, debayerer: &mut Debayerer) -> Result<RawImage2d<u8>, Box<dyn error::Error>>;
-    fn debayer_drawable(&self, debayerer: &mut Debayerer, facade: &mut dyn Facade) -> Res<Texture2d>;
+    //    fn debayer(&self, debayerer: &mut Debayerer) -> Result<RawImage2d<u8>,
+    // Box<dyn error::Error>>;
+    fn debayer_drawable(
+        &self,
+        debayerer: &mut Debayerer,
+        facade: &mut dyn Facade,
+    ) -> Res<Texture2d>;
 }
 
 impl Debayer for Image {
-    fn debayer_drawable(&self, debayerer: &mut Debayerer, facade: &mut dyn Facade) -> Res<Texture2d> {
+    fn debayer_drawable(
+        &self,
+        debayerer: &mut Debayerer,
+        facade: &mut dyn Facade,
+    ) -> Res<Texture2d> {
         let fragment_shader = debayerer.get_code();
         let target_size = debayerer.get_size();
 
@@ -36,10 +50,18 @@ impl Debayer for Image {
 
         // let uniforms = debayerer.get_uniforms(&debayerer.source_texture);
 
-        debayerer.source_texture.main_level().raw_upload_from_pixel_buffer(debayerer.source_buffers[debayerer.buffer_index as usize].as_slice(), 0..self.width, 0..self.height, 0..1);
+        debayerer.source_texture.main_level().raw_upload_from_pixel_buffer(
+            debayerer.source_buffers[debayerer.buffer_index as usize].as_slice(),
+            0..self.width,
+            0..self.height,
+            0..1,
+        );
 
         if self.data.len() != debayerer.source_buffers[0].get_size() {
-            println!("something is wrong : self.data.len() != debayerer.source_buffers[0].get_size()");
+            println!(
+                "something is wrong : self.data.len() != debayerer.source_buffers[0].get_size()"
+            );
+            println!("{} != {}", self.data.len(), debayerer.source_buffers[0].get_size())
         } else {
             debayerer.source_buffers[next_index as usize].write(&self.data);
         }
@@ -56,9 +78,13 @@ impl Debayer for Image {
         )?;
 
         ShaderBox {
-            fragment_shader: fragment_shader,
-            uniforms: F32OptionMapTextureUniforms((debayerer.uniforms.clone(), &debayerer.source_texture)),
-        }.draw(
+            fragment_shader,
+            uniforms: F32OptionMapTextureUniforms((
+                debayerer.uniforms.clone(),
+                &debayerer.source_texture,
+            )),
+        }
+        .draw(
             &mut DrawParams {
                 surface: &mut target_texture.as_surface(),
                 facade,
@@ -114,7 +140,7 @@ impl Debayerer {
             UncompressedFloatFormat::U8,
             MipmapsOption::NoMipmap,
             size.0,
-            size.1
+            size.1,
         )?;
 
         let target_texture: Texture2d = Texture2d::empty_with_format(
@@ -130,7 +156,7 @@ impl Debayerer {
 
         let source_buffers = [
             PixelBuffer::new_empty(context, buffer_capacity),
-            PixelBuffer::new_empty(context, buffer_capacity)
+            PixelBuffer::new_empty(context, buffer_capacity),
         ];
 
         println!("target_size {:?}", target_size);
@@ -143,7 +169,7 @@ impl Debayerer {
             source_texture,
             target_texture,
             source_buffers,
-            buffer_index: 0
+            buffer_index: 0,
         })
     }
 
