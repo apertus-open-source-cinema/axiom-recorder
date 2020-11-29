@@ -1,4 +1,5 @@
 use crate::{
+    debayer::Debayer,
     util::{
         error::{Error, Res, ResN},
         image::Image,
@@ -6,6 +7,8 @@ use crate::{
     },
 };
 use bus::BusReader;
+use glium::{self, backend::glutin::headless::Headless, texture::RawImage2d};
+use glutin::dpi::PhysicalSize;
 
 #[cfg(feature = "mp4_encoder")]
 use crate::debayer::Debayerer;
@@ -75,7 +78,6 @@ impl MetaWriter {
             let img = image_rx.recv().unwrap();
             let result = writer.lock().unwrap().write_frame(img);
 
-
             if result.is_err() {
                 eprintln!("Source Error: {}", result.err().unwrap());
                 return;
@@ -122,7 +124,6 @@ impl Writer for Raw8FilesWriter {
     }
 }
 
-
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
     dir_path: String,
@@ -144,6 +145,7 @@ impl Writer for CinemaDngWriter {
 pub struct MpegWriter {
     encoder: Encoder,
     debayerer: Box<Debayerer>,
+    facade: Headless,
 }
 
 // TODO: WTF, NO!!!
@@ -152,41 +154,49 @@ unsafe impl Send for MpegWriter {}
 
 #[cfg(feature = "mp4_encoder")]
 impl Writer for MpegWriter {
-fn new(filename: String, options: &OptionsStorage) -> Res < Self > {
-let fps: f32 = options.get_opt_parse("fps") ?;
-let width: u32 = options.get_opt_parse("width") ?;
-let height: u32 = options.get_opt_parse("height") ?;
-let debayer_options: String = ((options
-.get_opt_parse("debayer-options")
-.unwrap_or(String::from("source_lin() debayer_halfresolution()"))):
-String)
-.clone();
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
+        let fps: f32 = options.get_opt_parse("fps")?;
+        let width: u32 = options.get_opt_parse("width")?;
+        let height: u32 = options.get_opt_parse("height")?;
+        let debayer_options: String = ((options
+            .get_opt_parse("debayer-options")
+            .unwrap_or(String::from("source_lin() debayer_halfresolution_real()"))):
+            String)
+            .clone();
 
-let debayerer = Box::new(Debayerer::new( & debayer_options, (width, height)) ? );
-let size = debayerer.get_size();
+        let event_loop = glutin::EventsLoop::new();
+        let mut facade = Headless::new(
+            glutin::ContextBuilder::new()
+                .build_headless(&event_loop, PhysicalSize::new(1.0, 1.0))?,
+        )?;
 
-let mut encoder = Encoder::new_with_params(
-filename,
-size.0 as usize,
-size.1 as usize,
-Some(options.get_opt_parse_or("bitrate", 40_0000) ? ),
-Some((1000, (fps * 1000.0) as usize)),
-Some(options.get_opt_parse_or("gop-size", 10) ? ),
-Some(options.get_opt_parse_or("max-b-frames", 1) ? ),
-None,
-);
-encoder.init();
-Ok( Self { encoder, debayerer })
-}
+        let debayerer = Box::new(Debayerer::new(&debayer_options, (width, height), &mut facade)?);
+        let size = debayerer.get_size();
 
-fn write_frame( & mut self, image: Arc< Image > ) -> ResN {
-let debayered = image.debayer( self.debayerer.as_mut()) ?;
-self.encoder.encode_rgba(
-debayered.width as usize,
-debayered.height as usize,
-debayered.data.as_ref(),
-false,
-);
-Ok(())
-}
+        let mut encoder = Encoder::new_with_params(
+            filename,
+            size.0 as usize,
+            size.1 as usize,
+            Some(options.get_opt_parse_or("bitrate", 40_0000)?),
+            Some((1000, (fps * 1000.0) as usize)),
+            Some(options.get_opt_parse_or("gop-size", 10)?),
+            Some(options.get_opt_parse_or("max-b-frames", 1)?),
+            None,
+        );
+        encoder.init();
+        Ok(Self { encoder, debayerer, facade })
+    }
+
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        let debayered = image.debayer_drawable(self.debayerer.as_mut(), &mut self.facade)?;
+        let debayered_image: RawImage2d<u8> = debayered.read();
+
+        self.encoder.encode_rgba(
+            debayered_image.width as usize,
+            debayered_image.height as usize,
+            debayered_image.data.as_ref(),
+            false,
+        );
+        Ok(())
+    }
 }
