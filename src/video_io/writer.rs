@@ -10,6 +10,8 @@ use glutin::dpi::PhysicalSize;
 #[cfg(feature = "mp4_encoder")]
 use crate::debayer::Debayerer;
 #[cfg(feature = "mp4_encoder")]
+use crate::debayer::Debayer;
+#[cfg(feature = "mp4_encoder")]
 use mpeg_encoder::Encoder;
 use std::{
     cell::Cell,
@@ -201,10 +203,10 @@ impl Writer for MpegWriter {
             String)
             .clone();
 
-        let event_loop = glutin::EventsLoop::new();
+        let event_loop = glutin::event_loop::EventLoop::new();
         let mut facade = Headless::new(
             glutin::ContextBuilder::new()
-                .build_headless(&event_loop, PhysicalSize::new(1.0, 1.0))?,
+                .build_headless(&event_loop, PhysicalSize::new(1, 1))?,
         )?;
 
         let debayerer = Box::new(Debayerer::new(&debayer_options, (width, height), &mut facade)?);
