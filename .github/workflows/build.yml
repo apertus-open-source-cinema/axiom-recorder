@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+
+      - run: cargo build --all-targets
+      - run: cargo test
+
+  build_mp4_encoder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+            profile: minimal
+            toolchain: nightly
+
+      - name: Install dependencies
+        run: |
+            apt-get -y update
+            apt-get -y install libavformat-dev libavcodec-dev libavfilter-dev libavdevice-dev libavresample-dev clang libclang1
+
+      - run: cargo build --all-targets --features mp4_encoder
+      - run: cargo test
