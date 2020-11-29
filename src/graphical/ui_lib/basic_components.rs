@@ -3,9 +3,9 @@ use crate::util::error::ResN;
 use glium::{
     texture::{RawImage2d, Texture2d},
     uniform,
+    uniforms::{Sampler, SamplerWrapFunction},
     Surface,
 };
-use glium::uniforms::{Sampler, SamplerWrapFunction};
 
 /// Renders a simple colored Box. Useful for semi transparent overlays.
 pub struct ColorBox {

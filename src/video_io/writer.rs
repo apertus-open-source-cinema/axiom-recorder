@@ -1,10 +1,7 @@
-use crate::{
-    debayer::Debayer,
-    util::{
-        error::{Error, Res, ResN},
-        image::Image,
-        options::OptionsStorage,
-    },
+use crate::util::{
+    error::{Error, Res, ResN},
+    image::Image,
+    options::OptionsStorage,
 };
 use bus::BusReader;
 use glium::{self, backend::glutin::headless::Headless, texture::RawImage2d};
@@ -21,6 +18,23 @@ use std::{
     path::Path,
     sync::{Arc, Mutex},
     thread,
+};
+
+use tiff_encoder::{
+    ifd::tags,
+    prelude::*,
+    ASCII,
+    BYTE,
+    DOUBLE,
+    FLOAT,
+    LONG,
+    RATIONAL,
+    SBYTE,
+    SHORT,
+    SLONG,
+    SRATIONAL,
+    SSHORT,
+    UNDEFINED,
 };
 
 /// An image sink, that somehow stores the images it receives
@@ -48,6 +62,10 @@ impl Writer for MetaWriter {
             #[cfg(feature = "mp4_encoder")]
             Some("mp4") => Ok(Self {
                 writer: Arc::new(Mutex::new(Box::new(MpegWriter::new(filename, options)?))),
+                bus_writer_running,
+            }),
+            Some("dng") => Ok(Self {
+                writer: Arc::new(Mutex::new(Box::new(CinemaDngWriter::new(filename, options)?))),
                 bus_writer_running,
             }),
             Some(extention) => Error::error(format!("No writer for file type .{}", extention)),
@@ -136,8 +154,27 @@ impl Writer for CinemaDngWriter {
         Ok(Self { dir_path: filename, cnt: 0 })
     }
 
-    fn write_frame(&mut self, _image: Arc<Image>) -> ResN {
-        unimplemented!();
+    fn write_frame(&mut self, image: Arc<Image>) -> ResN {
+        TiffFile::new(
+            Ifd::new()
+                .with_entry(tags::PhotometricInterpretation, SHORT![1]) // Black is zero
+                .with_entry(tags::Compression, SHORT![1]) // No compression
+
+                .with_entry(tags::ImageLength, LONG![image.height])
+                .with_entry(tags::ImageWidth, LONG![image.width])
+
+                .with_entry(tags::ResolutionUnit, SHORT![1]) // No resolution unit
+                .with_entry(tags::XResolution, RATIONAL![(1, 1)])
+                .with_entry(tags::YResolution, RATIONAL![(1, 1)])
+
+                .with_entry(tags::RowsPerStrip, LONG![image.height])
+                .with_entry(tags::StripByteCounts, LONG![image.data.len() as u32])
+                .with_entry(tags::StripOffsets, ByteBlock::single(image.data.clone()))
+                .single(), // This is the only Ifd in its IfdChain
+        )
+        .write_to(format!("{}/{:06}.dng", &self.dir_path, self.cnt))
+        .unwrap();
+        Ok(())
     }
 }
 
@@ -160,7 +197,7 @@ impl Writer for MpegWriter {
         let height: u32 = options.get_opt_parse("height")?;
         let debayer_options: String = ((options
             .get_opt_parse("debayer-options")
-            .unwrap_or(String::from("source_lin() debayer_halfresolution_real()"))):
+            .unwrap_or(String::from("source_lin() debayer_halfresolution()"))):
             String)
             .clone();
 

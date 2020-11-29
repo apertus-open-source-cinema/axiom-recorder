@@ -12,9 +12,9 @@ use euclid::{Point2D, Size2D};
 use font_kit::{
     canvas::{Canvas, Format, RasterizationOptions},
     hinting::HintingOptions,
-    loader::FontTransform,
     loaders::default::Font,
 };
+use pathfinder_geometry::transform2d::Transform2F;
 use std::sync::Arc;
 
 /// Draws a single glyph. Do not use this Directly
@@ -35,27 +35,20 @@ impl Letter {
         let raster_bounds = font.raster_bounds(
             glyph_id,
             height as f32,
-            &FontTransform::identity(),
-            &Point2D::zero(),
+            Transform2F::default(),
             HintingOptions::None,
             RasterizationOptions::GrayscaleAa,
         )?;
-        let origin =
-            Point2D::new(-raster_bounds.origin.x, raster_bounds.size.height + raster_bounds.origin.y)
-                .to_f32();
-        let size = &Size2D::new(raster_bounds.size.width as u32, raster_bounds.size.height as u32);
-        let mut canvas = Canvas::new(size, Format::A8);
-
+        let mut canvas = Canvas::new(raster_bounds.size(), Format::A8);
         font.rasterize_glyph(
             &mut canvas,
             glyph_id,
             height as f32,
-            &FontTransform::identity(),
-            &origin,
+            Transform2F::default(),
             HintingOptions::None,
             RasterizationOptions::GrayscaleAa,
         )?;
-        Ok((canvas, Vec2 { x: raster_bounds.origin.x, y: raster_bounds.origin.y }))
+        Ok((canvas, Vec2 { x: raster_bounds.origin_x(), y: raster_bounds.origin_y() }))
     }
 }
 
@@ -69,8 +62,8 @@ where
             params.facade,
             texture::RawImage2d {
                 data: Cow::from(bitmap.pixels.clone()),
-                width: bitmap.size.width as u32,
-                height: bitmap.size.height as u32,
+                width: bitmap.size.x() as u32,
+                height: bitmap.size.y() as u32,
                 format: texture::ClientFormat::U8,
             },
         )?;
@@ -83,7 +76,7 @@ where
             },
             child: &(SizeContainer {
                 anchor: Vec2::zero(),
-                size: Vec2 { x: Px(bitmap.size.width), y: Px(bitmap.size.height) },
+                size: Vec2 { x: Px(bitmap.size.x() as u32), y: Px(bitmap.size.y() as u32) },
                 child: &MonoTextureBox { color: self.color, texture },
             }),
         }
