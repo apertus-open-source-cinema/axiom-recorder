@@ -19,7 +19,6 @@ jobs:
         with:
           profile: minimal
           toolchain: nightly
-          components: rustfmt, clippy
 
       - run: cargo build --all-targets
       - run: cargo test
@@ -36,7 +35,6 @@ jobs:
         with:
             profile: minimal
             toolchain: nightly
-            components: rustfmt, clippy
 
       - name: Install dependencies
         run: |
