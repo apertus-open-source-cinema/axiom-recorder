@@ -5,8 +5,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-/// The main data structure for transferring and representing single frames of
-/// a video stream
+/// The main data structure for transferring and representing single raw frames of a video stream
 #[derive(Debug)]
 pub struct Image {
     pub width: u32,
@@ -54,6 +53,18 @@ impl PackedBuffer {
         if locked_u8_data.is_none() {
             if self.bit_depth == 8 {
                 *locked_u8_data = Some(self.packed_data.clone());
+            } else if self.bit_depth == 12 {
+                let mut new_buffer =
+                    Vec::with_capacity(self.packed_data.len() * 8 / self.bit_depth as usize);
+                for i in 0usize..(self.packed_data.len() / 3 as usize) {
+                    let part_a: u16 = self.packed_data[3 * i + 0] as u16;
+                    let part_b: u16 = self.packed_data[3 * i + 1] as u16;
+                    let part_c: u16 = self.packed_data[3 * i + 2] as u16;
+
+                    new_buffer.push((((part_a << 4) & 0xff0) | ((part_b >> 4) | 0xf)).wrapping_shr(4) as u8);
+                    new_buffer.push((((part_b << 8) & 0xf00) | (part_c | 0xff)).wrapping_shr(4) as u8);
+                }
+                *locked_u8_data = Some(Arc::new(new_buffer))
             } else {
                 let mut new_buffer =
                     Vec::with_capacity(self.packed_data.len() * 8 / self.bit_depth as usize);
@@ -62,12 +73,12 @@ impl PackedBuffer {
                 let mut rest_bits: u32 = 0;
                 for value in self.packed_data.iter() {
                     let bits_more_than_bit_depth = (rest_bits as i32 + 8) - self.bit_depth as i32;
-                    println!("rest_bits: {}, rest_value: {:032b}, value: {:08b}, bits_more_than_bit_depth: {}", rest_bits, rest_value, value, bits_more_than_bit_depth);
+                    //println!("rest_bits: {}, rest_value: {:032b}, value: {:08b}, bits_more_than_bit_depth: {}", rest_bits, rest_value, value, bits_more_than_bit_depth);
                     if bits_more_than_bit_depth >= 0 {
                         let new_n_bit_value: u32 = rest_value
                             .wrapping_shl(self.bit_depth as u32 - rest_bits)
                             | value.wrapping_shr(8 - bits_more_than_bit_depth as u32) as u32;
-                        println!("new_n_bit_value: {:012b}", new_n_bit_value);
+                        //println!("new_n_bit_value: {:012b}", new_n_bit_value);
                         new_buffer.push(
                             if self.bit_depth > 8 {
                                 new_n_bit_value.wrapping_shr(self.bit_depth as u32 - 8)

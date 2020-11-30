@@ -41,6 +41,7 @@ impl BufferedVideoSource {
                 let vs = vs_send.lock().unwrap();
                 let mut fps_reporter = FPSReporter::new("source");
                 let result = vs.get_images(&mut |img| {
+                    drop(img.buffer.u8_buffer());
                     tx.lock().unwrap().broadcast(Arc::new(img));
                     fps_reporter.frame();
                     Ok(())
@@ -113,7 +114,7 @@ impl MetaVideoSource {
                 return Ok(Self {
                     vs: (Box::new(RawNDirectoryVideoSource {
                         files: entries,
-                        bit_depth: 8,
+                        bit_depth: 12,
                         width,
                         height,
                         fps,

@@ -96,7 +96,6 @@ impl Manager {
                 fps_reporter.frame();
                 match raw_image_source.try_recv() {
                     Result::Err(_) => {
-                        println!("using last image again");
                         redraw(
                             last_image.clone(),
                             &mut cache,

@@ -1,7 +1,5 @@
 /*
  * Debayer images and half the resolution
- *
- * ! resolution_div=2
 */
 
 vec3 get_color_value(ivec2 pos) {
