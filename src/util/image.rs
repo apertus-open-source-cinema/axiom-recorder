@@ -112,9 +112,7 @@ impl PackedBuffer {
                         } as u16,
                     );
                     rest_bits = bits_more_than_bit_depth as u32;
-                    rest_value = (rest_value.wrapping_shl(bits_more_than_bit_depth as u32)
-                        | (value & (2u32.pow(bits_more_than_bit_depth as u32) - 1) as u8) as u32)
-                        & (2u32.pow(rest_bits as u32) - 1)
+                    rest_value = (value & (2u32.pow(rest_bits as u32) - 1) as u8) as u32;
                 } else {
                     rest_bits += 8;
                     rest_value = (rest_value << 8) | *value as u32;
