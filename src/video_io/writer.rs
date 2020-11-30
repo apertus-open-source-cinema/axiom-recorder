@@ -200,10 +200,9 @@ impl Writer for MpegWriter {
         let fps: f32 = options.get_opt_parse("fps")?;
         let width: u32 = options.get_opt_parse("width")?;
         let height: u32 = options.get_opt_parse("height")?;
-        let debayer_options: String = ((options
+        let debayer_options: String = options
             .get_opt_parse("debayer-options")
-            .unwrap_or(String::from("source_lin() debayer_halfresolution()"))):
-            String)
+            .unwrap_or(String::from("source_lin() debayer_halfresolution()"))
             .clone();
 
         let cb = glutin::ContextBuilder::new()

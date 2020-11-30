@@ -38,8 +38,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-            apt-get -y update
-            apt-get -y install libavformat-dev libavcodec-dev libavfilter-dev libavdevice-dev libavresample-dev clang libclang1
+            sudo apt-get -y update
+            sudo apt-get -y install libavformat-dev libavcodec-dev libavfilter-dev libavdevice-dev libavresample-dev clang libclang1
 
       - run: cargo build --all-targets --features mp4_encoder
       - run: cargo test
