@@ -5,6 +5,8 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
+use slipstream::{i16x8, u8x8, Vector};
+
 /// The main data structure for transferring and representing single raw frames of a video stream
 #[derive(Debug)]
 pub struct Image {
@@ -54,16 +56,56 @@ impl PackedBuffer {
             if self.bit_depth == 8 {
                 *locked_u8_data = Some(self.packed_data.clone());
             } else if self.bit_depth == 12 {
-                let mut new_buffer =
-                    Vec::with_capacity(self.packed_data.len() * 8 / self.bit_depth as usize);
-                for i in 0usize..(self.packed_data.len() / 3 as usize) {
+                assert_eq!((self.packed_data.len() * 8 / self.bit_depth as usize) % 8, 0);
+                let mut new_buffer = vec![0u8; self.packed_data.len() * 8 / self.bit_depth as usize];
+                    // Vec::with_capacity(self.packed_data.len() * 8 / self.bit_depth as usize);
+
+
+                for i in 0usize..(self.packed_data.len() / (3 * 8) as usize) {
+                    let part_a = u8x8::gather_load(&self.packed_data[3 * 8 * i..], [0, 3, 6, 9, 12, 15, 18, 21]);
+                    let part_b = u8x8::gather_load(&self.packed_data[3 * 8 * i..], [1, 4, 7, 10, 13, 16, 19, 22]);
+                    let part_c = u8x8::gather_load(&self.packed_data[3 * 8 * i..], [2, 5, 8, 11, 14, 17, 20, 23]);
+
+                    let part_a = i16x8::new(&[part_a[0] as i16, part_a[1] as i16, part_a[2] as i16, part_a[3] as i16, part_a[4] as i16, part_a[5] as i16, part_a[6] as i16, part_a[7] as i16]);
+                    let part_b = i16x8::new(&[part_b[0] as i16, part_b[1] as i16, part_b[2] as i16, part_b[3] as i16, part_b[4] as i16, part_b[5] as i16, part_b[6] as i16, part_b[7] as i16]);
+                    let part_c = i16x8::new(&[part_c[0] as i16, part_c[1] as i16, part_c[2] as i16, part_c[3] as i16, part_c[4] as i16, part_c[5] as i16, part_c[6] as i16, part_c[7] as i16]);
+
+                    let out_a = ((part_a << i16x8::splat(4)) | (part_b >> i16x8::splat(4))) >> i16x8::splat(4);
+                    let out_b = (((part_b & i16x8::splat(0xf)) << i16x8::splat(8)) | part_c) >> i16x8::splat(4);
+
+                    new_buffer[2 * 8 * i + 0] = out_a[0] as u8;
+                    new_buffer[2 * 8 * i + 2] = out_a[1] as u8;
+                    new_buffer[2 * 8 * i + 4] = out_a[2] as u8;
+                    new_buffer[2 * 8 * i + 6] = out_a[3] as u8;
+                    new_buffer[2 * 8 * i + 8] = out_a[4] as u8;
+                    new_buffer[2 * 8 * i + 10] = out_a[5] as u8;
+                    new_buffer[2 * 8 * i + 12] = out_a[6] as u8;
+                    new_buffer[2 * 8 * i + 14] = out_a[7] as u8;
+
+                    new_buffer[2 * 8 * i + 1] = out_b[0] as u8;
+                    new_buffer[2 * 8 * i + 3] = out_b[1] as u8;
+                    new_buffer[2 * 8 * i + 5] = out_b[2] as u8;
+                    new_buffer[2 * 8 * i + 7] = out_b[3] as u8;
+                    new_buffer[2 * 8 * i + 9] = out_b[4] as u8;
+                    new_buffer[2 * 8 * i + 11] = out_b[5] as u8;
+                    new_buffer[2 * 8 * i + 13] = out_b[6] as u8;
+                    new_buffer[2 * 8 * i + 15] = out_b[7] as u8;
+
+                    // out_a.scatter_store(&new_buffer[2 * 8 * i..], [0, 2, 4, 6, 8, 10, 12, 14]);
+                    // out_b.scatter_store(&new_buffer[2 * 8 * i..], [1, 3, 5, 7, 9, 11, 13, 15]);
+
+                        /*
                     let part_a: u16 = self.packed_data[3 * i + 0] as u16;
                     let part_b: u16 = self.packed_data[3 * i + 1] as u16;
                     let part_c: u16 = self.packed_data[3 * i + 2] as u16;
 
+
                     new_buffer.push((((part_a << 4) & 0xff0) | ((part_b >> 4) | 0xf)).wrapping_shr(4) as u8);
                     new_buffer.push((((part_b << 8) & 0xf00) | (part_c | 0xff)).wrapping_shr(4) as u8);
+                        */
                 }
+
+
                 *locked_u8_data = Some(Arc::new(new_buffer))
             } else {
                 let mut new_buffer =
