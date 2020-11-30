@@ -6,9 +6,10 @@ use crate::util::{
 use bus::BusReader;
 use glium::{self, backend::glutin::headless::Headless, texture::RawImage2d};
 use glutin::dpi::PhysicalSize;
+use crate::graphical::ui_lib::headless_util::build_context;
 
 #[cfg(feature = "mp4_encoder")]
-use crate::debayer::Debayerer;
+use crate::debayer::OnscreenDebayerer;
 #[cfg(feature = "mp4_encoder")]
 use crate::debayer::Debayer;
 #[cfg(feature = "mp4_encoder")]
@@ -38,6 +39,8 @@ use tiff_encoder::{
     SSHORT,
     UNDEFINED,
 };
+use glutin::platform::unix::HeadlessContextExt;
+use glutin::{GlProfile, GlRequest};
 
 /// An image sink, that somehow stores the images it receives
 pub trait Writer {
@@ -183,7 +186,7 @@ impl Writer for CinemaDngWriter {
 #[cfg(feature = "mp4_encoder")]
 pub struct MpegWriter {
     encoder: Encoder,
-    debayerer: Box<Debayerer>,
+    debayerer: Box<OnscreenDebayerer>,
     facade: Headless,
 }
 
@@ -203,13 +206,16 @@ impl Writer for MpegWriter {
             String)
             .clone();
 
-        let event_loop = glutin::event_loop::EventLoop::new();
-        let mut facade = Headless::new(
-            glutin::ContextBuilder::new()
-                .build_headless(&event_loop, PhysicalSize::new(1, 1))?,
-        )?;
+        let cb = glutin::ContextBuilder::new()
+            .with_gl_profile(GlProfile::Core)
+            .with_gl(GlRequest::Latest);
+        let (context, _event_loop) = build_context(cb).unwrap();
+        let context = unsafe {
+            context.treat_as_current()
+        };
+        let mut facade = glium::backend::glutin::headless::Headless::new(context)?;
 
-        let debayerer = Box::new(Debayerer::new(&debayer_options, (width, height), &mut facade)?);
+        let debayerer = Box::new(OnscreenDebayerer::new(&debayer_options, (width, height), &mut facade)?);
         let size = debayerer.get_size();
 
         let mut encoder = Encoder::new_with_params(
@@ -227,7 +233,7 @@ impl Writer for MpegWriter {
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
-        let debayered = image.debayer_drawable(self.debayerer.as_mut(), &mut self.facade)?;
+        let debayered = image.debayer_to_drawable(self.debayerer.as_mut(), &mut self.facade)?;
         let debayered_image: RawImage2d<u8> = debayered.read();
 
         self.encoder.encode_rgba(

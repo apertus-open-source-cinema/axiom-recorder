@@ -27,19 +27,17 @@ use glutin::dpi::PhysicalSize;
 pub mod shader_builder;
 
 pub trait Debayer {
-    //    fn debayer(&self, debayerer: &mut Debayerer) -> Result<RawImage2d<u8>,
-    // Box<dyn error::Error>>;
-    fn debayer_drawable(
+    fn debayer_to_drawable(
         &self,
-        debayerer: &mut Debayerer,
+        debayerer: &mut OnscreenDebayerer,
         facade: &mut dyn Facade,
     ) -> Res<Texture2d>;
 }
 
 impl Debayer for Image {
-    fn debayer_drawable(
+    fn debayer_to_drawable(
         &self,
-        debayerer: &mut Debayerer,
+        debayerer: &mut OnscreenDebayerer,
         facade: &mut dyn Facade,
     ) -> Res<Texture2d> {
         let fragment_shader = debayerer.get_code();
@@ -107,7 +105,7 @@ impl Debayer for Image {
     */
 }
 
-pub struct Debayerer {
+pub struct OnscreenDebayerer {
     pub source_texture: Texture2d,
     pub target_texture: Texture2d,
     pub source_buffers: [PixelBuffer<u8>; 2],
@@ -118,7 +116,7 @@ pub struct Debayerer {
     uniforms: F32OptionMap,
 }
 
-impl Debayerer {
+impl OnscreenDebayerer {
     pub fn new(debayer_options: &str, size: (u32, u32), context: &mut dyn Facade) -> Res<Self> {
         let cache = Cache(BTreeMap::new());
 
