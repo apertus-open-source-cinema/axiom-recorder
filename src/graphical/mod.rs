@@ -11,7 +11,7 @@ use self::{
 };
 use crate::{
     debayer::{Debayer, OnscreenDebayerer},
-    util::{error::Res, image::Image},
+    util::{error::Res, fps_report::FPSReporter, image::Image},
 };
 use bus::BusReader;
 use glium::*;
@@ -26,7 +26,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use crate::util::fps_report::FPSReporter;
 
 
 pub mod settings;
