@@ -14,18 +14,13 @@ use crate::{
     util::{error::Res, image::Image},
 };
 use bus::BusReader;
-use glium::{
-    *,
+use glium::*;
+use glutin::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
 };
-use std::{
-    collections::BTreeMap,
-    error::Error,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use glutin::event_loop::{EventLoop, ControlFlow};
-use glutin::event::{Event, WindowEvent};
-use glutin::{WindowedContext, NotCurrent};
+use std::{collections::BTreeMap, error::Error, sync::Arc, time::Instant};
+
 
 pub mod settings;
 pub mod ui_lib;
@@ -52,14 +47,13 @@ impl Manager {
             .with_vsync(true)
             .build_windowed(window_builder, &event_loop)?;
         let mut display = glium::Display::from_gl_window(windowed_context)?;
-        println!("OpenGL profile: {:?}", display.gl_window().get_pixel_format());
 
         let debayerer = Box::new(OnscreenDebayerer::new(debayer_settings, size, &mut display)?);
 
         Ok(Manager { display, raw_image_source, event_loop, settings_gui, debayerer })
     }
 
-    pub fn run_event_loop(mut self) -> Res<()> {
+    pub fn run_event_loop(self) -> Res<()> {
         let mut cache = Cache(BTreeMap::new());
         let mut last_image = Arc::new(Image { width: 1, height: 1, bit_depth: 1, data: vec![0] });
         let mut last_frame_time = Instant::now();
@@ -79,27 +73,32 @@ impl Manager {
                         display.gl_window().resize(physical_size);
                         screen_size = Vec2::from((physical_size.width, physical_size.height));
                     }
-                    WindowEvent::CloseRequested => {
-                        *control_flow = ControlFlow::Exit
-                    }
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                     _ => (),
                 },
                 Event::RedrawRequested(_) => {
                     redraw_requested = true;
-                },
+                }
                 _ => (),
             }
 
-            if (last_frame_time.elapsed().subsec_millis() > 1 / 30 * 1000) || redraw_requested {  // TODO: debug window disappearing
+            if (last_frame_time.elapsed().subsec_millis() > 1000 / 30) || redraw_requested {
+                // TODO: debug window disappearing
                 match raw_image_source.try_recv() {
                     Result::Err(_) => {
                         println!("using last image again");
-                        redraw(last_image.clone(), &mut cache, &mut display, debayerer.as_mut(), &screen_size)
-                    },
+                        redraw(
+                            last_image.clone(),
+                            &mut cache,
+                            &mut display,
+                            debayerer.as_mut(),
+                            &screen_size,
+                        )
+                    }
                     Result::Ok(image) => {
                         loop {
-                            // read all the frames that are stuck in the pipe to make the display non
-                            // blocking
+                            // read all the frames that are stuck in the pipe to make the display
+                            // non blocking
                             match raw_image_source.try_recv() {
                                 Err(_) => break,
                                 Ok(_) => (),
@@ -109,7 +108,8 @@ impl Manager {
                         last_image = image.clone();
                         redraw(image, &mut cache, &mut display, debayerer.as_mut(), &screen_size)
                     }
-                }.unwrap();
+                }
+                .unwrap();
 
                 let elapsed = last_frame_time.elapsed().subsec_millis();
                 if elapsed > 0 {
@@ -118,12 +118,17 @@ impl Manager {
                 }
             }
         });
-        Ok(())
     }
 }
 
 
-pub fn redraw(raw_image: Arc<Image>, cache: &mut Cache, display: &mut Display, debayerer: &mut OnscreenDebayerer, screen_size: &Vec2<u32>) -> Result<(), Box<dyn Error>> {
+pub fn redraw(
+    raw_image: Arc<Image>,
+    cache: &mut Cache,
+    display: &mut Display,
+    debayerer: &mut OnscreenDebayerer,
+    screen_size: &Vec2<u32>,
+) -> Result<(), Box<dyn Error>> {
     let mut target = display.draw();
     target.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
 
@@ -153,9 +158,7 @@ pub fn redraw(raw_image: Arc<Image>, cache: &mut Cache, display: &mut Display, d
         &AspectRatioContainer {
             aspect_ratio: raw_image.width as f64 / raw_image.height as f64,
             //                child: &ImageComponent { image: &debayered },
-            child: &TextureBox {
-                texture: raw_image.debayer_to_drawable(debayerer, display)?,
-            },
+            child: &TextureBox { texture: raw_image.debayer_to_drawable(debayerer, display)? },
         } as &dyn Drawable<_>,
         /*
 
@@ -209,10 +212,15 @@ pub fn redraw(raw_image: Arc<Image>, cache: &mut Cache, display: &mut Display, d
         },
         */
     ])
-        .draw(
-            &mut DrawParams { surface: &mut target, facade: display, cache, screen_size: screen_size.clone() },
-            SpatialProperties::full(),
-        );
+    .draw(
+        &mut DrawParams {
+            surface: &mut target,
+            facade: display,
+            cache,
+            screen_size: screen_size.clone(),
+        },
+        SpatialProperties::full(),
+    );
     draw_result?;
     target.finish()?;
     Ok(())

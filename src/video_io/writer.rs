@@ -4,14 +4,12 @@ use crate::util::{
     options::OptionsStorage,
 };
 use bus::BusReader;
-use glium::{self, backend::glutin::headless::Headless, texture::RawImage2d};
-use glutin::dpi::PhysicalSize;
-use crate::graphical::ui_lib::headless_util::build_context;
+
 
 #[cfg(feature = "mp4_encoder")]
-use crate::debayer::OnscreenDebayerer;
-#[cfg(feature = "mp4_encoder")]
 use crate::debayer::Debayer;
+#[cfg(feature = "mp4_encoder")]
+use crate::debayer::OnscreenDebayerer;
 #[cfg(feature = "mp4_encoder")]
 use mpeg_encoder::Encoder;
 use std::{
@@ -23,24 +21,13 @@ use std::{
     thread,
 };
 
-use tiff_encoder::{
-    ifd::tags,
-    prelude::*,
-    ASCII,
-    BYTE,
-    DOUBLE,
-    FLOAT,
-    LONG,
-    RATIONAL,
-    SBYTE,
-    SHORT,
-    SLONG,
-    SRATIONAL,
-    SSHORT,
-    UNDEFINED,
-};
-use glutin::platform::unix::HeadlessContextExt;
+use glium::texture::RawImage2d;
+use crate::graphical::ui_lib::headless_util::build_context;
+
+use tiff_encoder::{ifd::tags, prelude::*, LONG, RATIONAL, SHORT};
+use glium::backend::glutin::headless::Headless;
 use glutin::{GlProfile, GlRequest};
+
 
 /// An image sink, that somehow stores the images it receives
 pub trait Writer {
@@ -123,7 +110,7 @@ impl Writer for Raw8BlobWriter {
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
-        &self.file.write_all(&image.data)?;
+        self.file.write_all(&image.data)?;
         Ok(())
     }
 }
@@ -209,12 +196,11 @@ impl Writer for MpegWriter {
             .with_gl_profile(GlProfile::Core)
             .with_gl(GlRequest::Latest);
         let (context, _event_loop) = build_context(cb).unwrap();
-        let context = unsafe {
-            context.treat_as_current()
-        };
+        let context = unsafe { context.treat_as_current() };
         let mut facade = glium::backend::glutin::headless::Headless::new(context)?;
 
-        let debayerer = Box::new(OnscreenDebayerer::new(&debayer_options, (width, height), &mut facade)?);
+        let debayerer =
+            Box::new(OnscreenDebayerer::new(&debayer_options, (width, height), &mut facade)?);
         let size = debayerer.get_size();
 
         let mut encoder = Encoder::new_with_params(

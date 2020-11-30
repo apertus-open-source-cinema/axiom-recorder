@@ -1,6 +1,12 @@
-use glutin::{ContextCurrentState, ContextBuilder, Context, NotCurrent, CreationError};
-use glutin::event_loop::EventLoop;
-use glutin::dpi::PhysicalSize;
+use glutin::{
+    dpi::PhysicalSize,
+    event_loop::EventLoop,
+    Context,
+    ContextBuilder,
+    ContextCurrentState,
+    CreationError,
+    NotCurrent,
+};
 
 #[cfg(target_os = "linux")]
 fn build_context_surfaceless<T1: ContextCurrentState>(

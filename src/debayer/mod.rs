@@ -4,24 +4,15 @@ use crate::{
     util::error::Res,
 };
 use glium::{
-    backend::{glutin::headless::Headless, Facade},
-    texture::{self, pixel_buffer::PixelBuffer, MipmapsOption, Texture2d, UncompressedFloatFormat},
-    Surface,
+    backend::Facade,
+    texture::{pixel_buffer::PixelBuffer, MipmapsOption, Texture2d, UncompressedFloatFormat},
 };
-use std::{
-    borrow::Cow,
-    collections::btree_map::BTreeMap,
-    error,
-    result::Result::Ok,
-    time::Instant,
-};
+use std::{collections::btree_map::BTreeMap, result::Result::Ok};
 
 use crate::{
     debayer::shader_builder::{F32OptionMap, F32OptionMapTextureUniforms, ShaderBuilder},
     util::image::Image,
 };
-use glium::texture::RawImage2d;
-use glutin::dpi::PhysicalSize;
 
 
 pub mod shader_builder;
@@ -173,7 +164,7 @@ impl OnscreenDebayerer {
 
     fn get_code(&self) -> String { self.code.clone() }
 
-    pub fn get_size(&self) -> (u32, u32) { self.size.clone() }
+    pub fn get_size(&self) -> (u32, u32) { self.size }
 
     fn get_uniforms<'a>(&'a self, texture: &'a Texture2d) -> F32OptionMapTextureUniforms {
         F32OptionMapTextureUniforms((self.uniforms.clone(), texture))

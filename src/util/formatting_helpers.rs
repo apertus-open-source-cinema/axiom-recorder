@@ -2,14 +2,14 @@ use itertools::Itertools;
 use std::{collections::HashMap, fmt::Display};
 
 pub fn code_with_line_numbers(code: &str) -> String {
-    code.split("\n")
+    code.split('\n')
         .enumerate()
         .map(|(i, line)| {
             format!(
                 "{} {}| {}",
                 i + 1,
                 " ".repeat(
-                    code.matches("\n").count().to_string().len() - (i + 1).to_string().len()
+                    code.matches('\n').count().to_string().len() - (i + 1).to_string().len()
                 ),
                 line
             )

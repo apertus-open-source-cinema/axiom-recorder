@@ -46,10 +46,10 @@ impl ShaderBuilder {
         let re = Regex::new("(\\.?/?[a-z_]*)\\((.*?)\\)").unwrap();
         let mut shader_parts = Vec::new();
         for cap in re.captures_iter(descr_str.as_ref()) {
-            let part_name = String::from(format!("{}.glsl", cap.get(1).unwrap().as_str()));
+            let part_name = format!("{}.glsl", cap.get(1).unwrap().as_str());
             let part_params = String::from(cap.get(2).unwrap().as_str());
 
-            let shader_code = if part_name.contains("/") {
+            let shader_code = if part_name.contains('/') {
                 // Shader should be read from fs
                 unimplemented!()
             } else {
@@ -152,7 +152,7 @@ impl ShaderBuilder {
             to_return += &part.get_code();
         }
 
-        to_return += &format!("\n\n///////////// main /////////////////\n");
+        to_return += &"\n\n///////////// main /////////////////\n".to_string();
         to_return += r#"
             void main(void) {
                 ivec2 size = textureSize(texture, 0);
@@ -165,7 +165,7 @@ impl ShaderBuilder {
             }
         "#;
 
-        String::from(to_return)
+        to_return
     }
 }
 
@@ -208,10 +208,8 @@ impl ShaderBuilderPart {
             uniforms.insert(String::from(uniform_name), value);
         }
 
-        if non_default_uniforms.is_some() {
-            if taken != non_default_uniforms.unwrap().len() {
-                throw!("some uniform values were not consumed by that shader. maybe you set nonexistent uniforms?")
-            }
+        if non_default_uniforms.is_some() && taken != non_default_uniforms.unwrap().len() {
+            throw!("some uniform values were not consumed by that shader. maybe you set nonexistent uniforms?")
         }
 
         Ok(ShaderBuilderPart { code, uniforms, name })

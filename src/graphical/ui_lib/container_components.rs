@@ -25,7 +25,7 @@ where
         };
         let len = children.len();
 
-        for (i, child) in children.into_iter().enumerate() {
+        for (i, child) in children.iter().enumerate() {
             let container = &LocationContainer {
                 child: child.as_ref(),
                 sp: SpatialProperties {

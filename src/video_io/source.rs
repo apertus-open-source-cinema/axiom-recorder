@@ -9,7 +9,7 @@ use itertools::Itertools;
 use std::{
     cell::RefCell,
     collections::BTreeMap,
-    fs::{self, File},
+    fs::File,
     io::{prelude::*, Error, ErrorKind},
     net::TcpStream,
     path::{Path, PathBuf},
@@ -79,23 +79,11 @@ impl MetaVideoSource {
         if entries.len() == 1 {
             if path.ends_with(".raw8") {
                 return Ok(Self {
-                    vs: Box::new(Raw8BlobVideoSource {
-                        path: path.to_string(),
-                        width,
-                        height,
-                        fps,
-                        loop_source,
-                    }),
+                    vs: Box::new(Raw8BlobVideoSource { path, width, height, fps, loop_source }),
                 });
             } else if path.ends_with(".raw12") {
                 return Ok(Self {
-                    vs: Box::new(Raw12BlobVideoSource {
-                        path: path.to_string(),
-                        width,
-                        height,
-                        fps,
-                        loop_source,
-                    }),
+                    vs: Box::new(Raw12BlobVideoSource { path, width, height, fps, loop_source }),
                 });
             }
         } else {

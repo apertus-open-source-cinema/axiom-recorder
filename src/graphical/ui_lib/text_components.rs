@@ -8,7 +8,7 @@ use glium::texture;
 use std::{borrow::Cow, error::Error, result::Result::Ok};
 
 use crate::util::error::ResN;
-use euclid::{Point2D, Size2D};
+
 use font_kit::{
     canvas::{Canvas, Format, RasterizationOptions},
     hinting::HintingOptions,

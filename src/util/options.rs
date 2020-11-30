@@ -12,7 +12,7 @@ impl OptionsStorage {
         let mut options = HashMap::new();
         for prop in to_extract {
             if arguments.is_present(prop) {
-                match arguments.value_of(prop.clone()) {
+                match arguments.value_of(prop) {
                     Some(value) => {
                         options.insert(String::from(prop), String::from(value));
                     }
@@ -60,5 +60,5 @@ impl OptionsStorage {
     }
 
 
-    pub fn is_present(&self, key: &str) -> bool { *&self.0.contains_key(key) }
+    pub fn is_present(&self, key: &str) -> bool { self.0.contains_key(key) }
 }

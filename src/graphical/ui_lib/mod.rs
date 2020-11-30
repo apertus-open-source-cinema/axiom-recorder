@@ -1,4 +1,3 @@
-
 use self::gl_util::{Vertex, PASSTHROUGH_VERTEX_SHADER_SRC};
 use crate::{
     error,
@@ -25,24 +24,24 @@ pub mod text_components;
 pub struct Cache(pub BTreeMap<String, Box<dyn Any>>);
 
 impl Cache {
-    fn memoize<T, F>(&mut self, key: &String, block: F) -> &T
+    fn memoize<T, F>(&mut self, key: &str, block: F) -> &T
     where
         F: Fn() -> T,
         T: 'static,
     {
         if !self.0.contains_key(key) {
-            self.0.insert(key.clone(), Box::from(block()));
+            self.0.insert(key.to_string(), Box::from(block()));
         }
         self.0.get(key).unwrap().as_ref().downcast_ref::<T>().unwrap()
     }
 
-    fn memoize_result<T, F>(&mut self, key: &String, block: F) -> Res<&T>
+    fn memoize_result<T, F>(&mut self, key: &str, block: F) -> Res<&T>
     where
         F: Fn() -> Res<T>,
         T: 'static,
     {
         if !self.0.contains_key(key) {
-            self.0.insert(key.clone(), Box::from(block()?));
+            self.0.insert(key.to_string(), Box::from(block()?));
         }
         Ok(self.0.get(key).unwrap().as_ref().downcast_ref::<T>().unwrap())
     }

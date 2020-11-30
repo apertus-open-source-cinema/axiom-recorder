@@ -78,7 +78,7 @@ fn work(source: String, options: &OptionsStorage) -> Res<()> {
         draw_histogram: !options.is_present("no-histogram"),
     };
 
-    let mut graphical_manager = graphical::Manager::new(
+    let graphical_manager = graphical::Manager::new(
         buffered_vs.subscribe(),
         initial_settings,
         (options.get_opt_parse("width")?, options.get_opt_parse("height")?),
