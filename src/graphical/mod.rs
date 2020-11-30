@@ -19,7 +19,14 @@ use glutin::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
-use std::{collections::BTreeMap, error::Error, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    ops::Add,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use crate::util::fps_report::FPSReporter;
 
 
 pub mod settings;
@@ -55,7 +62,7 @@ impl Manager {
 
     pub fn run_event_loop(self) -> Res<()> {
         let mut cache = Cache(BTreeMap::new());
-        let mut last_image = Arc::new(Image { width: 1, height: 1, bit_depth: 1, data: vec![0] });
+        let mut last_image = Arc::new(Image::new(1, 1, vec![0u8], 8)?);
         let mut last_frame_time = Instant::now();
 
         let event_loop = self.event_loop;
@@ -63,8 +70,11 @@ impl Manager {
         let mut display = self.display;
         let mut debayerer = self.debayerer;
         let mut screen_size = Vec2::from(display.get_framebuffer_dimensions());
+        let mut fps_reporter = FPSReporter::new("ui");
+
         event_loop.run(move |event, _, control_flow| {
-            *control_flow = ControlFlow::Wait;
+            *control_flow =
+                ControlFlow::WaitUntil(last_frame_time.add(Duration::from_millis(1000 / 60)));
             let mut redraw_requested = false;
             match event {
                 Event::LoopDestroyed => return,
@@ -82,8 +92,9 @@ impl Manager {
                 _ => (),
             }
 
+            // somehow this code is a bit fragile; ask @anuejn before changing
             if (last_frame_time.elapsed().subsec_millis() > 1000 / 30) || redraw_requested {
-                // TODO: debug window disappearing
+                fps_reporter.frame();
                 match raw_image_source.try_recv() {
                     Result::Err(_) => {
                         println!("using last image again");
@@ -110,12 +121,7 @@ impl Manager {
                     }
                 }
                 .unwrap();
-
-                let elapsed = last_frame_time.elapsed().subsec_millis();
-                if elapsed > 0 {
-                    println!("{} fps (ui)", 1000 / elapsed);
-                    last_frame_time = Instant::now();
-                }
+                last_frame_time = Instant::now();
             }
         });
     }

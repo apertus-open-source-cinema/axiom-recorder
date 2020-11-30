@@ -21,12 +21,12 @@ use std::{
     thread,
 };
 
-use glium::texture::RawImage2d;
 use crate::graphical::ui_lib::headless_util::build_context;
+use glium::texture::RawImage2d;
 
-use tiff_encoder::{ifd::tags, prelude::*, LONG, RATIONAL, SHORT};
 use glium::backend::glutin::headless::Headless;
 use glutin::{GlProfile, GlRequest};
+use tiff_encoder::{ifd::tags, prelude::*, LONG, RATIONAL, SHORT};
 
 
 /// An image sink, that somehow stores the images it receives
@@ -110,7 +110,7 @@ impl Writer for Raw8BlobWriter {
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
-        self.file.write_all(&image.data)?;
+        self.file.write_all(&image.buffer.u8_buffer())?;
         Ok(())
     }
 }
@@ -129,7 +129,7 @@ impl Writer for Raw8FilesWriter {
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
         let mut file = File::create(format!("{}/{:06}.raw8", &self.dir_path, self.cnt))?;
-        file.write_all(&image.data)?;
+        file.write_all(&image.buffer.u8_buffer())?;
         Ok(())
     }
 }
@@ -160,8 +160,8 @@ impl Writer for CinemaDngWriter {
                 .with_entry(tags::YResolution, RATIONAL![(1, 1)])
 
                 .with_entry(tags::RowsPerStrip, LONG![image.height])
-                .with_entry(tags::StripByteCounts, LONG![image.data.len() as u32])
-                .with_entry(tags::StripOffsets, ByteBlock::single(image.data.clone()))
+                .with_entry(tags::StripByteCounts, LONG![image.buffer.u8_buffer().len() as u32])
+                .with_entry(tags::StripOffsets, ByteBlock::single(image.buffer.u8_buffer().iter().map(|x| *x).collect()))
                 .single(), // This is the only Ifd in its IfdChain
         )
         .write_to(format!("{}/{:06}.dng", &self.dir_path, self.cnt))

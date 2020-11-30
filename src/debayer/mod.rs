@@ -46,13 +46,17 @@ impl Debayer for Image {
             0..1,
         );
 
-        if self.data.len() != debayerer.source_buffers[0].get_size() {
+        if self.buffer.u8_buffer().len() != debayerer.source_buffers[0].get_size() {
             println!(
                 "something is wrong : self.data.len() != debayerer.source_buffers[0].get_size()"
             );
-            println!("{} != {}", self.data.len(), debayerer.source_buffers[0].get_size())
+            println!(
+                "{} != {}",
+                self.buffer.u8_buffer().len(),
+                debayerer.source_buffers[0].get_size()
+            )
         } else {
-            debayerer.source_buffers[next_index as usize].write(&self.data);
+            debayerer.source_buffers[next_index as usize].write(&self.buffer.u8_buffer());
         }
 
         // println!("self.data.len() {}", self.data.len());
@@ -123,6 +127,7 @@ impl OnscreenDebayerer {
             }
             None => size,
         };
+        println!("debayerer size: {:?}", size);
 
         let source_texture = Texture2d::empty_with_format(
             context,
