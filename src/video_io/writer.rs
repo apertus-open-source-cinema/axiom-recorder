@@ -26,7 +26,8 @@ use glium::texture::RawImage2d;
 
 use glium::backend::glutin::headless::Headless;
 use glutin::{GlProfile, GlRequest};
-use tiff_encoder::{ifd::tags, prelude::*, LONG, RATIONAL, SHORT};
+use tiff_encoder::{ifd::tags, prelude::*, LONG, RATIONAL, SHORT, ASCII, BYTE, SRATIONAL};
+use tiff_encoder::ifd::types::SRATIONAL;
 
 
 /// An image sink, that somehow stores the images it receives
@@ -138,34 +139,58 @@ impl Writer for Raw8FilesWriter {
 pub struct CinemaDngWriter {
     dir_path: String,
     cnt: u64,
+    fps: f32,
 }
 
 impl Writer for CinemaDngWriter {
-    fn new(filename: String, _options: &OptionsStorage) -> Res<Self> {
+    fn new(filename: String, options: &OptionsStorage) -> Res<Self> {
         create_dir(&filename)?;
-        Ok(Self { dir_path: filename, cnt: 0 })
+        Ok(Self { dir_path: filename, cnt: 0, fps: options.get_opt_parse("fps")? })
     }
 
     fn write_frame(&mut self, image: Arc<Image>) -> ResN {
         TiffFile::new(
             Ifd::new()
-                .with_entry(tags::PhotometricInterpretation, SHORT![1]) // Black is zero
+                .with_entry(50706, BYTE![1, 4, 0, 0])  // DNG version
                 .with_entry(tags::Compression, SHORT![1]) // No compression
+                .with_entry(tags::SamplesPerPixel, SHORT![1])
+                .with_entry(tags::NewSubfileType, LONG![0])
+                .with_entry(tags::XResolution, RATIONAL![(1, 1)])
+                .with_entry(tags::YResolution, RATIONAL![(1, 1)])
+                .with_entry(tags::ResolutionUnit, SHORT!(1))
+                .with_entry(tags::FillOrder, SHORT![1])
+                .with_entry(tags::Orientation, SHORT![1])
+                .with_entry(tags::PlanarConfiguration, SHORT![1])
+
+                .with_entry(tags::Make, ASCII!["Apertus"])
+                .with_entry(tags::Model, ASCII!["AXIOM"])
+                .with_entry(50708, ASCII!("Apertus AXIOM")) // unique camera model
+                .with_entry(tags::Software, ASCII!["axiom-recorder"])
+
+                .with_entry(tags::PhotometricInterpretation, SHORT![32803]) // Black is zero
+                .with_entry(33421, SHORT![2, 2]) // CFARepeatPatternDim
+                .with_entry(33422, BYTE![0, 1, 1, 2]) // CFAPattern (R=0, G=1, B=2)
+
+                // color matrix from https://github.com/apertus-open-source-cinema/misc-tools-utilities/blob/8c8e9fca96b4b3fec50756fd7a72be6ea5c7b77c/raw2dng/raw2dng.c#L46-L49
+                .with_entry(50721, SRATIONAL![  // ColorMatrix1
+                        (11038, 10000), (3184, 10000), (1009, 10000),
+                        (3284, 10000), (11499, 10000), (1737, 10000),
+                        (1283, 10000), (3550, 10000), (5967, 10000)
+               ])
+
+                .with_entry(51044, SRATIONAL![((self.fps * 10000.0) as i32, 10000)])// FrameRate
 
                 .with_entry(tags::ImageLength, LONG![image.height])
                 .with_entry(tags::ImageWidth, LONG![image.width])
-
-                .with_entry(tags::ResolutionUnit, SHORT![1]) // No resolution unit
-                .with_entry(tags::XResolution, RATIONAL![(1, 1)])
-                .with_entry(tags::YResolution, RATIONAL![(1, 1)])
-
                 .with_entry(tags::RowsPerStrip, LONG![image.height])
-                .with_entry(tags::StripByteCounts, LONG![image.buffer.u8_buffer().len() as u32])
-                .with_entry(tags::StripOffsets, ByteBlock::single(image.buffer.u8_buffer().iter().map(|x| *x).collect()))
-                .single(), // This is the only Ifd in its IfdChain
+                .with_entry(tags::StripByteCounts, LONG![image.buffer.packed_data.len() as u32])
+                .with_entry(tags::BitsPerSample, SHORT![image.buffer.bit_depth as u16])
+                .with_entry(tags::StripOffsets, ByteBlock::single(image.buffer.packed_data.to_vec()))
+                .single()
         )
         .write_to(format!("{}/{:06}.dng", &self.dir_path, self.cnt))
         .unwrap();
+        self.cnt += 1;
         Ok(())
     }
 }

@@ -41,7 +41,7 @@ impl BufferedVideoSource {
                 let vs = vs_send.lock().unwrap();
                 let mut fps_reporter = FPSReporter::new("source");
                 let result = vs.get_images(&mut |img| {
-                    drop(img.buffer.u8_buffer());
+                    //drop(img.buffer.u8_buffer());
                     tx.lock().unwrap().broadcast(Arc::new(img));
                     fps_reporter.frame();
                     Ok(())
@@ -58,18 +58,6 @@ impl BufferedVideoSource {
     }
 
     pub fn subscribe(&self) -> BusReader<Arc<Image>> { self.tx.lock().unwrap().add_rx() }
-}
-
-pub struct IteratorVideoSource {
-    vs: Box<dyn VideoSource>,
-}
-
-impl Iterator for IteratorVideoSource {
-    type Item = Image;
-
-    fn next(&mut self) -> Option<Image> {
-        unimplemented!()
-    }
 }
 
 pub struct MetaVideoSource {
