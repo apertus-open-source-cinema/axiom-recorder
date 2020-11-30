@@ -1,9 +1,9 @@
 # AXIOM RECORDER
-[![Build Status](https://api.cirrus-ci.com/github/axiom-micro/recorder.svg)](https://cirrus-ci.com/github/axiom-micro/recorder)
+![Build](https://github.com/apertus-open-source-cinema/axiom-recorder/workflows/Build/badge.svg)
 
 Software to record and convert moving images from Apertus° AXIOM cameras via USB3 or ethernet.
 
-# get it!
+## get it!
 ```shell script
 git clone https://github.com/axiom-micro/recorder
 cd recorder
