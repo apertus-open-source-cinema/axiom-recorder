@@ -25,11 +25,11 @@ glob = "0.3.0"
 tiff-encoder = "0.3.2"
 pathfinder_geometry = "0.5.1"
 slipstream = "*"
+rayon = "1.5.0"
 
 [features]
 mp4_encoder = ["mpeg_encoder"]
 
 [profile.release]
-target-cpu = "native"
 lto = true
-# debug = true
+debug = true

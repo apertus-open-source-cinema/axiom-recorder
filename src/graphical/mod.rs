@@ -92,7 +92,7 @@ impl Manager {
             }
 
             // somehow this code is a bit fragile; ask @anuejn before changing
-            if (last_frame_time.elapsed().subsec_millis() > 1000 / 30) || redraw_requested {
+            if (last_frame_time.elapsed().subsec_millis() > 1000 / 60) || redraw_requested {
                 fps_reporter.frame();
                 match raw_image_source.try_recv() {
                     Result::Err(_) => {

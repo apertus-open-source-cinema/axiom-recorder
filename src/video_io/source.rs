@@ -60,6 +60,18 @@ impl BufferedVideoSource {
     pub fn subscribe(&self) -> BusReader<Arc<Image>> { self.tx.lock().unwrap().add_rx() }
 }
 
+pub struct IteratorVideoSource {
+    vs: Box<dyn VideoSource>,
+}
+
+impl Iterator for IteratorVideoSource {
+    type Item = Image;
+
+    fn next(&mut self) -> Option<Image> {
+        unimplemented!()
+    }
+}
+
 pub struct MetaVideoSource {
     vs: Box<dyn VideoSource>,
 }
