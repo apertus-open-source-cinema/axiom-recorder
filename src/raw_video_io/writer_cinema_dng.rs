@@ -11,7 +11,7 @@ use crate::{
     },
     raw_video_io::raw_frame::RawFrame,
 };
-use anyhow::{Result};
+use anyhow::{Result, Context};
 
 use std::{
     fs::create_dir,
@@ -50,7 +50,7 @@ impl Parameterizable for CinemaDngWriter {
         Self: Sized,
     {
         let filename = parameters.get("path")?;
-        create_dir(&filename)?;
+        create_dir(&filename).context("Error while creating target directory")?;
         Ok(Self {
             dir_path: filename,
             fps: parameters.get("fps")?,

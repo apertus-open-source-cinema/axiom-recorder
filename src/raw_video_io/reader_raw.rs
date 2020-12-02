@@ -35,7 +35,7 @@ impl Parameterizable for RawBlobReader {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("file", Mandatory(StringParameter))
-            .with("bit_depth", Mandatory(IntRange(8, 16)))
+            .with("bit-depth", Mandatory(IntRange(8, 16)))
             .with("width", Mandatory(IntRange(0, i64::max_value())))
             .with("height", Mandatory(IntRange(0, i64::max_value())))
     }
@@ -45,7 +45,7 @@ impl Parameterizable for RawBlobReader {
     {
         let width = options.get("width")?;
         let height = options.get("height")?;
-        let bit_depth = options.get("bit_depth")?;
+        let bit_depth = options.get("bit-depth")?;
         let path: String = options.get("path")?;
 
         let file = File::open(&path)?;
@@ -81,8 +81,8 @@ impl Parameterizable for RawDirectoryReader {
 
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("file_pattern", Mandatory(StringParameter))
-            .with("bit_depth", Mandatory(IntRange(8, 16)))
+            .with("file-pattern", Mandatory(StringParameter))
+            .with("bit-depth", Mandatory(IntRange(8, 16)))
             .with("width", Mandatory(IntRange(0, i64::max_value())))
             .with("height", Mandatory(IntRange(0, i64::max_value())))
     }
@@ -90,14 +90,14 @@ impl Parameterizable for RawDirectoryReader {
     where
         Self: Sized,
     {
-        let file_pattern: String = options.get("file_pattern")?;
+        let file_pattern: String = options.get("file-pattern")?;
         let entries = glob(&file_pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
         let frame_count = entries.len() as u64;
         let files_iterator = Mutex::new(entries.into_iter());
         Ok(Self {
             files_iterator,
             frame_count,
-            bit_depth: options.get("bit_depth")?,
+            bit_depth: options.get("bit-depth")?,
             width: options.get("width")?,
             height: options.get("height")?,
         })

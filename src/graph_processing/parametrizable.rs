@@ -1,6 +1,5 @@
 use self::ParameterTypeDescriptor::{Mandatory, Optional};
 use anyhow::{anyhow, Error, Result};
-use clap::{App, Arg};
 use std::{any::type_name, convert::TryInto};
 
 use std::collections::HashMap;
@@ -146,6 +145,13 @@ impl ParametersDescriptor {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ParameterizableDescriptor {
+    pub name: String,
+    pub description: Option<String>,
+    pub parameters_descriptor: ParametersDescriptor
+}
+
 pub trait Parameterizable {
     const NAME: Option<&'static str> = None;
     const DESCRIPTION: Option<&'static str> = None;
@@ -156,7 +162,14 @@ pub trait Parameterizable {
         Self: Sized;
 
     fn get_name() -> String {
-        Self::NAME.map(|v| v.to_string()).unwrap_or_else(|| type_name::<Self>().to_string())
+        Self::NAME.map(|v| v.to_string()).unwrap_or_else(|| type_name::<Self>().rsplit(":").next().unwrap().to_string())
+    }
+    fn describe() -> ParameterizableDescriptor {
+        ParameterizableDescriptor {
+            name: Self::get_name(),
+            description: Self::DESCRIPTION.map(|s| s.to_string()),
+            parameters_descriptor: Self::describe_parameters(),
+        }
     }
 
     fn new(parameters: &Parameters) -> Result<Self>
@@ -197,54 +210,5 @@ pub trait Parameterizable {
         }
 
         Ok(Self::new(&Parameters(parameters?))?)
-    }
-
-    fn from_clap(commandline: Vec<String>) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let mut app = App::new(Self::get_name());
-        let description = Self::DESCRIPTION;
-        if let Some(ref description) = description {
-            app = app.about(*description);
-        }
-
-        let parameters_description = Self::describe_parameters();
-        for (key, parameter_type) in parameters_description.0.iter() {
-            let parameter_type_for_closure = parameter_type.clone();
-            app = app.arg(match parameter_type {
-                Mandatory(_) => Arg::with_name(key)
-                    .long(key)
-                    .takes_value(true)
-                    .validator(move |v| {
-                        parameter_type_for_closure
-                            .parse(Some(&v))
-                            .map(|_| ())
-                            .map_err(|e| format!("{}", e))
-                    })
-                    .required(true),
-                Optional(_, default) => Arg::with_name(key)
-                    .long(key)
-                    .takes_value(true)
-                    .validator(move |v| {
-                        parameter_type_for_closure
-                            .parse(Some(&v))
-                            .map(|_| ())
-                            .map_err(|e| format!("{}", e))
-                    })
-                    .default_value(Box::leak(Box::new(default.to_string())))
-                    .required(false),
-            })
-        }
-        let results = app.get_matches_from(commandline);
-        let parameters: Result<HashMap<_, _>> = parameters_description
-            .0
-            .iter()
-            .map(|(key, parameter_type)| {
-                Ok((key.to_string(), parameter_type.parse(results.value_of(key))?))
-            })
-            .collect();
-
-        Self::new(&Parameters(parameters?))
     }
 }

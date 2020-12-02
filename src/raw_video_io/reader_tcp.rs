@@ -26,7 +26,7 @@ impl Parameterizable for TcpReader {
             .with("address", Mandatory(StringParameter))
             .with("width", Mandatory(IntRange(0, i64::max_value())))
             .with("height", Mandatory(IntRange(0, i64::max_value())))
-            .with("bit_depth", Mandatory(IntRange(8, 16)))
+            .with("bit-depth", Mandatory(IntRange(8, 16)))
     }
 
     fn from_parameters(parameters: &Parameters) -> Result<Self>
@@ -37,7 +37,7 @@ impl Parameterizable for TcpReader {
             tcp_connection: Mutex::new(TcpStream::connect(parameters.get::<String>("address")?)?),
             width: parameters.get::<u64>("width")?,
             height: parameters.get::<u64>("height")?,
-            bit_depth: parameters.get::<u64>("bit_depth")?,
+            bit_depth: parameters.get::<u64>("bit-depth")?,
         })
     }
 }
