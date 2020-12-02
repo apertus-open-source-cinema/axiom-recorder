@@ -1,4 +1,3 @@
-pub mod debayer;
-pub mod graphical;
-pub mod util;
-pub mod video_io;
+pub mod common;
+mod graph_processing;
+pub mod raw_video_io;

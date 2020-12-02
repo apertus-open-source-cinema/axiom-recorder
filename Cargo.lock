@@ -77,6 +77,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 
 [[package]]
+name = "async-trait"
+version = "0.1.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d3a45e77e34375a7923b1e8febb049bb011f064714a8e17a1a616fef01da13d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "atomic-option"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -751,6 +762,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 
 [[package]]
+name = "futures-core"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "847ce131b72ffb13b6109a221da9ad97a64cbe48feb1028356b836b47b8f1748"
+
+[[package]]
 name = "getrandom"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1383,6 +1400,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 
 [[package]]
+name = "pin-project-lite"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b063f57ec186e6140e2b8b6921e5f1bd89c7356dda5b33acc5401203ca6131c"
+
+[[package]]
 name = "pkg-config"
 version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1465,6 +1488,8 @@ dependencies = [
 name = "recorder"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "bus",
  "clap",
  "euclid",
@@ -1481,6 +1506,7 @@ dependencies = [
  "rayon",
  "regex",
  "tiff-encoder",
+ "tokio",
 ]
 
 [[package]]
@@ -1765,6 +1791,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bedeb4ce8d59fedc88d6250a892d31dcbed4ea60a8c082e6a88be893f7958464"
 dependencies = [
  "byteorder",
+]
+
+[[package]]
+name = "tokio"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a12a3eb39ee2c231be64487f1fcbe726c8f2514876a55480a5ab8559fc374252"
+dependencies = [
+ "autocfg",
+ "futures-core",
+ "pin-project-lite",
 ]
 
 [[package]]

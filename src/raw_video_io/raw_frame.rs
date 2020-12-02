@@ -1,46 +1,49 @@
-use crate::{throw, util::error::Res};
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    sync::{Arc, Mutex, RwLock},
+use anyhow::{anyhow, Result};
+use rayon::{
+    prelude::{
+        IndexedParallelIterator,
+        ParallelIterator,
+        ParallelSliceMut,
+    },
+    slice::ParallelSlice,
 };
-use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator, ParallelSliceMut, IndexedParallelIterator};
-use rayon::slice::ParallelSlice;
+use std::{
+    sync::{Arc, Mutex},
+};
 
-/// The main data structure for transferring and representing single raw frames of a video stream
+/// The main data structure for transferring and representing single raw frames
+/// of a video stream
 #[derive(Debug)]
-pub struct Image {
-    pub width: u32,
-    pub height: u32,
+pub struct RawFrame {
+    pub width: u64,
+    pub height: u64,
     pub buffer: PackedBuffer,
 }
-
-impl Image {
-    pub fn new(width: u32, height: u32, buffer: Vec<u8>, bit_depth: u8) -> Res<Self> {
-        if (width * height * bit_depth as u32 / 8) > (buffer.len() as u32) {
-            throw!(
+impl RawFrame {
+    pub fn new(width: u64, height: u64, buffer: Vec<u8>, bit_depth: u64) -> Result<Self> {
+        if (width * height * bit_depth / 8) > (buffer.len() as u64) {
+            return Err(anyhow!(
                 "buffer is to small (expected {}, found {})",
-                width * height * bit_depth as u32 / 8,
+                width * height * bit_depth / 8,
                 buffer.len()
-            )
+            ));
         }
 
-        Ok(Image { width, height, buffer: PackedBuffer::new(buffer, bit_depth)? })
+        Ok(RawFrame { width, height, buffer: PackedBuffer::new(buffer, bit_depth)? })
     }
 }
 
 #[derive(Debug)]
 pub struct PackedBuffer {
     pub packed_data: Arc<Vec<u8>>,
-    pub bit_depth: u8,
+    pub bit_depth: u64,
     u8_data: Mutex<Option<Arc<Vec<u8>>>>,
     u16_data: Mutex<Option<Arc<Vec<u16>>>>,
 }
-
 impl PackedBuffer {
-    fn new(buffer: Vec<u8>, bit_depth: u8) -> Res<Self> {
+    fn new(buffer: Vec<u8>, bit_depth: u64) -> Result<Self> {
         if bit_depth > 32 || bit_depth < 8 {
-            throw!("bit depth must be between 8 and 32, found {}", bit_depth)
+            return Err(anyhow!("bit depth must be between 8 and 32, found {}", bit_depth));
         }
         Ok(Self {
             packed_data: Arc::new(buffer),
@@ -56,13 +59,24 @@ impl PackedBuffer {
             if self.bit_depth == 8 {
                 *locked_u8_data = Some(self.packed_data.clone());
             } else if self.bit_depth == 12 {
-                let mut new_buffer = vec![0u8; self.packed_data.len() * 8 / self.bit_depth as usize];
-                new_buffer.par_chunks_mut(20000).zip(self.packed_data.par_chunks(30000)).for_each(|(macro_output_chunk, macro_input_chunk)| {
-                    macro_output_chunk.chunks_mut(2).zip(macro_input_chunk.chunks(3)).for_each(|(output_chunk, input_chunk)| {
-                        output_chunk[0] = (((((input_chunk[0] as u16) << 4) & 0xff0) | (((input_chunk[1] as u16) >> 4) | 0xf)).wrapping_shr(4) as u8);
-                        output_chunk[1] = (((((input_chunk[1] as u16) << 8) & 0xf00) | ((input_chunk[2] as u16) | 0xff)).wrapping_shr(4) as u8);
-                    });
-                });
+                let mut new_buffer =
+                    vec![0u8; self.packed_data.len() * 8 / self.bit_depth as usize];
+                new_buffer.par_chunks_mut(20000).zip(self.packed_data.par_chunks(30000)).for_each(
+                    |(macro_output_chunk, macro_input_chunk)| {
+                        macro_output_chunk.chunks_mut(2).zip(macro_input_chunk.chunks(3)).for_each(
+                            |(output_chunk, input_chunk)| {
+                                output_chunk[0] = ((((input_chunk[0] as u16) << 4) & 0xff0)
+                                    | (((input_chunk[1] as u16) >> 4) | 0xf))
+                                    .wrapping_shr(4)
+                                    as u8;
+                                output_chunk[1] = ((((input_chunk[1] as u16) << 8) & 0xf00)
+                                    | ((input_chunk[2] as u16) | 0xff))
+                                    .wrapping_shr(4)
+                                    as u8;
+                            },
+                        );
+                    },
+                );
 
                 *locked_u8_data = Some(Arc::new(new_buffer))
             } else {
@@ -73,7 +87,9 @@ impl PackedBuffer {
                 let mut rest_bits: u32 = 0;
                 for value in self.packed_data.iter() {
                     let bits_more_than_bit_depth = (rest_bits as i32 + 8) - self.bit_depth as i32;
-                    //println!("rest_bits: {}, rest_value: {:032b}, value: {:08b}, bits_more_than_bit_depth: {}", rest_bits, rest_value, value, bits_more_than_bit_depth);
+                    //println!("rest_bits: {}, rest_value: {:032b}, value: {:08b},
+                    // bits_more_than_bit_depth: {}", rest_bits, rest_value, value,
+                    // bits_more_than_bit_depth);
                     if bits_more_than_bit_depth >= 0 {
                         let new_n_bit_value: u32 = rest_value
                             .wrapping_shl(self.bit_depth as u32 - rest_bits)
@@ -140,7 +156,7 @@ impl PackedBuffer {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::image::PackedBuffer;
+    use crate::raw_video_io::raw_frame::PackedBuffer;
 
     #[test]
     fn test_packed_buffer_u8() {
@@ -160,6 +176,7 @@ mod tests {
         .unwrap();
         assert_eq!(packed_buffer.u8_buffer().len(), 4);
         assert_eq!(packed_buffer.u8_buffer()[0], 0b10110100);
+        println!("{:08b}\n{:08b}", packed_buffer.u8_buffer()[0], 0b10110100);
         assert_eq!(packed_buffer.u8_buffer()[1], 0b11011001);
         assert_eq!(packed_buffer.u8_buffer()[2], 0b10110100);
         assert_eq!(packed_buffer.u8_buffer()[3], 0b11011001);
