@@ -1,5 +1,5 @@
 use crate::{
-    graph_processing::{
+    pipeline_processing::{
         parametrizable::{
             ParameterType::{IntRange, StringParameter},
             ParameterTypeDescriptor::Mandatory,
@@ -13,13 +13,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use glob::glob;
-use std::{
-    fs::File,
-    io::Read,
-    path::{PathBuf},
-    sync::Mutex,
-    vec::IntoIter,
-};
+use std::{fs::File, io::Read, path::PathBuf, sync::Mutex, vec::IntoIter};
 
 pub struct RawBlobReader {
     file: Mutex<File>,
@@ -60,7 +54,7 @@ impl ProcessingNode for RawBlobReader {
         if read_count == 0 {
             Ok(None)
         } else if read_count == bytes.len() {
-            Ok(Some(Payload::from(RawFrame::new(self.width, self.height, bytes, self.bit_depth))))
+            Ok(Some(Payload::from(RawFrame::new(self.width, self.height, bytes, self.bit_depth)?)))
         } else {
             Err(anyhow!("File could not be fully consumed. is the resolution set right?"))
         }
@@ -117,7 +111,7 @@ impl ProcessingNode for RawDirectoryReader {
                     self.height,
                     bytes,
                     self.bit_depth,
-                ))))
+                )?)))
             }
         }
     }

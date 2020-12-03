@@ -1,15 +1,9 @@
 use anyhow::{anyhow, Result};
 use rayon::{
-    prelude::{
-        IndexedParallelIterator,
-        ParallelIterator,
-        ParallelSliceMut,
-    },
+    prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut},
     slice::ParallelSlice,
 };
-use std::{
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 /// The main data structure for transferring and representing single raw frames
 /// of a video stream
@@ -42,7 +36,7 @@ pub struct PackedBuffer {
 }
 impl PackedBuffer {
     fn new(buffer: Vec<u8>, bit_depth: u64) -> Result<Self> {
-        if bit_depth > 32 || bit_depth < 8 {
+        if (8..=32).contains(&bit_depth) {
             return Err(anyhow!("bit depth must be between 8 and 32, found {}", bit_depth));
         }
         Ok(Self {

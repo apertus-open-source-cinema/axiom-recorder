@@ -8,34 +8,13 @@ license = "GPL-3.0"
 edition = "2018"
 
 [dependencies]
-glutin = "0.25.1"
-glium = "0.28.0"
-font-kit = "0.10.0"
-euclid = "0.22.1"
-pathfinder_geometry = "0.5.1"
-
 clap = "2.33.3"
 indicatif = "0.15.0"
-
-mpeg_encoder = { git = "https://github.com/phlmn/mpeg_encoder", optional = true }
 tiff-encoder = "0.3.2"
-
-include_dir = "0.6.0"
 glob = "0.3.0"
-
-bus = "2.2.3"
 rayon = "1.5.0"
-
-itertools = "0.9.0"
-lazy_static = "1.4.0"
-regex = "1.4.2"
 anyhow = "1.0.34"
-async-trait = "0.1.42"
-tokio = { version = "0.3.5", features = ["stream"] }
-
-
-[features]
-mp4_encoder = ["mpeg_encoder"]
+itertools = "0.9.0"
 
 [profile.release]
 debug = true

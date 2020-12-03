@@ -1,28 +1,33 @@
-use anyhow::{Result, anyhow, Context};
-use clap::{App, Arg, AppSettings};
-use itertools::__std_iter::FromIterator;
-use std::env;
-use std::collections::HashMap;
-use recorder::graph_processing::processing_node::ProcessingNode;
-use recorder::graph_processing::parametrizable::{ParameterizableDescriptor, Parameters};
-use recorder::graph_processing::{list_available_nodes, create_node_from_name};
-use recorder::graph_processing::parametrizable::ParameterTypeDescriptor::{Mandatory, Optional};
-use itertools::Itertools;
-use std::iter::once;
+use anyhow::{anyhow, Context, Result};
+use clap::{App, AppSettings, Arg};
+use itertools::{Itertools, __std_iter::FromIterator};
+use recorder::pipeline_processing::{
+    create_node_from_name,
+    execute::execute_pipeline,
+    list_available_nodes,
+    parametrizable::{
+        ParameterTypeDescriptor::{Mandatory, Optional},
+        ParameterizableDescriptor,
+        Parameters,
+    },
+    processing_node::ProcessingNode,
+};
+use std::{collections::HashMap, env, iter::once};
 
 fn main() {
     let res = work();
     match res {
         Ok(_) => eprintln!("\nconversion successfully finished :)"),
-        Err(error) => eprintln!("An error occured: \n{}", error.chain().map(|e| format!("{}", e)).join("\n")),
+        Err(error) => {
+            eprintln!("An error occured: \n{}", error.chain().map(|e| format!("{}", e)).join("\n"))
+        }
     }
 }
 
 // used to have the convenience of ? for error handling
 fn work() -> Result<()> {
     let args: Vec<String> = env::args().collect();
-    let arg_blocks: Vec<Vec<&String>> =
-        args.split(|s| s == "!").map(|slice| Vec::from_iter(slice)).collect();
+    let arg_blocks: Vec<Vec<&String>> = args.split(|s| s == "!").map(Vec::from_iter).collect();
 
     let _main_app_arguments = App::new("Raw Image / Video Converter")
         .usage("converter [--app-args] ! <VideoSource> --source arg ! <VideoSink> --sink arg")
@@ -30,22 +35,32 @@ fn work() -> Result<()> {
         .after_help(format!("NODES:\n{}", nodes_usages_string()).as_str())
         .get_matches_from(&arg_blocks[0]);
 
-    for block in arg_blocks[1..].iter() {
-        processing_node_from_commandline(&block)?;
-    }
+    let nodes: Result<Vec<_>> = arg_blocks[1..]
+        .iter()
+        .map(|arg_block| processing_node_from_commandline(&arg_block))
+        .collect();
+
+    execute_pipeline(nodes?)?;
 
     Ok(())
 }
 
 fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
-    let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes().clone();
+    let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
     let node_descriptor: ParameterizableDescriptor = available_nodes
         .get(name)
-        .ok_or_else(|| anyhow!("cant find node with name {}. avalable nodes are: {:?}", name, available_nodes.keys()))?.clone();
+        .ok_or_else(|| {
+            anyhow!(
+                "cant find node with name {}. avalable nodes are: {:?}",
+                name,
+                available_nodes.keys()
+            )
+        })?
+        .clone();
 
     let mut app = App::new(node_descriptor.name);
     if let Some(description) = node_descriptor.description {
-        app = app.about(Box::leak(Box::new(description.to_string())).as_str());
+        app = app.about(Box::leak(Box::new(description)).as_str());
     }
     let parameters_description = node_descriptor.parameters_descriptor;
     for (key, parameter_type) in Box::leak(Box::new(parameters_description.0)).iter() {
@@ -86,24 +101,32 @@ fn nodes_usages_string() -> String {
                     .template("    * {usage}")
                     .setting(AppSettings::NoBinaryName)
                     .get_matches_from_safe(once::<&str>("--help"))
-                    .err().unwrap().message
-                    .to_string()
+                    .err()
+                    .unwrap()
+                    .message,
             ))
         })
         .join("\n")
 }
-fn processing_node_from_commandline(commandline: &Vec<&String>) -> Result<Box<dyn ProcessingNode>> {
+fn processing_node_from_commandline(commandline: &[&String]) -> Result<Box<dyn ProcessingNode>> {
     let name = commandline[0];
 
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
-    let node_descriptor: &ParameterizableDescriptor = available_nodes
-        .get(name)
-        .ok_or_else(|| anyhow!("cant find node with name {}. avalable nodes are: \n{}", name, nodes_usages_string()))?;
+    let node_descriptor: &ParameterizableDescriptor =
+        available_nodes.get(name).ok_or_else(|| {
+            anyhow!(
+                "cant find node with name {}. avalable nodes are: \n{}",
+                name,
+                nodes_usages_string()
+            )
+        })?;
     let parameters_description = &node_descriptor.parameters_descriptor;
 
     let app = clap_app_from_node_name(name)?;
 
-    let results = app.get_matches_from_safe(commandline).with_context(|| format!("Wrong Parameters for Node {}", name))?;
+    let results = app
+        .get_matches_from_safe(commandline)
+        .with_context(|| format!("Wrong Parameters for Node {}", name))?;
     let parameters: Result<HashMap<_, _>> = parameters_description
         .0
         .iter()

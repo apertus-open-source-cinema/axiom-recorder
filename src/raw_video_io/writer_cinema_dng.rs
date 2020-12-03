@@ -1,5 +1,5 @@
 use crate::{
-    graph_processing::{
+    pipeline_processing::{
         parametrizable::{
             ParameterType::{FloatRange, StringParameter},
             ParameterTypeDescriptor::Mandatory,
@@ -11,13 +11,11 @@ use crate::{
     },
     raw_video_io::raw_frame::RawFrame,
 };
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 
 use std::{
     fs::create_dir,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::atomic::{AtomicU64, Ordering},
 };
 use tiff_encoder::{
     ifd::{tags, Ifd},
@@ -61,7 +59,8 @@ impl Parameterizable for CinemaDngWriter {
 
 impl ProcessingNode for CinemaDngWriter {
     fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RawFrame>()?;
+        let frame =
+            input.downcast::<RawFrame>().context("CinemaDngWriterError: Wrong input format")?;
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
 
         TiffFile::new(

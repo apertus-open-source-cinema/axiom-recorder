@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    graph_processing::{
+    pipeline_processing::{
         parametrizable::{
             ParameterType::StringParameter,
             ParameterTypeDescriptor::Mandatory,
@@ -19,11 +19,7 @@ use crate::{
 };
 use anyhow::Result;
 
-use std::{
-    sync::{
-        atomic::{AtomicU64, Ordering},
-    },
-};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 
 pub struct RawBlobWriter {

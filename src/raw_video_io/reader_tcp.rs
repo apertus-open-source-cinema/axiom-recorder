@@ -1,5 +1,5 @@
 use crate::{
-    graph_processing::{
+    pipeline_processing::{
         parametrizable::{
             ParameterType::{IntRange, StringParameter},
             ParameterTypeDescriptor::Mandatory,

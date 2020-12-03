@@ -136,9 +136,11 @@ impl ParameterTypeDescriptor {
 
 #[derive(Debug, Clone)]
 pub struct ParametersDescriptor(pub HashMap<String, ParameterTypeDescriptor>);
+impl Default for ParametersDescriptor {
+    fn default() -> Self { Self::new() }
+}
 impl ParametersDescriptor {
-    pub fn new() -> ParametersDescriptor { ParametersDescriptor(HashMap::new()) }
-
+    pub fn new() -> Self { ParametersDescriptor(HashMap::new()) }
     pub fn with(mut self, name: &str, descriptor: ParameterTypeDescriptor) -> ParametersDescriptor {
         self.0.insert(name.to_string(), descriptor);
         ParametersDescriptor(self.0)
@@ -149,7 +151,7 @@ impl ParametersDescriptor {
 pub struct ParameterizableDescriptor {
     pub name: String,
     pub description: Option<String>,
-    pub parameters_descriptor: ParametersDescriptor
+    pub parameters_descriptor: ParametersDescriptor,
 }
 
 pub trait Parameterizable {
@@ -162,7 +164,9 @@ pub trait Parameterizable {
         Self: Sized;
 
     fn get_name() -> String {
-        Self::NAME.map(|v| v.to_string()).unwrap_or_else(|| type_name::<Self>().rsplit(":").next().unwrap().to_string())
+        Self::NAME
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| type_name::<Self>().rsplit(':').next().unwrap().to_string())
     }
     fn describe() -> ParameterizableDescriptor {
         ParameterizableDescriptor {

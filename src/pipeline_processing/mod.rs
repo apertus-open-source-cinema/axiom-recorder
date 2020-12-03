@@ -1,17 +1,17 @@
 use crate::{
-    graph_processing::{
-        parametrizable::{Parameters},
+    pipeline_processing::parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
+    raw_video_io::{
+        reader_raw::{RawBlobReader, RawDirectoryReader},
+        writer_cinema_dng::CinemaDngWriter,
+        writer_raw_n::{RawBlobWriter, RawDirectoryWriter},
     },
 };
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
-use crate::raw_video_io::reader_raw::{RawBlobReader, RawDirectoryReader};
-use crate::raw_video_io::writer_raw_n::{RawBlobWriter, RawDirectoryWriter};
-use crate::raw_video_io::writer_cinema_dng::CinemaDngWriter;
-use crate::graph_processing::parametrizable::{Parameterizable, ParameterizableDescriptor};
 use std::collections::HashMap;
 
 
+pub mod execute;
 pub mod parametrizable;
 pub mod processing_node;
 
@@ -40,7 +40,6 @@ macro_rules! generate_dynamic_node_creation_functions {
 generate_dynamic_node_creation_functions![
     RawBlobReader,
     RawDirectoryReader,
-
     RawBlobWriter,
     RawDirectoryWriter,
     CinemaDngWriter,

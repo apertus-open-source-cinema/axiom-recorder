@@ -1,18 +1,17 @@
-use bus::Bus;
 use std::{
+    sync::mpsc::{channel, Sender},
     thread,
     time::{Duration, SystemTime},
 };
 
 pub struct FPSReporter {
-    bus: Bus<()>,
+    tx: Sender<()>,
 }
 
 impl FPSReporter {
     pub fn new(name: &str) -> Self {
-        let mut bus = Bus::new(10);
+        let (tx, rx) = channel();
         let name = name.to_string();
-        let mut rx = bus.add_rx();
         thread::spawn(move || {
             let mut time = SystemTime::now();
             let mut frames = 0u128;
@@ -30,8 +29,8 @@ impl FPSReporter {
             }
         });
 
-        Self { bus }
+        Self { tx }
     }
 
-    pub fn frame(&mut self) { self.bus.try_broadcast(()).unwrap(); }
+    pub fn frame(&mut self) { self.tx.send(()).unwrap(); }
 }
