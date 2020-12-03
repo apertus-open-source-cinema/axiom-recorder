@@ -5,11 +5,12 @@ use crate::{
         writer_cinema_dng::CinemaDngWriter,
         writer_raw_n::{RawBlobWriter, RawDirectoryWriter},
     },
+    frame::bit_depth_converter::BitDepthConverter,
 };
 use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
 use std::collections::HashMap;
-
+use std::sync::Arc;
 
 pub mod execute;
 pub mod parametrizable;
@@ -25,10 +26,10 @@ macro_rules! generate_dynamic_node_creation_functions {
             to_return
         }
 
-        pub fn create_node_from_name(name: &str, parameters: &Parameters) -> Result<Box<dyn ProcessingNode>> {
+        pub fn create_node_from_name(name: &str, parameters: &Parameters) -> Result<Arc<dyn ProcessingNode>> {
             $(
                 if name == <$x>::get_name() {
-                    return Ok(Box::new(<$x>::from_parameters(parameters)?))
+                    return Ok(Arc::new(<$x>::from_parameters(parameters)?))
                 };
             )+
 
@@ -40,6 +41,9 @@ macro_rules! generate_dynamic_node_creation_functions {
 generate_dynamic_node_creation_functions![
     RawBlobReader,
     RawDirectoryReader,
+
+    BitDepthConverter,
+
     RawBlobWriter,
     RawDirectoryWriter,
     CinemaDngWriter,

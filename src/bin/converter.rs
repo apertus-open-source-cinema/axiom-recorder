@@ -12,7 +12,11 @@ use recorder::pipeline_processing::{
     },
     processing_node::ProcessingNode,
 };
-use std::{collections::HashMap, env, iter::once};
+use std::{collections::HashMap, env, iter::once, thread};
+use std::sync::{Arc, Mutex};
+use recorder::pipeline_processing::processing_node::Payload;
+use std::sync::mpsc::{channel, Sender};
+use indicatif::{ProgressBar, ProgressStyle};
 
 fn main() {
     let res = work();
@@ -35,14 +39,47 @@ fn work() -> Result<()> {
         .after_help(format!("NODES:\n{}", nodes_usages_string()).as_str())
         .get_matches_from(&arg_blocks[0]);
 
-    let nodes: Result<Vec<_>> = arg_blocks[1..]
+    let mut nodes = arg_blocks[1..]
         .iter()
         .map(|arg_block| processing_node_from_commandline(&arg_block))
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
+    nodes.push(Arc::new(ProgressNode::new(nodes[0].size_hint())));
 
-    execute_pipeline(nodes?)?;
+    execute_pipeline(nodes)?;
 
     Ok(())
+}
+
+struct ProgressNode {
+    tx: Mutex<Sender<()>>
+}
+impl ProgressNode {
+    fn new(total: Option<u64>) -> ProgressNode {
+        let (tx, rx) = channel();
+        thread::spawn(move || {
+            let progressbar = match total {
+                Some(n) => ProgressBar::new(n as u64),
+                None => ProgressBar::new_spinner(),
+            };
+
+            progressbar.set_style(ProgressStyle::default_bar()
+                .template("| {wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} |")
+                .progress_chars("#>-"));
+
+            for _ in rx {
+                progressbar.tick();
+                progressbar.inc(1);
+            }
+        });
+
+        ProgressNode { tx: Mutex::new(tx) }
+    }
+}
+impl ProcessingNode for ProgressNode {
+    fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
+        self.tx.lock().unwrap().send(());
+        Ok(Some(Payload::empty()))
+    }
 }
 
 fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
@@ -108,7 +145,7 @@ fn nodes_usages_string() -> String {
         })
         .join("\n")
 }
-fn processing_node_from_commandline(commandline: &[&String]) -> Result<Box<dyn ProcessingNode>> {
+fn processing_node_from_commandline(commandline: &[&String]) -> Result<Arc<dyn ProcessingNode>> {
     let name = commandline[0];
 
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();

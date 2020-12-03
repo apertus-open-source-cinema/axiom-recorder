@@ -15,11 +15,11 @@ use crate::{
         },
         processing_node::{Payload, ProcessingNode},
     },
-    raw_video_io::raw_frame::RawFrame,
 };
 use anyhow::Result;
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use crate::frame::raw_frame::RawFrame;
 
 
 pub struct RawBlobWriter {
@@ -39,7 +39,7 @@ impl Parameterizable for RawBlobWriter {
 impl ProcessingNode for RawBlobWriter {
     fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
         let frame = input.downcast::<RawFrame>()?;
-        self.file.lock().unwrap().write_all(&frame.buffer.packed_data)?;
+        self.file.lock().unwrap().write_all(&frame.buffer.bytes())?;
         Ok(Some(Payload::empty()))
     }
 }
@@ -68,7 +68,7 @@ impl ProcessingNode for RawDirectoryWriter {
         let frame = input.downcast::<RawFrame>()?;
         let mut file =
             File::create(format!("{}/{:06}.raw8", &self.dir_path, current_frame_number))?;
-        file.write_all(&frame.buffer.packed_data)?;
+        file.write_all(&frame.buffer.bytes())?;
         Ok(Some(Payload::empty()))
     }
 }

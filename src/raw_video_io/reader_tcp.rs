@@ -9,10 +9,10 @@ use crate::{
         },
         processing_node::{Payload, ProcessingNode},
     },
-    raw_video_io::raw_frame::RawFrame,
 };
 use anyhow::Result;
 use std::{io::Read, net::TcpStream, sync::Mutex};
+use crate::frame::raw_frame::RawFrame;
 
 pub struct TcpReader {
     pub tcp_connection: Mutex<TcpStream>,
@@ -45,6 +45,6 @@ impl ProcessingNode for TcpReader {
     fn process(&self, _input: &mut Payload) -> Result<Option<Payload>> {
         let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
         self.tcp_connection.lock().unwrap().read_exact(&mut bytes)?;
-        Ok(Some(Payload::from(RawFrame::new(self.width, self.height, bytes, self.bit_depth)?)))
+        Ok(Some(Payload::from(RawFrame::from_byte_vec(bytes, self.width, self.height, self.bit_depth)?)))
     }
 }

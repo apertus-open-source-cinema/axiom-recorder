@@ -1,5 +1,3 @@
-pub mod raw_frame;
-
 pub mod reader_raw;
 pub mod reader_tcp;
 

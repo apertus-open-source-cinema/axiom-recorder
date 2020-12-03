@@ -9,7 +9,7 @@ use crate::{
         },
         processing_node::{Payload, ProcessingNode},
     },
-    raw_video_io::raw_frame::RawFrame,
+    frame::raw_frame::RawFrame,
 };
 use anyhow::{anyhow, Result};
 use glob::glob;
@@ -54,7 +54,7 @@ impl ProcessingNode for RawBlobReader {
         if read_count == 0 {
             Ok(None)
         } else if read_count == bytes.len() {
-            Ok(Some(Payload::from(RawFrame::new(self.width, self.height, bytes, self.bit_depth)?)))
+            Ok(Some(Payload::from(RawFrame::from_byte_vec(bytes, self.width, self.height, self.bit_depth)?)))
         } else {
             Err(anyhow!("File could not be fully consumed. is the resolution set right?"))
         }
@@ -106,10 +106,10 @@ impl ProcessingNode for RawDirectoryReader {
                 let mut file = File::open(path)?;
                 let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
                 file.read_exact(&mut bytes)?;
-                Ok(Some(Payload::from(RawFrame::new(
+                Ok(Some(Payload::from(RawFrame::from_byte_vec(
+                    bytes,
                     self.width,
                     self.height,
-                    bytes,
                     self.bit_depth,
                 )?)))
             }
