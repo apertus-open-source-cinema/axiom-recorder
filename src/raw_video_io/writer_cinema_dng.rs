@@ -1,17 +1,16 @@
-use crate::{
-    pipeline_processing::{
-        parametrizable::{
-            ParameterType::{FloatRange, StringParameter},
-            ParameterTypeDescriptor::Mandatory,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-        },
-        processing_node::{Payload, ProcessingNode},
+use crate::pipeline_processing::{
+    parametrizable::{
+        ParameterType::{FloatRange, StringParameter},
+        ParameterTypeDescriptor::Mandatory,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
     },
+    processing_node::{Payload, ProcessingNode},
 };
 use anyhow::{Context, Result};
 
+use crate::frame::raw_frame::RawFrame;
 use std::{
     fs::create_dir,
     sync::atomic::{AtomicU64, Ordering},
@@ -27,7 +26,6 @@ use tiff_encoder::{
     SHORT,
     SRATIONAL,
 };
-use crate::frame::raw_frame::RawFrame;
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
@@ -59,8 +57,7 @@ impl Parameterizable for CinemaDngWriter {
 
 impl ProcessingNode for CinemaDngWriter {
     fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
-        let frame =
-            input.downcast::<RawFrame>().context("Wrong input format")?;
+        let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
 
         TiffFile::new(
@@ -100,8 +97,9 @@ impl ProcessingNode for CinemaDngWriter {
                 .with_entry(tags::StripByteCounts, LONG![frame.buffer.bytes().len() as u32])
                 .with_entry(tags::BitsPerSample, SHORT![frame.buffer.bit_depth() as u16])
                 .with_entry(tags::StripOffsets, ByteBlock::single(frame.buffer.bytes().to_vec()))
-                .single()
-        ).write_to(format!("{}/{:06}.dng", &self.dir_path, current_frame_number))?;
+                .single(),
+        )
+        .write_to(format!("{}/{:06}.dng", &self.dir_path, current_frame_number))?;
         Ok(Some(Payload::empty()))
     }
 }

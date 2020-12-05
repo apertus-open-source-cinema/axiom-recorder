@@ -1,4 +1,5 @@
 use crate::{
+    frame::raw_frame::RawFrame,
     pipeline_processing::{
         parametrizable::{
             ParameterType::{IntRange, StringParameter},
@@ -9,7 +10,6 @@ use crate::{
         },
         processing_node::{Payload, ProcessingNode},
     },
-    frame::raw_frame::RawFrame,
 };
 use anyhow::{anyhow, Result};
 use glob::glob;
@@ -54,7 +54,12 @@ impl ProcessingNode for RawBlobReader {
         if read_count == 0 {
             Ok(None)
         } else if read_count == bytes.len() {
-            Ok(Some(Payload::from(RawFrame::from_byte_vec(bytes, self.width, self.height, self.bit_depth)?)))
+            Ok(Some(Payload::from(RawFrame::from_byte_vec(
+                bytes,
+                self.width,
+                self.height,
+                self.bit_depth,
+            )?)))
         } else {
             Err(anyhow!("File could not be fully consumed. is the resolution set right?"))
         }

@@ -1,18 +1,32 @@
-use crate::pipeline_processing::processing_node::{ProcessingNode, Payload};
-use crate::pipeline_processing::parametrizable::{Parameterizable, Parameters, ParametersDescriptor, ParameterType, ParameterValue};
-use crate::pipeline_processing::parametrizable::ParameterTypeDescriptor::Optional;
-use anyhow::{Result, Context};
-use crate::frame::raw_frame::RawFrame;
+use crate::{
+    frame::raw_frame::RawFrame,
+    pipeline_processing::{
+        parametrizable::{
+            ParameterType,
+            ParameterTypeDescriptor::Optional,
+            ParameterValue,
+            Parameterizable,
+            Parameters,
+            ParametersDescriptor,
+        },
+        processing_node::{Payload, ProcessingNode},
+    },
+};
+use anyhow::{Context, Result};
 
 pub struct BitDepthConverter(u64);
 impl Parameterizable for BitDepthConverter {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with("target-bits", Optional(ParameterType::IntRange(8, 8), ParameterValue::IntRange(8)))
+        ParametersDescriptor::new().with(
+            "target-bits",
+            Optional(ParameterType::IntRange(8, 8), ParameterValue::IntRange(8)),
+        )
     }
 
-    fn from_parameters(parameters: &Parameters) -> Result<Self> where
-        Self: Sized {
+    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    where
+        Self: Sized,
+    {
         Ok(Self(parameters.get("target-bits")?))
     }
 }

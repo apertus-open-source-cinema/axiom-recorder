@@ -33,7 +33,7 @@ impl Payload {
 
 #[cfg(test)]
 mod tests {
-    use crate::{pipeline_processing::processing_node::Payload, raw_video_io::raw_frame::RawFrame};
+    use crate::{frame::raw_frame::RawFrame, pipeline_processing::processing_node::Payload};
     use std::sync::Arc;
 
     #[test]
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn test_payload_raw_frame() {
-        let payload = Payload::from(RawFrame::new(1, 1, vec![1u8], 8).unwrap());
+        let payload = Payload::from(RawFrame::from_byte_vec(vec![1u8], 1, 1, 8).unwrap());
         let value = payload.downcast::<RawFrame>().unwrap();
     }
 }

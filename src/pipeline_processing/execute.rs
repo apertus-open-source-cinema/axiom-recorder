@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
     rayon::scope(|s| {
-        s.spawn(move |_| {
-            let nodes = &nodes.clone();
-            loop {
+        loop {
+            let nodes = nodes.clone();
+            s.spawn(move |_| {
                 let mut payload = Payload::empty();
                 for node in nodes {
                     match node.process(&mut payload).unwrap() {
@@ -14,8 +14,8 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
                         None => return,
                     }
                 }
-            }
-        });
+            });
+        }
     });
     Ok(())
 }

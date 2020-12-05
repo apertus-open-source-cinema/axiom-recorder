@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg};
+use indicatif::{ProgressBar, ProgressStyle};
 use itertools::{Itertools, __std_iter::FromIterator};
 use recorder::pipeline_processing::{
     create_node_from_name,
@@ -10,13 +11,19 @@ use recorder::pipeline_processing::{
         ParameterizableDescriptor,
         Parameters,
     },
-    processing_node::ProcessingNode,
+    processing_node::{Payload, ProcessingNode},
 };
-use std::{collections::HashMap, env, iter::once, thread};
-use std::sync::{Arc, Mutex};
-use recorder::pipeline_processing::processing_node::Payload;
-use std::sync::mpsc::{channel, Sender};
-use indicatif::{ProgressBar, ProgressStyle};
+use std::{
+    collections::HashMap,
+    env,
+    iter::once,
+    sync::{
+        mpsc::{channel, Sender},
+        Arc,
+        Mutex,
+    },
+    thread,
+};
 
 fn main() {
     let res = work();
@@ -51,7 +58,7 @@ fn work() -> Result<()> {
 }
 
 struct ProgressNode {
-    tx: Mutex<Sender<()>>
+    tx: Mutex<Sender<()>>,
 }
 impl ProgressNode {
     fn new(total: Option<u64>) -> ProgressNode {

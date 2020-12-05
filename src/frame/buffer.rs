@@ -1,53 +1,40 @@
-use std::sync::{Arc};
-use rayon::slice::{ParallelSliceMut, ParallelSlice};
-use rayon::iter::{IndexedParallelIterator, ParallelIterator};
-use anyhow::{Result, anyhow};
-use crate::frame::buffer::Buffer::U8Buffer;
+use anyhow::{anyhow, Result};
+use bytemuck::cast_slice;
+use rayon::{
+    iter::{IndexedParallelIterator, ParallelIterator},
+    slice::{ParallelSlice, ParallelSliceMut},
+};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub enum Buffer {
-    PackedBuffer{ bytes: Arc<Vec<u8>>, bit_depth: u64},
-    U8Buffer { bytes: Arc<Vec<u8>> },
-    U16Buffer { bytes: Arc<Vec<u8>>, words: Arc<Vec<u16>> }
+pub struct Buffer {
+    bytes: Arc<Vec<u8>>,
+    bit_depth: u64,
 }
 impl Buffer {
     pub fn new(buffer: Vec<u8>, bit_depth: u64) -> Result<Self> {
         match bit_depth {
-            8 => Ok(Self::U8Buffer { bytes: Arc::new(buffer) }),
-            16 => Ok({
-                let words: Vec<u16> = (&buffer)
-                    .chunks_exact(2)
-                    .into_iter()
-                    .map(|a| u16::from_ne_bytes([a[0], a[1]]))
-                    .collect();
-                Self::U16Buffer { bytes: Arc::new(buffer), words: Arc::new(words) }
-            }),
-            8..=32 => Ok(Self::PackedBuffer { bytes: Arc::new(buffer), bit_depth }),
+            8..=32 => Ok(Self { bytes: Arc::new(buffer), bit_depth }),
             _ => Err(anyhow!("bit depth must be between 8 and 32, found {}", bit_depth)),
         }
     }
-    pub fn bytes(&self) -> Arc<Vec<u8>> {
-        match self {
-            Self::PackedBuffer { bytes, bit_depth } => bytes.clone(),
-            Self::U8Buffer { bytes } => bytes.clone(),
-            Self::U16Buffer { bytes, words } => bytes.clone(),
+    pub fn bytes(&self) -> Arc<&[u8]> { Arc::new(cast_slice(&self.bytes)) }
+    pub fn bit_depth(&self) -> u64 { self.bit_depth }
+
+    pub fn unpacked_u8(&self) -> Result<Arc<&[u8]>> {
+        match self.bit_depth {
+            8 => Ok(Arc::new(cast_slice(&self.bytes))),
+            _ => Err(anyhow!("A Buffer with bit_depth=8 is required! Try to repack the data.")),
         }
     }
-    pub fn bit_depth(&self) -> u64 {
-        match self {
-            Self::PackedBuffer { bytes, bit_depth } => *bit_depth,
-            Self::U8Buffer { bytes } => 8,
-            Self::U16Buffer { bytes, words } => 16,
+    pub fn unpacked_u16(&self) -> Result<Arc<&[u16]>> {
+        match self.bit_depth {
+            16 => Ok(Arc::new(cast_slice(&self.bytes))),
+            _ => Err(anyhow!("A Buffer with bit_depth=8 is required! Try to repack the data.")),
         }
     }
 
-    pub fn unpacked_u8(&self) -> Result<Arc<Vec<u8>>> {
-        match self {
-            Self::U8Buffer {bytes} => Ok(bytes.clone()),
-            _ => Err(anyhow!("A U8Buffer is needed! Try to convert explicitly to U8Buffer"))
-        }
-    }
-    pub fn unpack_u8(&self) -> Buffer {
+    pub fn repack_to_8_bit(&self) -> Buffer {
         if self.bit_depth() == 8 {
             self.clone()
         } else if self.bit_depth() == 12 {
@@ -69,7 +56,7 @@ impl Buffer {
                 },
             );
 
-            U8Buffer {bytes: Arc::new(new_buffer)}
+            Self::new(new_buffer, 8).unwrap()
         } else {
             let mut new_buffer =
                 Vec::with_capacity(self.bytes().len() * 8 / self.bit_depth() as usize);
@@ -100,36 +87,7 @@ impl Buffer {
                     rest_value = (rest_value << 8) | *value as u32;
                 };
             }
-            U8Buffer {bytes: Arc::new(new_buffer)}
+            Self::new(new_buffer, 8).unwrap()
         }
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use crate::frame::buffer::{PackedBuffer, U8Buffer};
-
-    #[test]
-    fn test_packed_buffer_u8() {
-        let packed_buffer = PackedBuffer::new(vec![0b11000000, 0b0011_0000, 0b11110000], 12).unwrap();
-        let u8_buffer = U8Buffer::from_packed_buffer(packed_buffer);
-        assert_eq!(u8_buffer.u8_vec().len(), 2);
-        assert_eq!(u8_buffer.u8_vec()[0], 0b11000000);
-        assert_eq!(u8_buffer.u8_vec()[1], 0b00001111);
-    }
-
-    #[test]
-    fn test_packed_buffer_u8_tough() {
-        let packed_buffer = PackedBuffer::new(
-            vec![0b10110100, 0b0011_1101, 0b10010101, 0b10110100, 0b0011_1101, 0b10010101],
-            12,
-        ).unwrap();
-        let u8_buffer = U8Buffer::from_packed_buffer(packed_buffer);
-        assert_eq!(u8_buffer.u8_vec().len(), 4);
-        assert_eq!(u8_buffer.u8_vec()[0], 0b10110100);
-        assert_eq!(u8_buffer.u8_vec()[1], 0b11011001);
-        assert_eq!(u8_buffer.u8_vec()[2], 0b10110100);
-        assert_eq!(u8_buffer.u8_vec()[3], 0b11011001);
     }
 }

@@ -14,16 +14,15 @@ use crate::{
 use anyhow::Result;
 use std::{io::Read, net::TcpStream, sync::Mutex};
 
-pub struct TcpReader {
-    pub tcp_connection: Mutex<TcpStream>,
+pub struct Usb3Reader {
+    pub ft60x: Mutex<TcpStream>,
     pub width: u64,
     pub height: u64,
     pub bit_depth: u64,
 }
-impl Parameterizable for TcpReader {
+impl Parameterizable for Usb3Reader {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("address", Mandatory(StringParameter))
             .with("width", Mandatory(IntRange(0, i64::max_value())))
             .with("height", Mandatory(IntRange(0, i64::max_value())))
             .with("bit-depth", Mandatory(IntRange(8, 16)))
@@ -34,22 +33,15 @@ impl Parameterizable for TcpReader {
         Self: Sized,
     {
         Ok(Self {
-            tcp_connection: Mutex::new(TcpStream::connect(parameters.get::<String>("address")?)?),
+            ft60x: Mutex::new(unimplemented!()),
             width: parameters.get::<u64>("width")?,
             height: parameters.get::<u64>("height")?,
             bit_depth: parameters.get::<u64>("bit-depth")?,
         })
     }
 }
-impl ProcessingNode for TcpReader {
+impl ProcessingNode for Usb3Reader {
     fn process(&self, _input: &mut Payload) -> Result<Option<Payload>> {
-        let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
-        self.tcp_connection.lock().unwrap().read_exact(&mut bytes)?;
-        Ok(Some(Payload::from(RawFrame::from_byte_vec(
-            bytes,
-            self.width,
-            self.height,
-            self.bit_depth,
-        )?)))
+        unimplemented!();
     }
 }

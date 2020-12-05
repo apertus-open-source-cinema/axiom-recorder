@@ -4,22 +4,20 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    pipeline_processing::{
-        parametrizable::{
-            ParameterType::StringParameter,
-            ParameterTypeDescriptor::Mandatory,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-        },
-        processing_node::{Payload, ProcessingNode},
+use crate::pipeline_processing::{
+    parametrizable::{
+        ParameterType::StringParameter,
+        ParameterTypeDescriptor::Mandatory,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
     },
+    processing_node::{Payload, ProcessingNode},
 };
 use anyhow::Result;
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use crate::frame::raw_frame::RawFrame;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 
 pub struct RawBlobWriter {
