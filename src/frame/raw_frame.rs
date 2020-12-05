@@ -11,20 +11,20 @@ pub struct RawFrame {
 }
 impl RawFrame {
     pub fn from_bytes(
-        byte_vec: impl Deref<Target=[u8]> + Send + Sync + 'static,
+        bytes: impl Deref<Target=[u8]> + Send + Sync + 'static,
         width: u64,
         height: u64,
         bit_depth: u64,
     ) -> Result<RawFrame> {
-        if (width * height * bit_depth / 8) > (byte_vec.len() as u64) {
+        if (width * height * bit_depth / 8) > (bytes.len() as u64) {
             return Err(anyhow!(
                 "buffer is to small (expected {}, found {})",
                 width * height * bit_depth / 8,
-                byte_vec.len()
+                bytes.len()
             ));
         }
 
-        Ok(RawFrame { width, height, buffer: Buffer::new(byte_vec, bit_depth)? })
+        Ok(RawFrame { width, height, buffer: Buffer::new(bytes, bit_depth)? })
     }
     pub fn convert_to_8_bit(&self) -> Self {
         RawFrame { width: self.width, height: self.height, buffer: self.buffer.repack_to_8_bit() }

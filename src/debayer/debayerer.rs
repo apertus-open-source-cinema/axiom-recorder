@@ -19,6 +19,7 @@ use vulkano::buffer::TypedBufferAccess;
 use vulkano::descriptor::descriptor_set::{FixedSizeDescriptorSetsPool, UnsafeDescriptorSetLayout};
 use vulkano::device::Queue;
 use vulkano::descriptor::pipeline_layout::{PipelineLayout, RuntimePipelineDesc};
+use crate::debayer::gpu_util::CpuAccessibleBufferReadView;
 
 mod cs {
     vulkano_shaders::shader! {
@@ -54,7 +55,7 @@ impl Parameterizable for DebayerNode {
 
         let pipeline = Arc::new({
             let shader = cs::Shader::load(device.clone()).unwrap();
-            ComputePipeline::new(device.clone(), &shader.main_entry_point(), &()).unwrap()
+            ComputePipeline::new(device.clone(), &shader.main_entry_point(), &(), None).unwrap()
         });
 
         Ok(DebayerNode {
@@ -108,7 +109,7 @@ impl ProcessingNode for DebayerNode {
             .then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        let output_data = sink_buffer.read()?;
-        Ok(Some(Payload::from(RawFrame::from_bytes(output_data, frame.width, frame.height, 8))))
+        let output_data = CpuAccessibleBufferReadView::new(sink_buffer)?;
+        Ok(Some(Payload::from(RawFrame::from_bytes(output_data, frame.width, frame.height, 8)?)))
     }
 }
