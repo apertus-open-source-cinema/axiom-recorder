@@ -5,14 +5,16 @@ use rayon::{
     slice::{ParallelSlice, ParallelSliceMut},
 };
 use std::sync::Arc;
+use bytemuck::__core::ops::Deref;
+use std::fmt::Debug;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Buffer {
-    bytes: Arc<Vec<u8>>,
+    bytes: Arc<dyn Deref<Target=[u8]> + Send + Sync>,
     bit_depth: u64,
 }
 impl Buffer {
-    pub fn new(buffer: Vec<u8>, bit_depth: u64) -> Result<Self> {
+    pub fn new(buffer: impl Deref<Target=[u8]> + Send + Sync + 'static, bit_depth: u64) -> Result<Self> {
         match bit_depth {
             8..=32 => Ok(Self { bytes: Arc::new(buffer), bit_depth }),
             _ => Err(anyhow!("bit depth must be between 8 and 32, found {}", bit_depth)),
@@ -39,7 +41,7 @@ impl Buffer {
             self.clone()
         } else if self.bit_depth() == 12 {
             let mut new_buffer = vec![0u8; self.bytes().len() * 8 / self.bit_depth() as usize];
-            new_buffer.par_chunks_mut(20000).zip(self.bytes().par_chunks(30000)).for_each(
+            new_buffer.chunks_mut(20000).zip(self.bytes().chunks(30000)).for_each(
                 |(macro_output_chunk, macro_input_chunk)| {
                     macro_output_chunk.chunks_mut(2).zip(macro_input_chunk.chunks(3)).for_each(
                         |(output_chunk, input_chunk)| {

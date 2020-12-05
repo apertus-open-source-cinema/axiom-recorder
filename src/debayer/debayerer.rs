@@ -82,8 +82,13 @@ impl ProcessingNode for DebayerNode {
             }
             uninitialized
         };
-        let sink_buffer: Arc<CpuAccessibleBuffer<[u32]>> = unsafe {
+        let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
             CpuAccessibleBuffer::uninitialized_array(self.device.clone(), frame_size, BufferUsage::all(), true)?
+        };
+
+        let push_constants = cs::ty::PushConstantData {
+            width: frame.width as u32,
+            height: frame.height as u32,
         };
 
         let layout = self.pipeline.layout().descriptor_set_layout(0).unwrap();
@@ -95,7 +100,7 @@ impl ProcessingNode for DebayerNode {
         );
 
         let mut builder = AutoCommandBufferBuilder::primary_one_time_submit(self.device.clone(), self.queue.family()).unwrap();
-        builder.dispatch([frame.width as u32, frame.height as u32, 1], self.pipeline.clone(), set.clone(), ())?;
+        builder.dispatch([frame.width as u32 / 32, frame.height as u32 / 32, 1], self.pipeline.clone(), set.clone(), push_constants)?;
         let command_buffer = builder.build()?;
 
         let future = sync::now(self.device.clone())
@@ -103,6 +108,7 @@ impl ProcessingNode for DebayerNode {
             .then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        Ok(Some(Payload::empty()))
+        let output_data = sink_buffer.read()?;
+        Ok(Some(Payload::from(RawFrame::from_bytes(output_data, frame.width, frame.height, 8))))
     }
 }

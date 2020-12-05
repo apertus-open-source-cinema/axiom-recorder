@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn test_payload_raw_frame() {
-        let payload = Payload::from(RawFrame::from_byte_vec(vec![1u8], 1, 1, 8).unwrap());
+        let payload = Payload::from(RawFrame::from_bytes(vec![1u8], 1, 1, 8).unwrap());
         let value = payload.downcast::<RawFrame>().unwrap();
     }
 }

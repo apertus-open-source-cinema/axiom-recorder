@@ -1,17 +1,17 @@
 use crate::frame::buffer::Buffer;
 use anyhow::{anyhow, Result};
+use std::ops::Deref;
 
 /// The main data structure for transferring and representing single raw frames
 /// of a video stream
-#[derive(Debug)]
 pub struct RawFrame {
     pub width: u64,
     pub height: u64,
     pub buffer: Buffer,
 }
 impl RawFrame {
-    pub fn from_byte_vec(
-        byte_vec: Vec<u8>,
+    pub fn from_bytes(
+        byte_vec: impl Deref<Target=[u8]> + Send + Sync + 'static,
         width: u64,
         height: u64,
         bit_depth: u64,

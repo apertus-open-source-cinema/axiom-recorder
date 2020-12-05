@@ -54,7 +54,7 @@ impl ProcessingNode for RawBlobReader {
         if read_count == 0 {
             Ok(None)
         } else if read_count == bytes.len() {
-            Ok(Some(Payload::from(RawFrame::from_byte_vec(
+            Ok(Some(Payload::from(RawFrame::from_bytes(
                 bytes,
                 self.width,
                 self.height,
@@ -104,14 +104,14 @@ impl Parameterizable for RawDirectoryReader {
 }
 impl ProcessingNode for RawDirectoryReader {
     fn process(&self, _input: &mut Payload) -> Result<Option<Payload>> {
-        let path = self.files_iterator.lock().unwrap().next();
+        let path = { self.files_iterator.lock().unwrap().next() };
         match path {
             None => Ok(None),
             Some(path) => {
                 let mut file = File::open(path)?;
                 let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
                 file.read_exact(&mut bytes)?;
-                Ok(Some(Payload::from(RawFrame::from_byte_vec(
+                Ok(Some(Payload::from(RawFrame::from_bytes(
                     bytes,
                     self.width,
                     self.height,

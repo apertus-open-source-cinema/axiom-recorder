@@ -45,7 +45,7 @@ impl ProcessingNode for TcpReader {
     fn process(&self, _input: &mut Payload) -> Result<Option<Payload>> {
         let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
         self.tcp_connection.lock().unwrap().read_exact(&mut bytes)?;
-        Ok(Some(Payload::from(RawFrame::from_byte_vec(
+        Ok(Some(Payload::from(RawFrame::from_bytes(
             bytes,
             self.width,
             self.height,
