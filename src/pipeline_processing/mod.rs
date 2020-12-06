@@ -1,17 +1,17 @@
 use crate::{
+    debayer::debayerer::DebayerNode,
     frame::bit_depth_converter::BitDepthConverter,
     pipeline_processing::parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
     video_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
         writer_cinema_dng::CinemaDngWriter,
-        writer_raw_n::{RawBlobWriter, RawDirectoryWriter},
+        writer_ffmpeg::FfmpegWriter,
+        writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
-    debayer::debayerer::DebayerNode,
 };
 use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
 use std::{collections::HashMap, sync::Arc};
-use crate::video_io::writer_ffmpeg::FfmpegWriter;
 
 pub mod execute;
 pub mod parametrizable;
@@ -42,10 +42,8 @@ macro_rules! generate_dynamic_node_creation_functions {
 generate_dynamic_node_creation_functions![
     RawBlobReader,
     RawDirectoryReader,
-
     BitDepthConverter,
     DebayerNode,
-
     RawBlobWriter,
     RawDirectoryWriter,
     CinemaDngWriter,

@@ -1,16 +1,15 @@
 use crate::frame::buffer::Buffer;
-use std::ops::Deref;
-use anyhow::{Result, anyhow};
-use std::sync::Arc;
+use anyhow::{anyhow, Result};
+use std::{ops::Deref, sync::Arc};
 
 pub struct RgbFrame {
     pub width: u64,
     pub height: u64,
-    pub buffer: Arc<dyn Deref<Target=[u8]> + Send + Sync>,
+    pub buffer: Arc<dyn Deref<Target = [u8]> + Send + Sync>,
 }
 impl RgbFrame {
     pub fn from_bytes(
-        bytes: impl Deref<Target=[u8]> + Send + Sync + 'static,
+        bytes: impl Deref<Target = [u8]> + Send + Sync + 'static,
         width: u64,
         height: u64,
     ) -> Result<RgbFrame> {

@@ -1,6 +1,6 @@
 use crate::frame::buffer::Buffer;
 use anyhow::{anyhow, Result};
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 /// The main data structure for transferring and representing single raw frames
 /// of a video stream
@@ -12,7 +12,7 @@ pub struct RawFrame {
 }
 impl RawFrame {
     pub fn from_bytes(
-        bytes: impl Deref<Target=[u8]> + Send + Sync + 'static,
+        bytes: impl Deref<Target = [u8]> + Send + Sync + 'static,
         width: u64,
         height: u64,
         bit_depth: u64,
@@ -28,11 +28,7 @@ impl RawFrame {
 
         Ok(RawFrame { width, height, buffer: Buffer::new(bytes, bit_depth)?, cfa })
     }
-    pub fn convert_to_8_bit(&self) -> Self {
-        RawFrame { width: self.width, height: self.height, buffer: self.buffer.repack_to_8_bit(), cfa: self.cfa }
-    }
 }
-
 #[derive(Debug, Copy, Clone)]
 pub struct CfaDescriptor {
     pub first_is_red_x: bool,

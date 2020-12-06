@@ -1,14 +1,23 @@
-use std::sync::{Arc, Mutex, MutexGuard};
-use crate::pipeline_processing::parametrizable::{ParametersDescriptor, Parameterizable, Parameters};
-use std::fs::File;
-use crate::pipeline_processing::parametrizable::ParameterTypeDescriptor::Mandatory;
-use crate::pipeline_processing::parametrizable::ParameterType::{StringParameter, FloatRange};
-use anyhow::{Result, anyhow};
-use crate::pipeline_processing::processing_node::{ProcessingNode, Payload};
-use crate::frame::raw_frame::RawFrame;
-use std::io::Write;
-use std::process::{Child, Command, Stdio};
-use crate::frame::rgb_frame::RgbFrame;
+use crate::{
+    frame::{raw_frame::RawFrame, rgb_frame::RgbFrame},
+    pipeline_processing::{
+        parametrizable::{
+            ParameterType::{FloatRange, StringParameter},
+            ParameterTypeDescriptor::Mandatory,
+            Parameterizable,
+            Parameters,
+            ParametersDescriptor,
+        },
+        processing_node::{Payload, ProcessingNode},
+    },
+};
+use anyhow::{anyhow, Result};
+use std::{
+    fs::File,
+    io::Write,
+    process::{Child, Command, Stdio},
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 pub struct FfmpegWriter {
     output: String,
@@ -23,8 +32,8 @@ impl Parameterizable for FfmpegWriter {
             .with("output", Mandatory(StringParameter))
     }
     fn from_parameters(parameters: &Parameters) -> Result<Self>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         Ok(Self {
             child: Arc::new(Mutex::new(None)),
@@ -42,13 +51,16 @@ impl ProcessingNode for FfmpegWriter {
             let mut resolution = self.resolution.lock().unwrap();
             if resolution.is_none() {
                 let child = Command::new("ffmpeg")
-                    .args(format!(
+                    .args(
+                        format!(
                         "-f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb24 -i - {}",
                         self.fps,
                         frame.width,
                         frame.height,
                         self.output.to_string()
-                    ).split(' '))
+                    )
+                        .split(' '),
+                    )
                     .stdin(Stdio::piped())
                     .spawn()?;
                 *self.child.lock().unwrap() = Some(child);
@@ -56,20 +68,29 @@ impl ProcessingNode for FfmpegWriter {
             } else if resolution.is_some() {
                 let [width, height] = resolution.unwrap();
                 if width != frame.width || height != frame.height {
-                    return Err(anyhow!("the resolution MAY NOT change during an ffmpeg encoding session"))
+                    return Err(anyhow!(
+                        "the resolution MAY NOT change during an ffmpeg encoding session"
+                    ));
                 }
             }
         }
 
         {
-            self.child.clone().lock().unwrap().as_mut().unwrap().stdin.as_mut().unwrap().write_all(&frame.buffer.clone())?;
+            self.child
+                .clone()
+                .lock()
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .stdin
+                .as_mut()
+                .unwrap()
+                .write_all(&frame.buffer.clone())?;
         }
 
         Ok(Some(Payload::empty()))
     }
 }
 impl Drop for FfmpegWriter {
-    fn drop(&mut self) {
-        self.child.lock().unwrap().as_mut().unwrap().wait().unwrap();
-    }
+    fn drop(&mut self) { self.child.lock().unwrap().as_mut().unwrap().wait().unwrap(); }
 }

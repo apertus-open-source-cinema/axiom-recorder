@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
-use itertools::{Itertools, __std_iter::FromIterator};
+use itertools::Itertools;
 use recorder::pipeline_processing::{
     create_node_from_name,
     execute::execute_pipeline,
@@ -16,7 +16,7 @@ use recorder::pipeline_processing::{
 use std::{
     collections::HashMap,
     env,
-    iter::once,
+    iter::{once, FromIterator},
     sync::{
         mpsc::{channel, Sender},
         Arc,

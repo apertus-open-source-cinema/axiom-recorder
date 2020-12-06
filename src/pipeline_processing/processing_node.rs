@@ -12,12 +12,15 @@ pub trait ProcessingNode: Send + Sync {
 #[derive(Clone, Debug)]
 pub struct Payload {
     data: Arc<dyn Any + Send + Sync>,
-    type_name: String,
+    pub type_name: String,
 }
 impl Payload {
     pub fn empty() -> Self { Payload::from(()) }
     pub fn from<T: Send + Sync + 'static>(payload: T) -> Self {
         Payload { data: Arc::new(payload), type_name: type_name::<T>().to_string() }
+    }
+    pub fn from_arc<T: Send + Sync + 'static>(payload: Arc<T>) -> Self {
+        Payload { data: payload, type_name: type_name::<T>().to_string() }
     }
     pub fn downcast<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         let downcast_result = self.data.clone().downcast::<T>();
@@ -33,9 +36,11 @@ impl Payload {
 
 #[cfg(test)]
 mod tests {
-    use crate::{frame::raw_frame::RawFrame, pipeline_processing::processing_node::Payload};
+    use crate::{
+        frame::raw_frame::{CfaDescriptor, RawFrame},
+        pipeline_processing::processing_node::Payload,
+    };
     use std::sync::Arc;
-    use crate::frame::raw_frame::CfaDescriptor;
 
     #[test]
     fn test_payload() {
@@ -46,7 +51,10 @@ mod tests {
 
     #[test]
     fn test_payload_raw_frame() {
-        let payload = Payload::from(RawFrame::from_bytes(vec![1u8], 1, 1, 8, CfaDescriptor::from_first_red(true, true)).unwrap());
+        let payload = Payload::from(
+            RawFrame::from_bytes(vec![1u8], 1, 1, 8, CfaDescriptor::from_first_red(true, true))
+                .unwrap(),
+        );
         let value = payload.downcast::<RawFrame>().unwrap();
     }
 }

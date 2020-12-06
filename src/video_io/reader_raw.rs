@@ -1,9 +1,10 @@
 use crate::{
-    frame::raw_frame::RawFrame,
+    frame::raw_frame::{CfaDescriptor, RawFrame},
     pipeline_processing::{
         parametrizable::{
-            ParameterType::{IntRange, StringParameter},
-            ParameterTypeDescriptor::Mandatory,
+            ParameterType::{BoolParameter, IntRange, StringParameter},
+            ParameterTypeDescriptor::{Mandatory, Optional},
+            ParameterValue,
             Parameterizable,
             Parameters,
             ParametersDescriptor,
@@ -14,10 +15,6 @@ use crate::{
 use anyhow::{anyhow, Result};
 use glob::glob;
 use std::{fs::File, io::Read, path::PathBuf, sync::Mutex, vec::IntoIter};
-use crate::pipeline_processing::parametrizable::ParameterTypeDescriptor::Optional;
-use crate::pipeline_processing::parametrizable::ParameterType::BoolParameter;
-use crate::pipeline_processing::parametrizable::ParameterValue;
-use crate::frame::raw_frame::CfaDescriptor;
 
 pub struct RawBlobReader {
     file: Mutex<File>,
@@ -48,7 +45,8 @@ impl Parameterizable for RawBlobReader {
         let height = options.get("height")?;
         let bit_depth = options.get("bit-depth")?;
         let path: String = options.get("path")?;
-        let cfa = CfaDescriptor::from_first_red(options.get("first-red-x")?, options.get("first-red-y")?);
+        let cfa =
+            CfaDescriptor::from_first_red(options.get("first-red-x")?, options.get("first-red-y")?);
 
         let file = File::open(&path)?;
         let frame_count = file.metadata()?.len() / (width * height * bit_depth / 8);
@@ -67,7 +65,7 @@ impl ProcessingNode for RawBlobReader {
                 self.width,
                 self.height,
                 self.bit_depth,
-                self.cfa
+                self.cfa,
             )?)))
         } else {
             Err(anyhow!("File could not be fully consumed. is the resolution set right?"))
@@ -105,14 +103,15 @@ impl Parameterizable for RawDirectoryReader {
         let entries = glob(&file_pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
         let frame_count = entries.len() as u64;
         let files_iterator = Mutex::new(entries.into_iter());
-        let cfa = CfaDescriptor::from_first_red(options.get("first-red-x")?, options.get("first-red-y")?);
+        let cfa =
+            CfaDescriptor::from_first_red(options.get("first-red-x")?, options.get("first-red-y")?);
         Ok(Self {
             files_iterator,
             frame_count,
             bit_depth: options.get("bit-depth")?,
             width: options.get("width")?,
             height: options.get("height")?,
-            cfa
+            cfa,
         })
     }
 }
@@ -130,7 +129,7 @@ impl ProcessingNode for RawDirectoryReader {
                     self.width,
                     self.height,
                     self.bit_depth,
-                    self.cfa
+                    self.cfa,
                 )?)))
             }
         }

@@ -14,9 +14,9 @@ use crate::pipeline_processing::{
     },
     processing_node::{Payload, ProcessingNode},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
-use crate::frame::raw_frame::RawFrame;
+use crate::frame::{raw_frame::RawFrame, rgb_frame::RgbFrame};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 
@@ -36,8 +36,13 @@ impl Parameterizable for RawBlobWriter {
 }
 impl ProcessingNode for RawBlobWriter {
     fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RawFrame>()?;
-        self.file.lock().unwrap().write_all(&frame.buffer.bytes())?;
+        if let Ok(frame) = input.downcast::<RawFrame>() {
+            self.file.lock().unwrap().write_all(&frame.buffer.bytes())?;
+        } else if let Ok(frame) = input.downcast::<RgbFrame>() {
+            self.file.lock().unwrap().write_all(&frame.buffer)?;
+        } else {
+            return Err(anyhow!("unknown input format {}", input.type_name));
+        }
         Ok(Some(Payload::empty()))
     }
 }
@@ -63,10 +68,14 @@ impl Parameterizable for RawDirectoryWriter {
 impl ProcessingNode for RawDirectoryWriter {
     fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
-        let frame = input.downcast::<RawFrame>()?;
-        let mut file =
-            File::create(format!("{}/{:06}.raw8", &self.dir_path, current_frame_number))?;
-        file.write_all(&frame.buffer.bytes())?;
+        let mut file = File::create(format!("{}/{:06}.raw", &self.dir_path, current_frame_number))?;
+        if let Ok(frame) = input.downcast::<RawFrame>() {
+            file.write_all(&frame.buffer.bytes())?;
+        } else if let Ok(frame) = input.downcast::<RgbFrame>() {
+            file.write_all(&frame.buffer)?;
+        } else {
+            return Err(anyhow!("unknown input format {}", input.type_name));
+        }
         Ok(Some(Payload::empty()))
     }
 }

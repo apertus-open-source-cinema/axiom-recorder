@@ -1,18 +1,30 @@
 use crate::pipeline_processing::processing_node::{Payload, ProcessingNode};
 use anyhow::Result;
-use std::sync::{Arc, RwLock, Mutex, Condvar};
-use std::sync::atomic::{Ordering, AtomicBool};
-use std::sync::mpsc::channel;
-use std::collections::HashMap;
-use std::iter::FromIterator;
+use std::{
+    collections::HashMap,
+    iter::FromIterator,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::channel,
+        Arc,
+        Condvar,
+        Mutex,
+        RwLock,
+    },
+};
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
-    let progress = Arc::new((0..nodes.len()).map(|_| ProcessingStageLock::new()).collect::<Vec<_>>());
+    let progress =
+        Arc::new((0..nodes.len()).map(|_| ProcessingStageLock::new()).collect::<Vec<_>>());
 
     let result = Arc::new(RwLock::new(None));
     rayon::scope_fifo(|s| {
         for frame in 0.. {
-            { if result.clone().read().unwrap().is_some() { return; } };
+            {
+                if result.clone().read().unwrap().is_some() {
+                    return;
+                }
+            };
             let nodes = nodes.clone();
             let result = result.clone();
             let progress = progress.clone();
@@ -44,9 +56,7 @@ pub struct ProcessingStageLock {
     val: Mutex<u64>,
 }
 impl ProcessingStageLock {
-    pub fn new() -> Self {
-        ProcessingStageLock { condvar: Condvar::new(), val: Mutex::new(0) }
-    }
+    pub fn new() -> Self { ProcessingStageLock { condvar: Condvar::new(), val: Mutex::new(0) } }
     pub fn wait_for(&self, val: u64) {
         self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap();
     }

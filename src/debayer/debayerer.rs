@@ -1,7 +1,11 @@
-use crate::pipeline_processing::parametrizable::{Parameterizable, Parameters, ParametersDescriptor};
-use anyhow::{Result, Context};
-use crate::pipeline_processing::processing_node::{ProcessingNode, Payload};
-use crate::frame::raw_frame::RawFrame;
+use crate::{
+    frame::raw_frame::RawFrame,
+    pipeline_processing::{
+        parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
+        processing_node::{Payload, ProcessingNode},
+    },
+};
+use anyhow::{anyhow, Context, Result};
 use vulkano::{
     buffer::{BufferUsage, CpuAccessibleBuffer},
     command_buffer::AutoCommandBufferBuilder,
@@ -13,14 +17,17 @@ use vulkano::{
     sync::GpuFuture,
 };
 
-use std::sync::{Arc, Mutex};
+use crate::{debayer::gpu_util::CpuAccessibleBufferReadView, frame::rgb_frame::RgbFrame};
 use core::ptr;
-use vulkano::buffer::TypedBufferAccess;
-use vulkano::descriptor::descriptor_set::{FixedSizeDescriptorSetsPool, UnsafeDescriptorSetLayout};
-use vulkano::device::Queue;
-use vulkano::descriptor::pipeline_layout::{PipelineLayout, RuntimePipelineDesc};
-use crate::debayer::gpu_util::CpuAccessibleBufferReadView;
-use crate::frame::rgb_frame::RgbFrame;
+use std::sync::{Arc, Mutex};
+use vulkano::{
+    buffer::TypedBufferAccess,
+    descriptor::{
+        descriptor_set::{FixedSizeDescriptorSetsPool, UnsafeDescriptorSetLayout},
+        pipeline_layout::{PipelineLayout, RuntimePipelineDesc},
+    },
+    device::Queue,
+};
 
 mod compute_shader {
     vulkano_shaders::shader! {
@@ -36,21 +43,24 @@ pub struct DebayerNode {
 }
 
 impl Parameterizable for DebayerNode {
-    fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-    }
-    fn from_parameters(parameters: &Parameters) -> Result<Self> where
-        Self: Sized {
+    fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::new() }
+    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    where
+        Self: Sized,
+    {
         let instance = Instance::new(None, &InstanceExtensions::none(), None).unwrap();
         let physical = PhysicalDevice::enumerate(&instance).next().unwrap();
         let queue_family = physical.queue_families().find(|&q| q.supports_compute()).unwrap();
         let (device, mut queues) = Device::new(
             physical,
             physical.supported_features(),
-            &DeviceExtensions { khr_storage_buffer_storage_class: true, ..DeviceExtensions::none() },
+            &DeviceExtensions {
+                khr_storage_buffer_storage_class: true,
+                ..DeviceExtensions::none()
+            },
             [(queue_family, 0.5)].iter().cloned(),
         )
-            .unwrap();
+        .unwrap();
         println!("Debayerer found {} usable queues", queues.len());
         let queue = queues.next().unwrap();
 
@@ -59,11 +69,7 @@ impl Parameterizable for DebayerNode {
             ComputePipeline::new(device.clone(), &shader.main_entry_point(), &(), None).unwrap()
         });
 
-        Ok(DebayerNode {
-            device,
-            pipeline,
-            queue,
-        })
+        Ok(DebayerNode { device, pipeline, queue })
     }
 }
 
@@ -71,10 +77,19 @@ impl ProcessingNode for DebayerNode {
     fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
 
-        let frame_data = frame.buffer.unpacked_u8()?.clone();
+        if frame.buffer.bit_depth() != 8 {
+            return Err(anyhow!("A frame with bit_depth=8 is required. Repack the frame!"));
+        }
+        let frame_data = frame.buffer.bytes().clone();
         let frame_size = frame_data.len();
         let source_buffer = unsafe {
-            let uninitialized: Arc<CpuAccessibleBuffer<[u8]>> = CpuAccessibleBuffer::uninitialized_array(self.device.clone(), frame_size, BufferUsage::all(), true)?;
+            let uninitialized: Arc<CpuAccessibleBuffer<[u8]>> =
+                CpuAccessibleBuffer::uninitialized_array(
+                    self.device.clone(),
+                    frame_size,
+                    BufferUsage::all(),
+                    true,
+                )?;
 
             {
                 let mut mapping = uninitialized.write().unwrap();
@@ -85,7 +100,12 @@ impl ProcessingNode for DebayerNode {
             uninitialized
         };
         let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
-            CpuAccessibleBuffer::uninitialized_array(self.device.clone(), frame_size * 3, BufferUsage::all(), true)?
+            CpuAccessibleBuffer::uninitialized_array(
+                self.device.clone(),
+                frame_size * 3,
+                BufferUsage::all(),
+                true,
+            )?
         };
 
         let push_constants = compute_shader::ty::PushConstantData {
@@ -98,13 +118,22 @@ impl ProcessingNode for DebayerNode {
         let layout = self.pipeline.layout().descriptor_set_layout(0).unwrap();
         let set = Arc::new(
             PersistentDescriptorSet::start(layout.clone())
-            .add_buffer(source_buffer.clone())?
-            .add_buffer(sink_buffer.clone())?
-            .build()?
+                .add_buffer(source_buffer.clone())?
+                .add_buffer(sink_buffer.clone())?
+                .build()?,
         );
 
-        let mut builder = AutoCommandBufferBuilder::primary_one_time_submit(self.device.clone(), self.queue.family()).unwrap();
-        builder.dispatch([frame.width as u32 / 32, frame.height as u32 / 32, 1], self.pipeline.clone(), set.clone(), push_constants)?;
+        let mut builder = AutoCommandBufferBuilder::primary_one_time_submit(
+            self.device.clone(),
+            self.queue.family(),
+        )
+        .unwrap();
+        builder.dispatch(
+            [frame.width as u32 / 32, frame.height as u32 / 32, 1],
+            self.pipeline.clone(),
+            set.clone(),
+            push_constants,
+        )?;
         let command_buffer = builder.build()?;
 
         let future = sync::now(self.device.clone())
