@@ -1,14 +1,7 @@
 use crate::{
-    frame::{buffer::Buffer, raw_frame::RawFrame},
+    frame::raw_frame::RawFrame,
     pipeline_processing::{
-        parametrizable::{
-            ParameterType,
-            ParameterTypeDescriptor::Optional,
-            ParameterValue,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-        },
+        parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
         processing_node::{Payload, ProcessingNode},
     },
 };
@@ -19,7 +12,7 @@ pub struct BitDepthConverter();
 impl Parameterizable for BitDepthConverter {
     fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::new() }
 
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(_parameters: &Parameters) -> Result<Self>
     where
         Self: Sized,
     {
@@ -31,7 +24,7 @@ impl ProcessingNode for BitDepthConverter {
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
 
         let new_frame = if frame.buffer.bit_depth() == 8 {
-            frame.clone()
+            frame
         } else if frame.buffer.bit_depth() == 12 {
             let mut new_buffer =
                 vec![0u8; frame.buffer.bytes().len() * 8 / frame.buffer.bit_depth() as usize];

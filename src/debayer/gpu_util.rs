@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use owning_ref::OwningHandle;
 use std::{ops::Deref, sync::Arc};
 use vulkano::{

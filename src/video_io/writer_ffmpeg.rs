@@ -1,5 +1,5 @@
 use crate::{
-    frame::{raw_frame::RawFrame, rgb_frame::RgbFrame},
+    frame::rgb_frame::RgbFrame,
     pipeline_processing::{
         parametrizable::{
             ParameterType::{FloatRange, StringParameter},
@@ -13,10 +13,9 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use std::{
-    fs::File,
     io::Write,
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
 };
 
 pub struct FfmpegWriter {

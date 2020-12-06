@@ -18,16 +18,9 @@ use vulkano::{
 };
 
 use crate::{debayer::gpu_util::CpuAccessibleBufferReadView, frame::rgb_frame::RgbFrame};
-use core::ptr;
-use std::sync::{Arc, Mutex};
-use vulkano::{
-    buffer::TypedBufferAccess,
-    descriptor::{
-        descriptor_set::{FixedSizeDescriptorSetsPool, UnsafeDescriptorSetLayout},
-        pipeline_layout::{PipelineLayout, RuntimePipelineDesc},
-    },
-    device::Queue,
-};
+
+use std::sync::Arc;
+use vulkano::{descriptor::pipeline_layout::PipelineLayout, device::Queue};
 
 mod compute_shader {
     vulkano_shaders::shader! {
@@ -44,7 +37,7 @@ pub struct DebayerNode {
 
 impl Parameterizable for DebayerNode {
     fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::new() }
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(_parameters: &Parameters) -> Result<Self>
     where
         Self: Sized,
     {
@@ -118,7 +111,7 @@ impl ProcessingNode for DebayerNode {
         let layout = self.pipeline.layout().descriptor_set_layout(0).unwrap();
         let set = Arc::new(
             PersistentDescriptorSet::start(layout.clone())
-                .add_buffer(source_buffer.clone())?
+                .add_buffer(source_buffer)?
                 .add_buffer(sink_buffer.clone())?
                 .build()?,
         );
@@ -131,7 +124,7 @@ impl ProcessingNode for DebayerNode {
         builder.dispatch(
             [frame.width as u32 / 32, frame.height as u32 / 32, 1],
             self.pipeline.clone(),
-            set.clone(),
+            set,
             push_constants,
         )?;
         let command_buffer = builder.build()?;

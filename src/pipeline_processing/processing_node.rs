@@ -40,7 +40,7 @@ mod tests {
         frame::raw_frame::{CfaDescriptor, RawFrame},
         pipeline_processing::processing_node::Payload,
     };
-    use std::sync::Arc;
+
 
     #[test]
     fn test_payload() {
@@ -55,6 +55,6 @@ mod tests {
             RawFrame::from_bytes(vec![1u8], 1, 1, 8, CfaDescriptor::from_first_red(true, true))
                 .unwrap(),
         );
-        let value = payload.downcast::<RawFrame>().unwrap();
+        let _value = payload.downcast::<RawFrame>().unwrap();
     }
 }

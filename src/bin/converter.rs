@@ -83,8 +83,8 @@ impl ProgressNode {
     }
 }
 impl ProcessingNode for ProgressNode {
-    fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
-        self.tx.lock().unwrap().send(());
+    fn process(&self, _input: &mut Payload) -> Result<Option<Payload>> {
+        self.tx.lock().unwrap().send(())?;
         Ok(Some(Payload::empty()))
     }
 }

@@ -1,17 +1,6 @@
 use crate::pipeline_processing::processing_node::{Payload, ProcessingNode};
 use anyhow::Result;
-use std::{
-    collections::HashMap,
-    iter::FromIterator,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::channel,
-        Arc,
-        Condvar,
-        Mutex,
-        RwLock,
-    },
-};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
     let progress =
@@ -20,11 +9,9 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
     let result = Arc::new(RwLock::new(None));
     rayon::scope_fifo(|s| {
         for frame in 0.. {
-            {
-                if result.clone().read().unwrap().is_some() {
-                    return;
-                }
-            };
+            if result.clone().read().unwrap().is_some() {
+                return;
+            }
             let nodes = nodes.clone();
             let result = result.clone();
             let progress = progress.clone();
@@ -58,11 +45,11 @@ pub struct ProcessingStageLock {
 impl ProcessingStageLock {
     pub fn new() -> Self { ProcessingStageLock { condvar: Condvar::new(), val: Mutex::new(0) } }
     pub fn wait_for(&self, val: u64) {
-        self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap();
+        drop(self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap())
     }
     pub fn process(&self, val: u64) {
         let mut locked = self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap();
-        *locked = *locked + 1;
+        *locked += 1;
         self.condvar.notify_all();
     }
 }

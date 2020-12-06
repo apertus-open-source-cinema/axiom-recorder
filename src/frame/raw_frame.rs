@@ -1,6 +1,6 @@
 use crate::frame::buffer::Buffer;
 use anyhow::{anyhow, Result};
-use std::{ops::Deref, sync::Arc};
+use std::ops::Deref;
 
 /// The main data structure for transferring and representing single raw frames
 /// of a video stream
