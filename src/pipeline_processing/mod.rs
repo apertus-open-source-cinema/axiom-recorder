@@ -1,7 +1,7 @@
 use crate::{
     frame::bit_depth_converter::BitDepthConverter,
     pipeline_processing::parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
-    raw_video_io::{
+    video_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
         writer_cinema_dng::CinemaDngWriter,
         writer_raw_n::{RawBlobWriter, RawDirectoryWriter},
@@ -11,6 +11,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
 use std::{collections::HashMap, sync::Arc};
+use crate::video_io::writer_ffmpeg::FfmpegWriter;
 
 pub mod execute;
 pub mod parametrizable;
@@ -48,4 +49,5 @@ generate_dynamic_node_creation_functions![
     RawBlobWriter,
     RawDirectoryWriter,
     CinemaDngWriter,
+    FfmpegWriter,
 ];

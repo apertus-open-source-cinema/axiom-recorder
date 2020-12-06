@@ -13,12 +13,17 @@ use crate::{
 };
 use anyhow::Result;
 use std::{io::Read, net::TcpStream, sync::Mutex};
+use crate::pipeline_processing::parametrizable::ParameterTypeDescriptor::Optional;
+use crate::pipeline_processing::parametrizable::ParameterType::BoolParameter;
+use crate::pipeline_processing::parametrizable::ParameterValue;
+use crate::frame::raw_frame::CfaDescriptor;
 
 pub struct TcpReader {
     pub tcp_connection: Mutex<TcpStream>,
     pub width: u64,
     pub height: u64,
     pub bit_depth: u64,
+    pub cfa: CfaDescriptor,
 }
 impl Parameterizable for TcpReader {
     fn describe_parameters() -> ParametersDescriptor {
@@ -27,17 +32,21 @@ impl Parameterizable for TcpReader {
             .with("width", Mandatory(IntRange(0, i64::max_value())))
             .with("height", Mandatory(IntRange(0, i64::max_value())))
             .with("bit-depth", Mandatory(IntRange(8, 16)))
+            .with("first-red-x", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
+            .with("first-red-y", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
     }
 
     fn from_parameters(parameters: &Parameters) -> Result<Self>
     where
         Self: Sized,
     {
+        let cfa = CfaDescriptor::from_first_red(parameters.get("first-red-x")?, parameters.get("first-red-y")?);
         Ok(Self {
             tcp_connection: Mutex::new(TcpStream::connect(parameters.get::<String>("address")?)?),
             width: parameters.get::<u64>("width")?,
             height: parameters.get::<u64>("height")?,
             bit_depth: parameters.get::<u64>("bit-depth")?,
+            cfa
         })
     }
 }
@@ -50,6 +59,7 @@ impl ProcessingNode for TcpReader {
             self.width,
             self.height,
             self.bit_depth,
+            self.cfa
         )?)))
     }
 }

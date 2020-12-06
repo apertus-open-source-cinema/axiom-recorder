@@ -60,6 +60,13 @@ impl ProcessingNode for CinemaDngWriter {
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
 
+        let cfa_pattern = match (frame.cfa.first_is_red_x, frame.cfa.first_is_red_y) {
+            (true, true) => BYTE![0, 1, 1, 2],
+            (true, false) => BYTE![1, 0, 2, 1],
+            (false, true) => BYTE![1, 2, 0, 1],
+            (false, false) => BYTE![2, 1, 1, 0],
+        };
+
         TiffFile::new(
             Ifd::new()
                 .with_entry(50706, BYTE![1, 4, 0, 0])  // DNG version
@@ -80,7 +87,7 @@ impl ProcessingNode for CinemaDngWriter {
 
                 .with_entry(tags::PhotometricInterpretation, SHORT![32803]) // Black is zero
                 .with_entry(33421, SHORT![2, 2]) // CFARepeatPatternDim
-                .with_entry(33422, BYTE![0, 1, 1, 2]) // CFAPattern (R=0, G=1, B=2)
+                .with_entry(33422, cfa_pattern) // CFAPattern (R=0, G=1, B=2)
 
                 // color matrix from https://github.com/apertus-open-source-cinema/misc-tools-utilities/blob/8c8e9fca96b4b3fec50756fd7a72be6ea5c7b77c/raw2dng/raw2dng.c#L46-L49
                 .with_entry(50721, SRATIONAL![  // ColorMatrix1

@@ -35,6 +35,7 @@ impl Payload {
 mod tests {
     use crate::{frame::raw_frame::RawFrame, pipeline_processing::processing_node::Payload};
     use std::sync::Arc;
+    use crate::frame::raw_frame::CfaDescriptor;
 
     #[test]
     fn test_payload() {
@@ -45,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_payload_raw_frame() {
-        let payload = Payload::from(RawFrame::from_bytes(vec![1u8], 1, 1, 8).unwrap());
+        let payload = Payload::from(RawFrame::from_bytes(vec![1u8], 1, 1, 8, CfaDescriptor::from_first_red(true, true)).unwrap());
         let value = payload.downcast::<RawFrame>().unwrap();
     }
 }

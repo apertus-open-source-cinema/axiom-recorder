@@ -20,6 +20,7 @@ use vulkano::descriptor::descriptor_set::{FixedSizeDescriptorSetsPool, UnsafeDes
 use vulkano::device::Queue;
 use vulkano::descriptor::pipeline_layout::{PipelineLayout, RuntimePipelineDesc};
 use crate::debayer::gpu_util::CpuAccessibleBufferReadView;
+use crate::frame::rgb_frame::RgbFrame;
 
 mod cs {
     vulkano_shaders::shader! {
@@ -84,12 +85,14 @@ impl ProcessingNode for DebayerNode {
             uninitialized
         };
         let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
-            CpuAccessibleBuffer::uninitialized_array(self.device.clone(), frame_size, BufferUsage::all(), true)?
+            CpuAccessibleBuffer::uninitialized_array(self.device.clone(), frame_size * 3, BufferUsage::all(), true)?
         };
 
         let push_constants = cs::ty::PushConstantData {
             width: frame.width as u32,
             height: frame.height as u32,
+            first_red_x: (!frame.cfa.first_is_red_x) as u32,
+            first_red_y: (!frame.cfa.first_is_red_y) as u32,
         };
 
         let layout = self.pipeline.layout().descriptor_set_layout(0).unwrap();
@@ -110,6 +113,6 @@ impl ProcessingNode for DebayerNode {
 
         future.wait(None).unwrap();
         let output_data = CpuAccessibleBufferReadView::new(sink_buffer)?;
-        Ok(Some(Payload::from(RawFrame::from_bytes(output_data, frame.width, frame.height, 8)?)))
+        Ok(Some(Payload::from(RgbFrame::from_bytes(output_data, frame.width, frame.height)?)))
     }
 }
