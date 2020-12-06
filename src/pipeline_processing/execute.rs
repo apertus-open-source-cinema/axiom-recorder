@@ -1,33 +1,58 @@
 use crate::pipeline_processing::processing_node::{Payload, ProcessingNode};
 use anyhow::Result;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock, Mutex, Condvar};
 use std::sync::atomic::{Ordering, AtomicBool};
 use std::sync::mpsc::channel;
+use std::collections::HashMap;
+use std::iter::FromIterator;
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
+    let progress = Arc::new((0..nodes.len()).map(|_| ProcessingStageLock::new()).collect::<Vec<_>>());
+
+    let result = Arc::new(RwLock::new(None));
     rayon::scope_fifo(|s| {
-        let (tx, rx) = channel();
-
-        let (source, rest) = nodes.split_first().unwrap();
-        s.spawn_fifo(move |_| {
-            while let Some(payload) = source.process(&mut Payload::empty()).unwrap() {
-                tx.send(payload).unwrap()
-            }
-        });
-
-
-        for payload in rx {
-            let mut payload = payload.clone();
-            let nodes = rest.clone();
+        for frame in 0.. {
+            { if result.clone().read().unwrap().is_some() { return; } };
+            let nodes = nodes.clone();
+            let result = result.clone();
+            let progress = progress.clone();
+            progress[0].wait_for(frame);
             s.spawn_fifo(move |_| {
-                for node in nodes {
-                    match node.process(&mut payload).unwrap() {
-                        Some(new_payload) => payload = new_payload,
-                        None => { break },
+                let mut payload = Payload::empty();
+                for (node_num, node) in nodes.into_iter().enumerate() {
+                    progress[node_num].process(frame);
+                    match node.process(&mut payload) {
+                        Ok(Some(new_payload)) => payload = new_payload,
+                        Ok(None) => {
+                            *result.write().unwrap() = Some(Ok(()));
+                            return;
+                        }
+                        Err(e) => {
+                            *result.write().unwrap() = Some(Err(e));
+                            return;
+                        }
                     }
                 }
             });
         }
     });
-    Ok(())
+    Arc::try_unwrap(result).unwrap().into_inner().unwrap().unwrap()
+}
+
+pub struct ProcessingStageLock {
+    condvar: Condvar,
+    val: Mutex<u64>,
+}
+impl ProcessingStageLock {
+    pub fn new() -> Self {
+        ProcessingStageLock { condvar: Condvar::new(), val: Mutex::new(0) }
+    }
+    pub fn wait_for(&self, val: u64) {
+        self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap();
+    }
+    pub fn process(&self, val: u64) {
+        let mut locked = self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap();
+        *locked = *locked + 1;
+        self.condvar.notify_all();
+    }
 }

@@ -22,7 +22,7 @@ use vulkano::descriptor::pipeline_layout::{PipelineLayout, RuntimePipelineDesc};
 use crate::debayer::gpu_util::CpuAccessibleBufferReadView;
 use crate::frame::rgb_frame::RgbFrame;
 
-mod cs {
+mod compute_shader {
     vulkano_shaders::shader! {
         ty: "compute",
         path: "src/debayer/resolution_loss.glsl"
@@ -31,7 +31,7 @@ mod cs {
 
 pub struct DebayerNode {
     device: Arc<Device>,
-    pipeline: Arc<ComputePipeline<PipelineLayout<cs::Layout>>>,
+    pipeline: Arc<ComputePipeline<PipelineLayout<compute_shader::Layout>>>,
     queue: Arc<Queue>,
 }
 
@@ -51,11 +51,11 @@ impl Parameterizable for DebayerNode {
             [(queue_family, 0.5)].iter().cloned(),
         )
             .unwrap();
+        println!("Debayerer found {} usable queues", queues.len());
         let queue = queues.next().unwrap();
-        println!("Device initialized");
 
         let pipeline = Arc::new({
-            let shader = cs::Shader::load(device.clone()).unwrap();
+            let shader = compute_shader::Shader::load(device.clone()).unwrap();
             ComputePipeline::new(device.clone(), &shader.main_entry_point(), &(), None).unwrap()
         });
 
@@ -88,7 +88,7 @@ impl ProcessingNode for DebayerNode {
             CpuAccessibleBuffer::uninitialized_array(self.device.clone(), frame_size * 3, BufferUsage::all(), true)?
         };
 
-        let push_constants = cs::ty::PushConstantData {
+        let push_constants = compute_shader::ty::PushConstantData {
             width: frame.width as u32,
             height: frame.height as u32,
             first_red_x: (!frame.cfa.first_is_red_x) as u32,
