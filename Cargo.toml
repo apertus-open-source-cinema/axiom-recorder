@@ -20,6 +20,10 @@ vulkano = { git = "https://github.com/apertus-open-source-cinema/vulkano", branc
 vulkano-shaders = { git = "https://github.com/apertus-open-source-cinema/vulkano", branch = "8bit" }
 owning_ref = "0.4.1"
 shlex = "0.1.1"
+gstreamer = "0.16.5"
+gstreamer-app = "0.16.5"
+gstreamer-video = "0.16.5"
+gstreamer-base = "0.16.5"
 
 [profile.release]
 debug = true

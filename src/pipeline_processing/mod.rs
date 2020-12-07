@@ -6,6 +6,7 @@ use crate::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
         writer_cinema_dng::CinemaDngWriter,
         writer_ffmpeg::FfmpegWriter,
+        writer_gstreamer::GstWriter,
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
 };
@@ -48,4 +49,5 @@ generate_dynamic_node_creation_functions![
     RawDirectoryWriter,
     CinemaDngWriter,
     FfmpegWriter,
+    GstWriter,
 ];

@@ -38,7 +38,11 @@ impl Parameterizable for RawBlobWriter {
     }
 }
 impl ProcessingNode for RawBlobWriter {
-    fn process(&self, input: &mut Payload, _frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(
+        &self,
+        input: &mut Payload,
+        _frame_lock: MutexGuard<u64>,
+    ) -> Result<Option<Payload>> {
         if let Ok(frame) = input.downcast::<RawFrame>() {
             self.file.lock().unwrap().write_all(&frame.buffer.bytes())?;
         } else if let Ok(frame) = input.downcast::<RgbFrame>() {

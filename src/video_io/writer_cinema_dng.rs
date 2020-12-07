@@ -59,7 +59,11 @@ impl Parameterizable for CinemaDngWriter {
 }
 
 impl ProcessingNode for CinemaDngWriter {
-    fn process(&self, input: &mut Payload, _frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(
+        &self,
+        input: &mut Payload,
+        _frame_lock: MutexGuard<u64>,
+    ) -> Result<Option<Payload>> {
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
 

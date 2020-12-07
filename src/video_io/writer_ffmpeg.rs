@@ -50,7 +50,11 @@ impl Parameterizable for FfmpegWriter {
     }
 }
 impl ProcessingNode for FfmpegWriter {
-    fn process(&self, input: &mut Payload, _frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(
+        &self,
+        input: &mut Payload,
+        _frame_lock: MutexGuard<u64>,
+    ) -> Result<Option<Payload>> {
         let frame = input.downcast::<RgbaFrame>()?;
 
         {
@@ -65,7 +69,9 @@ impl ProcessingNode for FfmpegWriter {
                         frame.width,
                         frame.height,
                         self.output.to_string()
-                    )).unwrap())
+                    ))
+                        .unwrap(),
+                    )
                     .stdin(Stdio::piped())
                     .spawn()?;
                 *self.child.lock().unwrap() = Some(child);
