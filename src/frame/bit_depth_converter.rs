@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use anyhow::{Context, Result};
-use std::sync::Arc;
+use std::sync::{Arc, MutexGuard};
 
 pub struct BitDepthConverter();
 impl Parameterizable for BitDepthConverter {
@@ -20,7 +20,8 @@ impl Parameterizable for BitDepthConverter {
     }
 }
 impl ProcessingNode for BitDepthConverter {
-    fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
+    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+        drop(frame_lock);
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
 
         let new_frame = if frame.buffer.bit_depth() == 8 {

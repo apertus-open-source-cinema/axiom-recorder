@@ -19,7 +19,7 @@ use vulkano::{
 
 use crate::{debayer::gpu_util::CpuAccessibleBufferReadView, frame::rgb_frame::RgbFrame};
 
-use std::sync::Arc;
+use std::sync::{Arc, MutexGuard};
 use vulkano::{descriptor::pipeline_layout::PipelineLayout, device::Queue};
 
 mod compute_shader {
@@ -68,7 +68,8 @@ impl Parameterizable for DebayerNode {
 }
 
 impl ProcessingNode for DebayerNode {
-    fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
+    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+        drop(frame_lock);
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
 
         if frame.buffer.bit_depth() != 8 {

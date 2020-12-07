@@ -18,6 +18,7 @@ use anyhow::{anyhow, Result};
 
 use crate::frame::{raw_frame::RawFrame, rgb_frame::RgbFrame};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::MutexGuard;
 
 
 pub struct RawBlobWriter {
@@ -35,7 +36,7 @@ impl Parameterizable for RawBlobWriter {
     }
 }
 impl ProcessingNode for RawBlobWriter {
-    fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
+    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         if let Ok(frame) = input.downcast::<RawFrame>() {
             self.file.lock().unwrap().write_all(&frame.buffer.bytes())?;
         } else if let Ok(frame) = input.downcast::<RgbFrame>() {
@@ -66,8 +67,9 @@ impl Parameterizable for RawDirectoryWriter {
     }
 }
 impl ProcessingNode for RawDirectoryWriter {
-    fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
+    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
+        drop(frame_lock);
         let mut file =
             File::create(format!("{}/{:06}.data", &self.dir_path, current_frame_number))?;
         if let Ok(frame) = input.downcast::<RawFrame>() {

@@ -1,6 +1,6 @@
 use crate::pipeline_processing::processing_node::{Payload, ProcessingNode};
 use anyhow::Result;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock, MutexGuard};
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
     let progress =
@@ -19,8 +19,8 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
             s.spawn_fifo(move |_| {
                 let mut payload = Payload::empty();
                 for (node_num, node) in nodes.into_iter().enumerate() {
-                    progress[node_num].process(frame);
-                    match node.process(&mut payload) {
+                    let frame_lock = progress[node_num].process(frame);
+                    match node.process(&mut payload, frame_lock) {
                         Ok(Some(new_payload)) => payload = new_payload,
                         Ok(None) => {
                             *result.write().unwrap() = Some(Ok(()));
@@ -47,9 +47,10 @@ impl ProcessingStageLock {
     pub fn wait_for(&self, val: u64) {
         drop(self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap())
     }
-    pub fn process(&self, val: u64) {
+    pub fn process(&self, val: u64) -> MutexGuard<'_, u64> {
         let mut locked = self.condvar.wait_while(self.val.lock().unwrap(), |v| *v < val).unwrap();
         *locked += 1;
         self.condvar.notify_all();
+        locked
     }
 }

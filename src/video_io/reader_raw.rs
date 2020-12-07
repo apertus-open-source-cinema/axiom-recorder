@@ -15,6 +15,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use glob::glob;
 use std::{fs::File, io::Read, path::PathBuf, sync::Mutex, vec::IntoIter};
+use std::sync::MutexGuard;
 
 pub struct RawBlobReader {
     file: Mutex<File>,
@@ -54,7 +55,7 @@ impl Parameterizable for RawBlobReader {
     }
 }
 impl ProcessingNode for RawBlobReader {
-    fn process(&self, _input: &mut Payload) -> Result<Option<Payload>> {
+    fn process(&self, _input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
         let read_count = self.file.lock().unwrap().read(&mut bytes)?;
         if read_count == 0 {
@@ -116,8 +117,9 @@ impl Parameterizable for RawDirectoryReader {
     }
 }
 impl ProcessingNode for RawDirectoryReader {
-    fn process(&self, _input: &mut Payload) -> Result<Option<Payload>> {
+    fn process(&self, _input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         let path = { self.files_iterator.lock().unwrap().next() };
+        drop(frame_lock);
         match path {
             None => Ok(None),
             Some(path) => {

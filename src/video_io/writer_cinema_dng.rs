@@ -26,6 +26,7 @@ use tiff_encoder::{
     SHORT,
     SRATIONAL,
 };
+use std::sync::MutexGuard;
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
@@ -56,7 +57,7 @@ impl Parameterizable for CinemaDngWriter {
 }
 
 impl ProcessingNode for CinemaDngWriter {
-    fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
+    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
 
