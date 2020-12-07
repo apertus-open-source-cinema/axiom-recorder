@@ -68,7 +68,8 @@ impl Parameterizable for RawDirectoryWriter {
 impl ProcessingNode for RawDirectoryWriter {
     fn process(&self, input: &mut Payload) -> Result<Option<Payload>> {
         let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
-        let mut file = File::create(format!("{}/{:06}.raw", &self.dir_path, current_frame_number))?;
+        let mut file =
+            File::create(format!("{}/{:06}.data", &self.dir_path, current_frame_number))?;
         if let Ok(frame) = input.downcast::<RawFrame>() {
             file.write_all(&frame.buffer.bytes())?;
         } else if let Ok(frame) = input.downcast::<RgbFrame>() {

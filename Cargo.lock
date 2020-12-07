@@ -11,9 +11,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.34"
+version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf8dcb5b4bbaa28653b647d8c77bd4ed40183b48882e130c1f1ffb73de069fd7"
+checksum = "2c0df63cb2955042487fad3aefd2c6e3ae7389ac5dc1beb28921de0b69f779d4"
 
 [[package]]
 name = "atty"
@@ -309,9 +309,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.80"
+version = "0.2.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d58d1b70b004888f764dfbf6a26a3b0342a1632d33968e4a179d8011c760614"
+checksum = "1482821306169ec4d07f6aca392a4681f66c75c9918aa49641a2595db64053cb"
 
 [[package]]
 name = "lock_api"
@@ -451,6 +451,7 @@ dependencies = [
  "itertools",
  "owning_ref",
  "rayon",
+ "shlex",
  "tiff-encoder",
  "vulkano",
  "vulkano-shaders",
@@ -512,6 +513,12 @@ dependencies = [
  "lazy_static",
  "libc",
 ]
+
+[[package]]
+name = "shlex"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 
 [[package]]
 name = "smallvec"
@@ -591,12 +598,12 @@ checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 [[package]]
 name = "vk-sys"
 version = "0.5.2"
-source = "git+https://github.com/apertus-open-source-cinema/vulkano#82f498565eeabd4a76b3d951578a8cb1b3c2eecc"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=8bit#930d00ee622cb40fc61289cc1e265c57780ca017"
 
 [[package]]
 name = "vulkano"
 version = "0.19.0"
-source = "git+https://github.com/apertus-open-source-cinema/vulkano#82f498565eeabd4a76b3d951578a8cb1b3c2eecc"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=8bit#930d00ee622cb40fc61289cc1e265c57780ca017"
 dependencies = [
  "crossbeam",
  "fnv",
@@ -611,8 +618,7 @@ dependencies = [
 [[package]]
 name = "vulkano-shaders"
 version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a0e6eae9b1c1e962e88875894e7ba88b2b53412ee4ad6ac2681ae4b029f7477"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=8bit#930d00ee622cb40fc61289cc1e265c57780ca017"
 dependencies = [
  "proc-macro2",
  "quote",

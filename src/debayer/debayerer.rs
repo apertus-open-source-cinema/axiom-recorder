@@ -25,7 +25,7 @@ use vulkano::{descriptor::pipeline_layout::PipelineLayout, device::Queue};
 mod compute_shader {
     vulkano_shaders::shader! {
         ty: "compute",
-        path: "src/debayer/resolution_loss.glsl"
+        path: "src/debayer/linear_debayer.glsl"
     }
 }
 
@@ -49,6 +49,7 @@ impl Parameterizable for DebayerNode {
             physical.supported_features(),
             &DeviceExtensions {
                 khr_storage_buffer_storage_class: true,
+                khr_8bit_storage: true,
                 ..DeviceExtensions::none()
             },
             [(queue_family, 0.5)].iter().cloned(),
@@ -100,6 +101,7 @@ impl ProcessingNode for DebayerNode {
                 true,
             )?
         };
+
 
         let push_constants = compute_shader::ty::PushConstantData {
             width: frame.width as u32,

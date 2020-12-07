@@ -113,6 +113,7 @@ fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
             Mandatory(_) => Arg::with_name(key)
                 .long(key)
                 .takes_value(true)
+                .allow_hyphen_values(true)
                 .validator(move |v| {
                     parameter_type_for_closure
                         .parse(Some(&v))
@@ -123,6 +124,7 @@ fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
             Optional(_, default) => Arg::with_name(key)
                 .long(key)
                 .takes_value(true)
+                .allow_hyphen_values(true)
                 .validator(move |v| {
                     parameter_type_for_closure
                         .parse(Some(&v))
