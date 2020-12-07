@@ -12,7 +12,7 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Result};
-use gstreamer::{prelude::*, Buffer, Format, Fraction, ParseContext, Pipeline};
+use gstreamer::{prelude::*, Buffer, Format, Fraction, ParseContext, Pipeline, BufferMap, Memory};
 use gstreamer_app::AppSrc;
 use gstreamer_video::{VideoFormat, VideoFrameRef, VideoInfo};
 use std::{
@@ -20,6 +20,7 @@ use std::{
     sync::MutexGuard,
     thread::{spawn, JoinHandle},
 };
+use core::mem;
 
 pub struct GstWriter {
     appsrc: AppSrc,
@@ -35,7 +36,7 @@ impl Parameterizable for GstWriter {
     {
         gstreamer::init()?;
         let mut context = ParseContext::new();
-        let pipeline_string = format!("appsrc ! {}", parameters.get::<String>("pipeline")?);
+        let pipeline_string = format!("appsrc max-bytes=20000000 ! {}", parameters.get::<String>("pipeline")?);
         let pipeline = gstreamer::parse_launch_full(
             &pipeline_string,
             Some(&mut context),
@@ -69,13 +70,7 @@ impl ProcessingNode for GstWriter {
                 .expect("Failed to create video info");
         self.appsrc.set_caps(Some(&video_info.to_caps().unwrap()));
         self.appsrc.set_property_format(Format::Time);
-        let mut buffer = Buffer::with_size(video_info.size()).unwrap();
-        {
-            let mut vframe =
-                VideoFrameRef::from_buffer_ref_writable(buffer.get_mut().unwrap(), &video_info)
-                    .unwrap();
-            vframe.plane_data_mut(0).unwrap().write_all(&frame.buffer)?;
-        }
+        let buffer = Buffer::from_slice(&**Box::leak(Box::new(frame.clone())).buffer);
         self.appsrc.push_buffer(buffer)?;
 
         Ok(Some(Payload::empty()))
