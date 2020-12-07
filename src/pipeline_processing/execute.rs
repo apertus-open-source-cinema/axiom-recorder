@@ -1,6 +1,6 @@
 use crate::pipeline_processing::processing_node::{Payload, ProcessingNode};
 use anyhow::Result;
-use std::sync::{Arc, Condvar, Mutex, RwLock, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
     let progress =

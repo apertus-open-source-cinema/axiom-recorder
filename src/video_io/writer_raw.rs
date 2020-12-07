@@ -17,8 +17,10 @@ use crate::pipeline_processing::{
 use anyhow::{anyhow, Result};
 
 use crate::frame::{raw_frame::RawFrame, rgb_frame::RgbFrame};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::MutexGuard;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    MutexGuard,
+};
 
 
 pub struct RawBlobWriter {
@@ -36,7 +38,7 @@ impl Parameterizable for RawBlobWriter {
     }
 }
 impl ProcessingNode for RawBlobWriter {
-    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(&self, input: &mut Payload, _frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         if let Ok(frame) = input.downcast::<RawFrame>() {
             self.file.lock().unwrap().write_all(&frame.buffer.bytes())?;
         } else if let Ok(frame) = input.downcast::<RgbFrame>() {

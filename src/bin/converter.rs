@@ -21,10 +21,10 @@ use std::{
         mpsc::{channel, Sender},
         Arc,
         Mutex,
+        MutexGuard,
     },
     thread,
 };
-use std::sync::MutexGuard;
 
 fn main() {
     let res = work();
@@ -84,7 +84,11 @@ impl ProgressNode {
     }
 }
 impl ProcessingNode for ProgressNode {
-    fn process(&self, _input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(
+        &self,
+        _input: &mut Payload,
+        _frame_lock: MutexGuard<u64>,
+    ) -> Result<Option<Payload>> {
         self.tx.lock().unwrap().send(())?;
         Ok(Some(Payload::empty()))
     }

@@ -13,8 +13,11 @@ use crate::{
     },
 };
 use anyhow::Result;
-use std::{io::Read, net::TcpStream, sync::Mutex};
-use std::sync::MutexGuard;
+use std::{
+    io::Read,
+    net::TcpStream,
+    sync::{Mutex, MutexGuard},
+};
 
 pub struct TcpReader {
     pub tcp_connection: Mutex<TcpStream>,
@@ -52,7 +55,11 @@ impl Parameterizable for TcpReader {
     }
 }
 impl ProcessingNode for TcpReader {
-    fn process(&self, _input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(
+        &self,
+        _input: &mut Payload,
+        _frame_lock: MutexGuard<u64>,
+    ) -> Result<Option<Payload>> {
         let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
         self.tcp_connection.lock().unwrap().read_exact(&mut bytes)?;
         Ok(Some(Payload::from(RawFrame::from_bytes(

@@ -16,9 +16,8 @@ use anyhow::{anyhow, Result};
 use std::{
     io::Write,
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
-use std::sync::MutexGuard;
 
 pub struct FfmpegWriter {
     output: String,
@@ -51,7 +50,7 @@ impl Parameterizable for FfmpegWriter {
     }
 }
 impl ProcessingNode for FfmpegWriter {
-    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(&self, input: &mut Payload, _frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         let frame = input.downcast::<RgbFrame>()?;
 
         {
