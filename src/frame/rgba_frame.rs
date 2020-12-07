@@ -23,3 +23,9 @@ impl RgbaFrame {
         Ok(RgbaFrame { width, height, buffer: Arc::new(bytes) })
     }
 }
+
+impl AsRef<[u8]> for RgbaFrame {
+    fn as_ref(&self) -> &[u8] {
+        &self.buffer
+    }
+}

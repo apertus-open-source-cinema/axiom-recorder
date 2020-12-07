@@ -16,8 +16,9 @@ use gstreamer::{prelude::*, Buffer, Format, Fraction, ParseContext, Pipeline, Bu
 use gstreamer_app::AppSrc;
 use gstreamer_video::{VideoFormat, VideoFrameRef, VideoInfo};
 use std::{
+    any::Any,
     io::Write,
-    sync::MutexGuard,
+    sync::{MutexGuard, Arc},
     thread::{spawn, JoinHandle},
 };
 use core::mem;
@@ -55,6 +56,27 @@ impl Parameterizable for GstWriter {
         Ok(Self { appsrc, thread_handle })
     }
 }
+
+struct ArcAsRef<T: ?Sized> {
+    inner: Arc<T>
+}
+
+impl<T: ?Sized> ArcAsRef<T> {
+    fn new(t: Arc<T>) -> Self {
+        ArcAsRef {
+            inner: t
+        }
+    }
+}
+
+impl<G: ?Sized, T: ?Sized> AsRef<G> for ArcAsRef<T>
+    where T: AsRef<G>
+{
+    fn as_ref(&self) -> &G {
+        (&*self.inner).as_ref()
+    }
+}
+
 impl ProcessingNode for GstWriter {
     fn process(
         &self,
@@ -70,7 +92,7 @@ impl ProcessingNode for GstWriter {
                 .expect("Failed to create video info");
         self.appsrc.set_caps(Some(&video_info.to_caps().unwrap()));
         self.appsrc.set_property_format(Format::Time);
-        let buffer = Buffer::from_slice(&**Box::leak(Box::new(frame.clone())).buffer);
+        let buffer = Buffer::from_slice(ArcAsRef::new(frame));
         self.appsrc.push_buffer(buffer)?;
 
         Ok(Some(Payload::empty()))

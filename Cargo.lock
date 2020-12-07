@@ -1092,12 +1092,12 @@ checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 [[package]]
 name = "vk-sys"
 version = "0.5.2"
-source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=8bit#930d00ee622cb40fc61289cc1e265c57780ca017"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=combined#d7b11f4b93707c67eb37b85d41416b1375a1ecf3"
 
 [[package]]
 name = "vulkano"
 version = "0.19.0"
-source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=8bit#930d00ee622cb40fc61289cc1e265c57780ca017"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=combined#d7b11f4b93707c67eb37b85d41416b1375a1ecf3"
 dependencies = [
  "crossbeam",
  "fnv",
@@ -1112,7 +1112,7 @@ dependencies = [
 [[package]]
 name = "vulkano-shaders"
 version = "0.19.0"
-source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=8bit#930d00ee622cb40fc61289cc1e265c57780ca017"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=combined#d7b11f4b93707c67eb37b85d41416b1375a1ecf3"
 dependencies = [
  "proc-macro2",
  "quote",

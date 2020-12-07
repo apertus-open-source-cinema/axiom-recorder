@@ -21,3 +21,9 @@ impl Buffer {
     pub fn bytes(&self) -> Arc<dyn Deref<Target = [u8]> + Send + Sync> { self.bytes.clone() }
     pub fn bit_depth(&self) -> u64 { self.bit_depth }
 }
+
+impl AsRef<[u8]> for Buffer {
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes
+    }
+}
