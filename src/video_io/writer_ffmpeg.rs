@@ -1,5 +1,5 @@
 use crate::{
-    frame::rgb_frame::RgbFrame,
+    frame::rgba_frame::RgbaFrame,
     pipeline_processing::{
         parametrizable::{
             ParameterType::{FloatRange, StringParameter},
@@ -51,7 +51,7 @@ impl Parameterizable for FfmpegWriter {
 }
 impl ProcessingNode for FfmpegWriter {
     fn process(&self, input: &mut Payload, _frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RgbFrame>()?;
+        let frame = input.downcast::<RgbaFrame>()?;
 
         {
             let mut resolution = self.resolution.lock().unwrap();
@@ -59,7 +59,7 @@ impl ProcessingNode for FfmpegWriter {
                 let child = Command::new("ffmpeg")
                     .args(
                         shlex::split(&format!(
-                        "{} -f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb24 -i - {}",
+                        "{} -f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb0 -i - {}",
                         self.input_options,
                         self.fps,
                         frame.width,

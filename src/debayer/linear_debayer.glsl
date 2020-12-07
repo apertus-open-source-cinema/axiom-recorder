@@ -21,9 +21,10 @@ uint8_t get_pixel_at(uint x, uint y) {
 }
 
 void write_rgb_at(uint x, uint y, uint8_t r, uint8_t g, uint8_t b) {
-    sink.data[y * params.width * 3 + x * 3 + 0] = r;
-    sink.data[y * params.width * 3 + x * 3 + 1] = g;
-    sink.data[y * params.width * 3 + x * 3 + 2] = b;
+    sink.data[y * params.width * 4 + x * 4 + 0] = r;
+    sink.data[y * params.width * 4 + x * 4 + 1] = g;
+    sink.data[y * params.width * 4 + x * 4 + 2] = b;
+    sink.data[y * params.width * 4 + x * 4 + 3] = uint8_t(0);
 }
 
 uint8_t avrg4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {

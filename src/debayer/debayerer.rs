@@ -17,7 +17,7 @@ use vulkano::{
     sync::GpuFuture,
 };
 
-use crate::{debayer::gpu_util::CpuAccessibleBufferReadView, frame::rgb_frame::RgbFrame};
+use crate::{debayer::gpu_util::CpuAccessibleBufferReadView, frame::rgba_frame::RgbaFrame};
 
 use std::sync::{Arc, MutexGuard};
 use vulkano::{descriptor::pipeline_layout::PipelineLayout, device::Queue};
@@ -97,7 +97,7 @@ impl ProcessingNode for DebayerNode {
         let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
             CpuAccessibleBuffer::uninitialized_array(
                 self.device.clone(),
-                frame_size * 3,
+                frame_size * 4,
                 BufferUsage::all(),
                 true,
             )?
@@ -138,6 +138,6 @@ impl ProcessingNode for DebayerNode {
 
         future.wait(None).unwrap();
         let output_data = CpuAccessibleBufferReadView::new(sink_buffer)?;
-        Ok(Some(Payload::from(RgbFrame::from_bytes(output_data, frame.width, frame.height)?)))
+        Ok(Some(Payload::from(RgbaFrame::from_bytes(output_data, frame.width, frame.height)?)))
     }
 }
