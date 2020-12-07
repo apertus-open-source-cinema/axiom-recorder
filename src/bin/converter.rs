@@ -17,13 +17,8 @@ use std::{
     collections::HashMap,
     env,
     iter::{once, FromIterator},
-    sync::{
-        mpsc::{channel, Sender},
-        Arc,
-        Mutex,
-        MutexGuard,
-    },
-    thread,
+    sync::{Arc, MutexGuard},
+    time::SystemTime,
 };
 
 fn main() {
@@ -59,28 +54,20 @@ fn work() -> Result<()> {
 }
 
 struct ProgressNode {
-    tx: Mutex<Sender<()>>,
+    progressbar: ProgressBar,
+    start_time: SystemTime,
 }
 impl ProgressNode {
     fn new(total: Option<u64>) -> ProgressNode {
-        let (tx, rx) = channel();
-        thread::spawn(move || {
-            let progressbar = match total {
-                Some(n) => ProgressBar::new(n as u64),
-                None => ProgressBar::new_spinner(),
-            };
+        let progressbar = match total {
+            Some(n) => ProgressBar::new(n as u64),
+            None => ProgressBar::new_spinner(),
+        };
+        progressbar.set_style(ProgressStyle::default_bar()
+            .template("| {wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} |")
+            .progress_chars("#>-"));
 
-            progressbar.set_style(ProgressStyle::default_bar()
-                .template("| {wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} |")
-                .progress_chars("#>-"));
-
-            for _ in rx {
-                progressbar.tick();
-                progressbar.inc(1);
-            }
-        });
-
-        ProgressNode { tx: Mutex::new(tx) }
+        ProgressNode { progressbar, start_time: SystemTime::now() }
     }
 }
 impl ProcessingNode for ProgressNode {
@@ -89,8 +76,19 @@ impl ProcessingNode for ProgressNode {
         _input: &mut Payload,
         _frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
-        self.tx.lock().unwrap().send(())?;
+        self.progressbar.inc(1);
+        self.progressbar.tick();
         Ok(Some(Payload::empty()))
+    }
+}
+impl Drop for ProgressNode {
+    fn drop(&mut self) {
+        self.progressbar.finish();
+        eprintln!(
+            "average fps: {}",
+            self.progressbar.position() as f64
+                / SystemTime::now().duration_since(self.start_time).unwrap().as_secs_f64()
+        )
     }
 }
 
