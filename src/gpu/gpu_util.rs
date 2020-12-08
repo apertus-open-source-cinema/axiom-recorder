@@ -66,12 +66,7 @@ impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
                             true,
                         )?;
 
-                    {
-                        let mut mapping = uninitialized.write().unwrap();
-                        for i in 0..buffer.len() {
-                            mapping[i] = buffer[i];
-                        }
-                    }
+                    uninitialized.write().unwrap().clone_from_slice(&**buffer);
                     uninitialized
                 })?)
             }

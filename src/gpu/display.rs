@@ -39,7 +39,13 @@ use gstreamer::glib::bitflags::_core::any::Any;
 use itertools::join;
 use std::{
     sync::{
-        mpsc::{channel, sync_channel, Sender, SyncSender},
+        mpsc::{
+            channel,
+            sync_channel,
+            Sender,
+            SyncSender,
+            TrySendError::{Disconnected, Full},
+        },
         Arc,
     },
     thread::{spawn, JoinHandle},
@@ -362,8 +368,15 @@ impl Parameterizable for Display {
 impl ProcessingNode for Display {
     fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         let frame = input.downcast::<RgbaFrame>().context("Wrong input format")?;
-        self.tx.lock().unwrap().send(Some(frame))?;
-        Ok(Some(Payload::empty()))
+        self.tx
+            .lock()
+            .unwrap()
+            .try_send(Some(frame))
+            .map(|_| Ok(Some(Payload::empty())))
+            .unwrap_or_else(|e| match e {
+                Full(_) => Ok(Some(Payload::empty())),
+                Disconnected(_) => Ok(None),
+            })
     }
 }
 impl Drop for Display {
