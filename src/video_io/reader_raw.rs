@@ -2,7 +2,7 @@ use crate::{
     frame::raw_frame::{CfaDescriptor, RawFrame},
     pipeline_processing::{
         parametrizable::{
-            ParameterType::{BoolParameter, IntRange, StringParameter},
+            ParameterType::{BoolParameter, FloatRange, IntRange, StringParameter},
             ParameterTypeDescriptor::{Mandatory, Optional},
             ParameterValue,
             Parameterizable,
@@ -15,11 +15,13 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use glob::glob;
+use gstreamer::glib::bitflags::_core::time::Duration;
 use std::{
     fs::File,
     io::Read,
     path::PathBuf,
     sync::{Mutex, MutexGuard},
+    thread::sleep,
     vec::IntoIter,
 };
 
@@ -94,6 +96,7 @@ pub struct RawDirectoryReader {
     cfa: CfaDescriptor,
     do_loop: bool,
     payload_vec: Mutex<Vec<Payload>>,
+    sleep: f64,
 }
 impl Parameterizable for RawDirectoryReader {
     const DESCRIPTION: Option<&'static str> =
@@ -108,6 +111,7 @@ impl Parameterizable for RawDirectoryReader {
             .with("first-red-x", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
             .with("first-red-y", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
             .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
+            .with("sleep", Optional(FloatRange(0., f64::MAX), ParameterValue::FloatRange(0.0)))
     }
     fn from_parameters(options: &Parameters) -> anyhow::Result<Self>
     where
@@ -128,6 +132,7 @@ impl Parameterizable for RawDirectoryReader {
             cfa,
             do_loop: options.get("loop")?,
             payload_vec: Mutex::new(vec![]),
+            sleep: options.get("sleep")?,
         })
     }
 }
@@ -137,6 +142,7 @@ impl ProcessingNode for RawDirectoryReader {
         _input: &mut Payload,
         frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
+        sleep(Duration::from_secs_f64(self.sleep));
         let path = { self.files_iterator.lock().unwrap().next() };
         let payload = match path {
             None => {
