@@ -84,11 +84,14 @@ impl ProcessingNode for ProgressNode {
 }
 impl Drop for ProgressNode {
     fn drop(&mut self) {
+        let frames = self.progressbar.position();
+        let seconds = SystemTime::now().duration_since(self.start_time).unwrap().as_secs_f64();
         self.progressbar.finish();
         eprintln!(
-            "average fps: {}",
-            self.progressbar.position() as f64
-                / SystemTime::now().duration_since(self.start_time).unwrap().as_secs_f64()
+            "processed {} frames in {}s. average fps: {}",
+            frames,
+            seconds,
+            (frames as f64 / seconds)
         )
     }
 }

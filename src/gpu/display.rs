@@ -39,7 +39,7 @@ use gstreamer::glib::bitflags::_core::any::Any;
 use itertools::join;
 use std::{
     sync::{
-        mpsc::{channel, Sender},
+        mpsc::{channel, sync_channel, Sender, SyncSender},
         Arc,
     },
     thread::{spawn, JoinHandle},
@@ -103,7 +103,7 @@ mod fragment_shader {
 
 
 pub struct Display {
-    tx: Mutex<Sender<Option<Arc<RgbaFrame>>>>,
+    tx: Mutex<SyncSender<Option<Arc<RgbaFrame>>>>,
     join_handle: Option<JoinHandle<()>>,
 }
 impl Parameterizable for Display {
@@ -113,7 +113,7 @@ impl Parameterizable for Display {
     where
         Self: Sized,
     {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(3);
 
         let join_handle = spawn(move || {
             let mut event_loop: EventLoop<()> = EventLoopExtUnix::new_any_thread();

@@ -131,7 +131,7 @@ impl Parameterizable for RawDirectoryReader {
             height: options.get("height")?,
             cfa,
             do_loop: options.get("loop")?,
-            payload_vec: Mutex::new(vec![]),
+            payload_vec: Mutex::new((0..frame_count).map(|_| Payload::empty()).collect()),
             sleep: options.get("sleep")?,
         })
     }
@@ -142,19 +142,21 @@ impl ProcessingNode for RawDirectoryReader {
         _input: &mut Payload,
         frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
+        let frame_number = *frame_lock;
+        drop(frame_lock);
+
         sleep(Duration::from_secs_f64(self.sleep));
         let path = { self.files_iterator.lock().unwrap().next() };
         let payload = match path {
             None => {
                 if self.do_loop {
                     let payload_vec = self.payload_vec.lock().unwrap();
-                    Some(payload_vec[frame_lock.clone() as usize % payload_vec.len()].clone())
+                    Some(payload_vec[frame_number as usize % payload_vec.len()].clone())
                 } else {
                     None
                 }
             }
             Some(path) => {
-                drop(frame_lock);
                 let mut file = File::open(path)?;
                 let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
                 file.read_exact(&mut bytes)?;
@@ -166,7 +168,7 @@ impl ProcessingNode for RawDirectoryReader {
                     self.cfa,
                 )?);
                 if self.do_loop {
-                    self.payload_vec.lock().unwrap().push(payload.clone());
+                    self.payload_vec.lock().unwrap()[frame_number as usize - 1] = payload.clone();
                 }
                 Some(payload)
             }
@@ -174,5 +176,11 @@ impl ProcessingNode for RawDirectoryReader {
 
         Ok(payload)
     }
-    fn size_hint(&self) -> Option<u64> { Some(self.frame_count) }
+    fn size_hint(&self) -> Option<u64> {
+        if self.do_loop {
+            None
+        } else {
+            Some(self.frame_count)
+        }
+    }
 }
