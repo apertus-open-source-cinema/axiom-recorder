@@ -20,7 +20,7 @@ use gstreamer_video::{VideoFormat, VideoFrameRef, VideoInfo};
 use std::{
     any::Any,
     io::Write,
-    sync::{MutexGuard, Arc},
+    sync::{Arc, MutexGuard},
     thread::{spawn, JoinHandle},
 };
 
@@ -60,23 +60,18 @@ impl Parameterizable for GstWriter {
 }
 
 struct ArcAsRef<T: ?Sized> {
-    inner: Arc<T>
+    inner: Arc<T>,
 }
 
 impl<T: ?Sized> ArcAsRef<T> {
-    fn new(t: Arc<T>) -> Self {
-        ArcAsRef {
-            inner: t
-        }
-    }
+    fn new(t: Arc<T>) -> Self { ArcAsRef { inner: t } }
 }
 
 impl<G: ?Sized, T: ?Sized> AsRef<G> for ArcAsRef<T>
-    where T: AsRef<G>
+where
+    T: AsRef<G>,
 {
-    fn as_ref(&self) -> &G {
-        (&*self.inner).as_ref()
-    }
+    fn as_ref(&self) -> &G { (&*self.inner).as_ref() }
 }
 
 impl ProcessingNode for GstWriter {

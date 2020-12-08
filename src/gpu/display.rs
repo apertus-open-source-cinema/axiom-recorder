@@ -48,7 +48,7 @@ use vulkano_win::VkSurfaceBuild;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    platform::unix::EventLoopExtUnix,
+    platform::{desktop::EventLoopExtDesktop, unix::EventLoopExtUnix},
     window::{Window, WindowBuilder},
 };
 
@@ -86,9 +86,9 @@ mod fragment_shader {
 
             vec3 get_px(int x, int y) {
                 return vec3(
-                    imageLoad(buf, y * int(params.width)+ x + 0).r,
-                    imageLoad(buf, y * int(params.width) + x + 1).r,
-                    imageLoad(buf, y * int(params.width) + x + 2).r
+                    imageLoad(buf, y * int(params.width) * 4 + x * 4 + 0).r,
+                    imageLoad(buf, y * int(params.width) * 4 + x * 4 + 1).r,
+                    imageLoad(buf, y * int(params.width) * 4 + x * 4 + 2).r
                 );
             }
 
@@ -116,7 +116,7 @@ impl Parameterizable for Display {
         let (tx, rx) = channel();
 
         let join_handle = spawn(move || {
-            let event_loop: EventLoop<()> = EventLoopExtUnix::new_any_thread();
+            let mut event_loop: EventLoop<()> = EventLoopExtUnix::new_any_thread();
             let device = VulkanContext::get().device;
             let surface = WindowBuilder::new()
                 .build_vk_surface(&event_loop, device.instance().clone())
@@ -232,7 +232,7 @@ impl Parameterizable for Display {
             .unwrap();
             let mut frame_width = 1u32;
             let mut frame_height = 1u32;
-            event_loop.run(move |event, _, control_flow| match event {
+            event_loop.run_return(move |event, _, control_flow| match event {
                 Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                     *control_flow = ControlFlow::Exit;
                 }
@@ -352,7 +352,7 @@ impl Parameterizable for Display {
                         }
                     }
                 }
-                _ => (),
+                _ => {}
             });
         });
 

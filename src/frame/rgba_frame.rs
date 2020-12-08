@@ -26,7 +26,5 @@ impl RgbaFrame {
 }
 
 impl AsRef<[u8]> for RgbaFrame {
-    fn as_ref(&self) -> &[u8] {
-        &self.buffer
-    }
+    fn as_ref(&self) -> &[u8] { &self.buffer }
 }

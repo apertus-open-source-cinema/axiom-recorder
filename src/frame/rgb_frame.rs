@@ -27,7 +27,5 @@ impl RgbFrame {
 
 
 impl AsRef<[u8]> for RgbFrame {
-    fn as_ref(&self) -> &[u8] {
-        &self.buffer
-    }
+    fn as_ref(&self) -> &[u8] { &self.buffer }
 }
