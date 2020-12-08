@@ -6,11 +6,11 @@ use crate::pipeline_processing::{
         Parameters,
         ParametersDescriptor,
     },
-    processing_node::{Payload, ProcessingNode},
+    processing_node::ProcessingNode,
 };
 use anyhow::{Context, Result};
 
-use crate::frame::raw_frame::RawFrame;
+use crate::{frame::raw_frame::RawFrame, pipeline_processing::payload::Payload};
 use std::{
     fs::create_dir,
     sync::{
@@ -108,9 +108,9 @@ impl ProcessingNode for CinemaDngWriter {
                 .with_entry(tags::ImageLength, LONG![frame.height as u32])
                 .with_entry(tags::ImageWidth, LONG![frame.width as u32])
                 .with_entry(tags::RowsPerStrip, LONG![frame.height as u32])
-                .with_entry(tags::StripByteCounts, LONG![frame.buffer.bytes().len() as u32])
-                .with_entry(tags::BitsPerSample, SHORT![frame.buffer.bit_depth() as u16])
-                .with_entry(tags::StripOffsets, ByteBlock::single(frame.buffer.bytes().to_vec()))
+                .with_entry(tags::StripByteCounts, LONG![frame.buffer.len() as u32])
+                .with_entry(tags::BitsPerSample, SHORT![frame.bit_depth as u16])
+                .with_entry(tags::StripOffsets, ByteBlock::single(frame.buffer.to_vec()))
                 .single(),
         )
         .write_to(format!("{}/{:06}.dng", &self.dir_path, current_frame_number))?;

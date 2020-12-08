@@ -9,7 +9,8 @@ use crate::{
             Parameters,
             ParametersDescriptor,
         },
-        processing_node::{Payload, ProcessingNode},
+        payload::Payload,
+        processing_node::ProcessingNode,
     },
 };
 use anyhow::{anyhow, Result};
@@ -91,6 +92,8 @@ pub struct RawDirectoryReader {
     width: u64,
     height: u64,
     cfa: CfaDescriptor,
+    do_loop: bool,
+    payload_vec: Mutex<Vec<Payload>>,
 }
 impl Parameterizable for RawDirectoryReader {
     const DESCRIPTION: Option<&'static str> =
@@ -104,6 +107,7 @@ impl Parameterizable for RawDirectoryReader {
             .with("height", Mandatory(IntRange(0, i64::max_value())))
             .with("first-red-x", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
             .with("first-red-y", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
+            .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
     fn from_parameters(options: &Parameters) -> anyhow::Result<Self>
     where
@@ -122,6 +126,8 @@ impl Parameterizable for RawDirectoryReader {
             width: options.get("width")?,
             height: options.get("height")?,
             cfa,
+            do_loop: options.get("loop")?,
+            payload_vec: Mutex::new(vec![]),
         })
     }
 }
@@ -132,22 +138,35 @@ impl ProcessingNode for RawDirectoryReader {
         frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
         let path = { self.files_iterator.lock().unwrap().next() };
-        drop(frame_lock);
-        match path {
-            None => Ok(None),
+        let payload = match path {
+            None => {
+                if self.do_loop {
+                    let payload_vec = self.payload_vec.lock().unwrap();
+                    Some(payload_vec[frame_lock.clone() as usize % payload_vec.len()].clone())
+                } else {
+                    None
+                }
+            }
             Some(path) => {
+                drop(frame_lock);
                 let mut file = File::open(path)?;
                 let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
                 file.read_exact(&mut bytes)?;
-                Ok(Some(Payload::from(RawFrame::from_bytes(
+                let payload = Payload::from(RawFrame::from_bytes(
                     bytes,
                     self.width,
                     self.height,
                     self.bit_depth,
                     self.cfa,
-                )?)))
+                )?);
+                if self.do_loop {
+                    self.payload_vec.lock().unwrap().push(payload.clone());
+                }
+                Some(payload)
             }
-        }
+        };
+
+        Ok(payload)
     }
     fn size_hint(&self) -> Option<u64> { Some(self.frame_count) }
 }

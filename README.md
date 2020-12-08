@@ -33,7 +33,7 @@ FLAGS:
     -V, --version         Prints version information
 
 OPTIONS:
-        --debayer-options <debayer-options>    Combine a 'source_*' with a 'debayer_*'. Builtin available options are 
+        --gpu-options <gpu-options>    Combine a 'source_*' with a 'debayer_*'. Builtin available options are 
                                                * debayer_halfresolution.glsl() [resolution_div: 2]
                                                * debayer_linearinterpolate.glsl() []
                                                * source_lin.glsl() []
@@ -46,11 +46,11 @@ OPTIONS:
 ### beta raw12 example
 Assuming you have a set of files ending in `.raw12` in the directory `test/Darkbox-Timelapse-Clock-Sequence/` you can play them debayered at half resolution using:
 ```shell script
-cargo run --release -- --loop --no-histogram --height 3072 --width 4096 --video-source 'file://test/Darkbox-Timelapse-Clock-Sequence/*.raw12' --debayer-options 'source_beta(); debayer_halfresolution_real();'
+cargo run --release -- --loop --no-histogram --height 3072 --width 4096 --video-source 'file://test/Darkbox-Timelapse-Clock-Sequence/*.raw12' --gpu-options 'source_beta(); debayer_halfresolution_real();'
 ```
 For full resolution debayering use
 ```shell script
-cargo run --release -- --loop --no-histogram --height 3072 --width 4096 --video-source 'file://test/Darkbox-Timelapse-Clock-Sequence/*.raw12' --debayer-options 'source_beta(); debayer_beta_linearinterpolate_quick();'
+cargo run --release -- --loop --no-histogram --height 3072 --width 4096 --video-source 'file://test/Darkbox-Timelapse-Clock-Sequence/*.raw12' --gpu-options 'source_beta(); debayer_beta_linearinterpolate_quick();'
 ```
 
 ## converter
@@ -68,7 +68,7 @@ FLAGS:
 
 OPTIONS:
         --bitrate <bitrate>                    
-        --debayer-options <debayer-options>    Combine a 'source_*' with a 'debayer_*'. Builtin available options are 
+        --gpu-options <gpu-options>    Combine a 'source_*' with a 'debayer_*'. Builtin available options are 
                                                * source_lin.glsl() []
                                                * debayer_linearinterpolate.glsl() []
                                                * debayer_halfresolution.glsl() [resolution_div: 2]

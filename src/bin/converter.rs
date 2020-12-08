@@ -11,7 +11,8 @@ use recorder::pipeline_processing::{
         ParameterizableDescriptor,
         Parameters,
     },
-    processing_node::{Payload, ProcessingNode},
+    payload::Payload,
+    processing_node::ProcessingNode,
 };
 use std::{
     collections::HashMap,

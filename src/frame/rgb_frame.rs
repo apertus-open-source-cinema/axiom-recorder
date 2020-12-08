@@ -1,10 +1,11 @@
+use crate::frame::typing_hacks::Buffer;
 use anyhow::{anyhow, Result};
 use std::{ops::Deref, sync::Arc};
 
 pub struct RgbFrame {
     pub width: u64,
     pub height: u64,
-    pub buffer: Arc<dyn Deref<Target = [u8]> + Send + Sync>,
+    pub buffer: Arc<dyn Buffer>,
 }
 impl RgbFrame {
     pub fn from_bytes(

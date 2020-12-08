@@ -12,11 +12,14 @@ use crate::pipeline_processing::{
         Parameters,
         ParametersDescriptor,
     },
-    processing_node::{Payload, ProcessingNode},
+    processing_node::ProcessingNode,
 };
 use anyhow::{anyhow, Result};
 
-use crate::frame::{raw_frame::RawFrame, rgb_frame::RgbFrame};
+use crate::{
+    frame::{raw_frame::RawFrame, rgb_frame::RgbFrame},
+    pipeline_processing::payload::Payload,
+};
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     MutexGuard,
@@ -44,7 +47,7 @@ impl ProcessingNode for RawBlobWriter {
         _frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
         if let Ok(frame) = input.downcast::<RawFrame>() {
-            self.file.lock().unwrap().write_all(&frame.buffer.bytes())?;
+            self.file.lock().unwrap().write_all(&frame.buffer)?;
         } else if let Ok(frame) = input.downcast::<RgbFrame>() {
             self.file.lock().unwrap().write_all(&frame.buffer)?;
         } else {
@@ -79,7 +82,7 @@ impl ProcessingNode for RawDirectoryWriter {
         let mut file =
             File::create(format!("{}/{:06}.data", &self.dir_path, current_frame_number))?;
         if let Ok(frame) = input.downcast::<RawFrame>() {
-            file.write_all(&frame.buffer.bytes())?;
+            file.write_all(&frame.buffer)?;
         } else if let Ok(frame) = input.downcast::<RgbFrame>() {
             file.write_all(&frame.buffer)?;
         } else {

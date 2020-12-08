@@ -9,7 +9,8 @@ use crate::{
             Parameters,
             ParametersDescriptor,
         },
-        processing_node::{Payload, ProcessingNode},
+        payload::Payload,
+        processing_node::ProcessingNode,
     },
 };
 use anyhow::{anyhow, Result};

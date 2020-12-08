@@ -1,13 +1,14 @@
-use crate::frame::buffer::Buffer;
+use crate::frame::typing_hacks::Buffer;
 use anyhow::{anyhow, Result};
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 /// The main data structure for transferring and representing single raw frames
 /// of a video stream
 pub struct RawFrame {
     pub width: u64,
     pub height: u64,
-    pub buffer: Buffer,
+    pub bit_depth: u64,
+    pub buffer: Arc<dyn Buffer>,
     pub cfa: CfaDescriptor,
 }
 impl RawFrame {
@@ -26,7 +27,7 @@ impl RawFrame {
             ));
         }
 
-        Ok(RawFrame { width, height, buffer: Buffer::new(bytes, bit_depth)?, cfa })
+        Ok(RawFrame { width, height, buffer: Arc::new(bytes), bit_depth, cfa })
     }
 }
 #[derive(Debug, Copy, Clone)]

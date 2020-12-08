@@ -1,4 +1,4 @@
-use crate::pipeline_processing::processing_node::{Payload, ProcessingNode};
+use crate::pipeline_processing::{payload::Payload, processing_node::ProcessingNode};
 use anyhow::Result;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 

@@ -2,7 +2,7 @@ use crate::{
     frame::raw_frame::RawFrame,
     pipeline_processing::{
         parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
-        processing_node::{Payload, ProcessingNode},
+        processing_node::ProcessingNode,
     },
 };
 use anyhow::{anyhow, Context, Result};
@@ -17,87 +17,66 @@ use vulkano::{
     sync::GpuFuture,
 };
 
-use crate::{debayer::gpu_util::CpuAccessibleBufferReadView, frame::rgba_frame::RgbaFrame};
+use crate::{frame::rgba_frame::RgbaFrame, gpu::gpu_util::CpuAccessibleBufferReadView};
 
+use crate::{gpu::gpu_util::VulkanContext, pipeline_processing::payload::Payload};
 use std::sync::{Arc, MutexGuard};
-use vulkano::{descriptor::pipeline_layout::PipelineLayout, device::Queue};
+use vulkano::{
+    buffer::TypedBufferAccess,
+    descriptor::pipeline_layout::PipelineLayout,
+    device::Queue,
+};
 
 mod compute_shader {
     vulkano_shaders::shader! {
         ty: "compute",
-        path: "src/debayer/linear_debayer.glsl"
+        path: "src/gpu/debayer.glsl"
     }
 }
 
-pub struct DebayerNode {
+pub struct Debayer {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline<PipelineLayout<compute_shader::Layout>>>,
     queue: Arc<Queue>,
 }
 
-impl Parameterizable for DebayerNode {
+impl Parameterizable for Debayer {
     fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::new() }
     fn from_parameters(_parameters: &Parameters) -> Result<Self>
     where
         Self: Sized,
     {
-        let instance = Instance::new(None, &InstanceExtensions::none(), None).unwrap();
-        let physical = PhysicalDevice::enumerate(&instance).next().unwrap();
-        let queue_family = physical.queue_families().find(|&q| q.supports_compute()).unwrap();
-        let (device, mut queues) = Device::new(
-            physical,
-            physical.supported_features(),
-            &DeviceExtensions {
-                khr_storage_buffer_storage_class: true,
-                khr_8bit_storage: true,
-                ..DeviceExtensions::none()
-            },
-            [(queue_family, 0.5)].iter().cloned(),
-        )
-        .unwrap();
-        println!("Debayerer found {} usable queues", queues.len());
-        let queue = queues.next().unwrap();
+        let device = VulkanContext::get().device;
+        let queue = VulkanContext::get()
+            .queues
+            .iter()
+            .find(|&q| q.family().supports_compute())
+            .unwrap()
+            .clone();
 
         let pipeline = Arc::new({
             let shader = compute_shader::Shader::load(device.clone()).unwrap();
             ComputePipeline::new(device.clone(), &shader.main_entry_point(), &(), None).unwrap()
         });
 
-        Ok(DebayerNode { device, pipeline, queue })
+        Ok(Debayer { device, pipeline, queue })
     }
 }
 
-impl ProcessingNode for DebayerNode {
+impl ProcessingNode for Debayer {
     fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         drop(frame_lock);
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
 
-        if frame.buffer.bit_depth() != 8 {
+        if frame.bit_depth != 8 {
             return Err(anyhow!("A frame with bit_depth=8 is required. Repack the frame!"));
         }
-        let frame_data = frame.buffer.bytes().clone();
-        let frame_size = frame_data.len();
-        let source_buffer = unsafe {
-            let uninitialized: Arc<CpuAccessibleBuffer<[u8]>> =
-                CpuAccessibleBuffer::uninitialized_array(
-                    self.device.clone(),
-                    frame_size,
-                    BufferUsage::all(),
-                    true,
-                )?;
-
-            {
-                let mut mapping = uninitialized.write().unwrap();
-                for i in 0..frame_size {
-                    mapping[i] = frame_data[i];
-                }
-            }
-            uninitialized
-        };
+        let source_buffer = CpuAccessibleBufferReadView::<u8>::from_buffer(frame.buffer.clone())?
+            .as_cpu_accessible_buffer();
         let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
             CpuAccessibleBuffer::uninitialized_array(
                 self.device.clone(),
-                frame_size * 4,
+                source_buffer.len() * 4,
                 BufferUsage::all(),
                 true,
             )?
@@ -137,7 +116,7 @@ impl ProcessingNode for DebayerNode {
             .then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        let output_data = CpuAccessibleBufferReadView::new(sink_buffer)?;
+        let output_data = CpuAccessibleBufferReadView::from_cpu_accessible_buffer(sink_buffer)?;
         Ok(Some(Payload::from(RgbaFrame::from_bytes(output_data, frame.width, frame.height)?)))
     }
 }

@@ -8,11 +8,13 @@ use crate::{
             Parameters,
             ParametersDescriptor,
         },
-        processing_node::{Payload, ProcessingNode},
+        payload::Payload,
+        processing_node::ProcessingNode,
     },
 };
 use anyhow::{anyhow, Result};
-use gstreamer::{prelude::*, Buffer, Format, Fraction, ParseContext, Pipeline, BufferMap, Memory};
+use core::mem;
+use gstreamer::{prelude::*, Buffer, BufferMap, Format, Fraction, Memory, ParseContext, Pipeline};
 use gstreamer_app::AppSrc;
 use gstreamer_video::{VideoFormat, VideoFrameRef, VideoInfo};
 use std::{
@@ -20,7 +22,6 @@ use std::{
     sync::MutexGuard,
     thread::{spawn, JoinHandle},
 };
-use core::mem;
 
 pub struct GstWriter {
     appsrc: AppSrc,
@@ -36,7 +37,8 @@ impl Parameterizable for GstWriter {
     {
         gstreamer::init()?;
         let mut context = ParseContext::new();
-        let pipeline_string = format!("appsrc max-bytes=20000000 ! {}", parameters.get::<String>("pipeline")?);
+        let pipeline_string =
+            format!("appsrc max-bytes=20000000 ! {}", parameters.get::<String>("pipeline")?);
         let pipeline = gstreamer::parse_launch_full(
             &pipeline_string,
             Some(&mut context),
