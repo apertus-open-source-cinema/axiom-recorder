@@ -77,8 +77,8 @@ impl ProcessingNode for ProgressNode {
         _input: &mut Payload,
         _frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
-        self.progressbar.inc(1);
-        self.progressbar.tick();
+        //self.progressbar.inc(1);
+        //self.progressbar.tick();
         Ok(Some(Payload::empty()))
     }
 }
