@@ -31,8 +31,7 @@ use vulkano::{
 };
 
 use crate::{
-    common::fps_report::FPSReporter,
-    frame::rgba_frame::RgbaFrame,
+    frame::{rgb_frame::RgbFrame, rgba_frame::RgbaFrame},
     gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
     pipeline_processing::{
         parametrizable::{
@@ -96,13 +95,13 @@ mod fragment_shader {
             layout(location = 0) in vec2 tex_coords;
             layout(location = 0) out vec4 f_color;
 
-            layout( set = 0, binding = 0, rgba8 ) uniform imageBuffer buf;
+            layout( set = 0, binding = 0, r8 ) uniform imageBuffer buf;
 
             vec3 get_px(int x, int y) {
                 return vec3(
-                    imageLoad(buf, y * int(params.width) * 4 + x * 4 + 0).r,
-                    imageLoad(buf, y * int(params.width) * 4 + x * 4 + 1).r,
-                    imageLoad(buf, y * int(params.width) * 4 + x * 4 + 2).r
+                    imageLoad(buf, y * int(params.width) * 3 + x * 3 + 0).r,
+                    imageLoad(buf, y * int(params.width) * 3 + x * 3 + 1).r,
+                    imageLoad(buf, y * int(params.width) * 3 + x * 3 + 2).r
                 );
             }
 
@@ -117,7 +116,7 @@ mod fragment_shader {
 
 
 pub struct Display {
-    tx: Mutex<SyncSender<Option<Arc<RgbaFrame>>>>,
+    tx: Mutex<SyncSender<Option<Arc<RgbFrame>>>>,
     join_handle: Option<JoinHandle<()>>,
     blocking: bool,
 }
@@ -251,7 +250,6 @@ impl Parameterizable for Display {
             .unwrap();
             let mut frame_width = 1u32;
             let mut frame_height = 1u32;
-            let mut fps_reporter = FPSReporter::new("display");
             event_loop.run_return(move |event, _, control_flow| match event {
                 Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                     *control_flow = ControlFlow::Exit;
@@ -293,7 +291,7 @@ impl Parameterizable for Display {
                         recreate_swapchain = true;
                     }
 
-                    let frame: core::result::Result<Option<Arc<RgbaFrame>>, _> = rx.try_recv();
+                    let frame: core::result::Result<Option<Arc<RgbFrame>>, _> = rx.try_recv();
                     match frame {
                         Err(_) => {}
                         Ok(None) => *control_flow = ControlFlow::Exit,
@@ -307,7 +305,6 @@ impl Parameterizable for Display {
                             frame_height = frame.height as u32;
                         }
                     }
-                    fps_reporter.frame();
 
                     let layout = pipeline.layout().descriptor_set_layout(0).unwrap();
                     let set = Arc::new(
@@ -386,7 +383,7 @@ impl Parameterizable for Display {
 }
 impl ProcessingNode for Display {
     fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RgbaFrame>().context("Wrong input format")?;
+        let frame = input.downcast::<RgbFrame>().context("Wrong input format")?;
         if self.blocking {
             self.tx.lock().unwrap().send(Some(frame))?;
             Ok(Some(Payload::empty()))

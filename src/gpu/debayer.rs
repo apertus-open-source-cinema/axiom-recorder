@@ -19,12 +19,17 @@ use vulkano::{
 
 use crate::{frame::rgba_frame::RgbaFrame, gpu::gpu_util::CpuAccessibleBufferReadView};
 
-use crate::{gpu::gpu_util::VulkanContext, pipeline_processing::payload::Payload};
+use crate::{
+    frame::rgb_frame::RgbFrame,
+    gpu::gpu_util::VulkanContext,
+    pipeline_processing::payload::Payload,
+};
 use std::sync::{Arc, MutexGuard};
 use vulkano::{
-    buffer::TypedBufferAccess,
+    buffer::{BufferView, TypedBufferAccess},
     descriptor::pipeline_layout::PipelineLayout,
     device::Queue,
+    format::{R8G8B8A8Unorm, R8G8B8Unorm, R8Unorm},
 };
 
 mod compute_shader {
@@ -76,12 +81,11 @@ impl ProcessingNode for Debayer {
         let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
             CpuAccessibleBuffer::uninitialized_array(
                 self.device.clone(),
-                source_buffer.len() * 4,
+                source_buffer.len() * 3,
                 BufferUsage::all(),
                 true,
             )?
         };
-
 
         let push_constants = compute_shader::ty::PushConstantData {
             width: frame.width as u32,
@@ -93,8 +97,8 @@ impl ProcessingNode for Debayer {
         let layout = self.pipeline.layout().descriptor_set_layout(0).unwrap();
         let set = Arc::new(
             PersistentDescriptorSet::start(layout.clone())
-                .add_buffer(source_buffer)?
-                .add_buffer(sink_buffer.clone())?
+                .add_buffer_view(BufferView::new(source_buffer, R8Unorm)?)?
+                .add_buffer_view(BufferView::new(sink_buffer.clone(), R8Unorm)?)?
                 .build()?,
         );
 
@@ -117,6 +121,6 @@ impl ProcessingNode for Debayer {
 
         future.wait(None).unwrap();
         let output_data = CpuAccessibleBufferReadView::from_cpu_accessible_buffer(sink_buffer)?;
-        Ok(Some(Payload::from(RgbaFrame::from_bytes(output_data, frame.width, frame.height)?)))
+        Ok(Some(Payload::from(RgbFrame::from_bytes(output_data, frame.width, frame.height)?)))
     }
 }

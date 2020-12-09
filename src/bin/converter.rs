@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg};
+use gstreamer::glib::bitflags::_core::sync::atomic::{AtomicU64, Ordering};
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use recorder::pipeline_processing::{
@@ -18,7 +19,7 @@ use std::{
     collections::HashMap,
     env,
     iter::{once, FromIterator},
-    sync::{Arc, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock},
     time::SystemTime,
 };
 
@@ -56,7 +57,8 @@ fn work() -> Result<()> {
 
 struct ProgressNode {
     progressbar: ProgressBar,
-    start_time: SystemTime,
+    start_time: RwLock<SystemTime>,
+    fps_counter: AtomicU64,
 }
 impl ProgressNode {
     fn new(total: Option<u64>) -> ProgressNode {
@@ -65,10 +67,14 @@ impl ProgressNode {
             None => ProgressBar::new_spinner(),
         };
         progressbar.set_style(ProgressStyle::default_bar()
-            .template("| {wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} |")
+            .template("{wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} | {msg} ")
             .progress_chars("#>-"));
 
-        ProgressNode { progressbar, start_time: SystemTime::now() }
+        ProgressNode {
+            progressbar,
+            start_time: RwLock::new(SystemTime::now()),
+            fps_counter: AtomicU64::new(0),
+        }
     }
 }
 impl ProcessingNode for ProgressNode {
@@ -77,22 +83,20 @@ impl ProcessingNode for ProgressNode {
         _input: &mut Payload,
         _frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
-        //self.progressbar.inc(1);
-        //self.progressbar.tick();
+        self.progressbar.inc(1);
+        self.progressbar.tick();
+        self.fps_counter.fetch_add(1, Ordering::Relaxed);
+
+        let time = SystemTime::now();
+        let elapsed = time.duration_since(*self.start_time.read().unwrap()).unwrap().as_secs_f64();
+        if elapsed > 1.0 {
+            self.progressbar.set_message(&format!(
+                "{:.1} fps",
+                self.fps_counter.swap(0, Ordering::Relaxed) as f64 / elapsed
+            ));
+            *self.start_time.write().unwrap() = time;
+        }
         Ok(Some(Payload::empty()))
-    }
-}
-impl Drop for ProgressNode {
-    fn drop(&mut self) {
-        let frames = self.progressbar.position();
-        let seconds = SystemTime::now().duration_since(self.start_time).unwrap().as_secs_f64();
-        self.progressbar.finish();
-        eprintln!(
-            "processed {} frames in {}s. average fps: {}",
-            frames,
-            seconds,
-            (frames as f64 / seconds)
-        )
     }
 }
 
