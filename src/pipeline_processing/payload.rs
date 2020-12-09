@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use gstreamer::glib::bitflags::_core::any::{type_name, Any};
+use std::any::{type_name, Any};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]

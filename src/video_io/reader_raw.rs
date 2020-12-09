@@ -15,7 +15,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use glob::glob;
-use gstreamer::glib::bitflags::_core::time::Duration;
+use std::time::Duration;
 use std::{
     fs::File,
     io::Read,

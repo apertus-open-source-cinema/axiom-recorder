@@ -6,13 +6,15 @@ use crate::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
         writer_cinema_dng::CinemaDngWriter,
         writer_ffmpeg::FfmpegWriter,
-        writer_gstreamer::GstWriter,
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
 };
 use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
 use std::{collections::HashMap, sync::Arc};
+
+#[cfg(feature = "gst")]
+use crate::video_io::writer_gstreamer::GstWriter;
 
 pub mod execute;
 pub mod parametrizable;
@@ -41,6 +43,9 @@ macro_rules! generate_dynamic_node_creation_functions {
     };
 }
 
+
+// TODO(robin): this is stupid
+#[cfg(feature = "gst")]
 generate_dynamic_node_creation_functions![
     RawBlobReader,
     RawDirectoryReader,
@@ -51,5 +56,17 @@ generate_dynamic_node_creation_functions![
     CinemaDngWriter,
     FfmpegWriter,
     GstWriter,
+    Display,
+];
+
+generate_dynamic_node_creation_functions![
+    RawBlobReader,
+    RawDirectoryReader,
+    BitDepthConverter,
+    Debayer,
+    RawBlobWriter,
+    RawDirectoryWriter,
+    CinemaDngWriter,
+    FfmpegWriter,
     Display,
 ];

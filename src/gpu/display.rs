@@ -43,7 +43,7 @@ use crate::{
         payload::Payload,
     },
 };
-use gstreamer::glib::bitflags::_core::any::Any;
+use std::any::Any;
 use itertools::join;
 use std::{
     sync::{

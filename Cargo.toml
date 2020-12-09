@@ -7,6 +7,10 @@ readme = "README.md"
 license = "GPL-3.0"
 edition = "2018"
 
+[features]
+default = []
+gst = ["gstreamer", "gstreamer-video", "gstreamer-base", "gstreamer-app"]
+
 [dependencies]
 clap = "2.33.3"
 indicatif = "0.15.0"
@@ -21,10 +25,10 @@ vulkano-shaders = { git = "https://github.com/apertus-open-source-cinema/vulkano
 vulkano-win = { git = "https://github.com/apertus-open-source-cinema/vulkano", branch = "combined" }
 owning_ref = "0.4.1"
 shlex = "0.1.1"
-gstreamer = "0.16.5"
-gstreamer-app = "0.16.5"
-gstreamer-video = "0.16.5"
-gstreamer-base = "0.16.5"
+gstreamer = { version = "0.16.5", optional = true }
+gstreamer-app = { version = "0.16.5", optional = true }
+gstreamer-video = { version = "0.16.5", optional = true }
+gstreamer-base = { version = "0.16.5", optional = true }
 winit = "0.23.0"
 lazy_static = "1.4.0"
 
