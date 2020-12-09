@@ -68,12 +68,15 @@ struct ProgressNode {
 impl ProgressNode {
     fn new(total: Option<u64>) -> ProgressNode {
         let progressbar = match total {
-            Some(n) => ProgressBar::new(n as u64),
+            Some(n) => {
+                let bar = ProgressBar::new(n as u64);
+                bar.set_style(ProgressStyle::default_bar()
+                    .template("{wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} | {msg} ")
+                    .progress_chars("#>-"));
+                bar
+            },
             None => ProgressBar::new_spinner(),
         };
-        progressbar.set_style(ProgressStyle::default_bar()
-            .template("{wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} | {msg} ")
-            .progress_chars("#>-"));
 
         ProgressNode {
             progressbar,
@@ -89,7 +92,6 @@ impl ProcessingNode for ProgressNode {
         _frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
         self.progressbar.inc(1);
-        self.progressbar.tick();
         self.fps_counter.fetch_add(1, Ordering::Relaxed);
 
         let time = SystemTime::now();

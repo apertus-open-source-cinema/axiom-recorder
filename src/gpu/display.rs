@@ -43,20 +43,16 @@ use crate::{
     },
 };
 use itertools::join;
-use std::{
-    any::Any,
-    sync::{
-        mpsc::{
-            channel,
-            sync_channel,
-            Sender,
-            SyncSender,
-            TrySendError::{Disconnected, Full},
-        },
-        Arc,
+use std::{any::Any, sync::{
+    mpsc::{
+        channel,
+        sync_channel,
+        Sender,
+        SyncSender,
+        TrySendError::{Disconnected, Full},
     },
-    thread::{spawn, JoinHandle},
-};
+    Arc,
+}, thread::{spawn, JoinHandle}, thread};
 use vulkano_win::VkSurfaceBuild;
 use winit::{
     event::{Event, WindowEvent},
@@ -130,15 +126,15 @@ impl Parameterizable for Display {
     where
         Self: Sized,
     {
-        let (tx, rx) = sync_channel(3);
+        let (tx, rx) = sync_channel(10);
 
-        let join_handle = spawn(move || {
+        let join_handle = thread::Builder::new().name("display".to_string()).spawn(move || {
             let mut event_loop: EventLoop<()> = EventLoopExtUnix::new_any_thread();
             let device = VulkanContext::get().device;
             let surface = WindowBuilder::new()
+                .with_title("axiom converter vulkan output")
                 .build_vk_surface(&event_loop, device.instance().clone())
                 .unwrap();
-            println!("{:?}", VulkanContext::get().queues);
             let queue = VulkanContext::get()
                 .queues
                 .iter()
@@ -372,7 +368,7 @@ impl Parameterizable for Display {
                 }
                 _ => {}
             });
-        });
+        })?;
 
         Ok(Self {
             tx: Mutex::new(tx),
@@ -385,8 +381,10 @@ impl ProcessingNode for Display {
     fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
         let frame = input.downcast::<RgbFrame>().context("Wrong input format")?;
         if self.blocking {
-            self.tx.lock().unwrap().send(Some(frame))?;
-            Ok(Some(Payload::empty()))
+            match self.tx.lock().unwrap().send(Some(frame)) {
+                Ok(_) => Ok(Some(Payload::empty())),
+                Err(_) => Ok(None),
+            }
         } else {
             self.tx
                 .lock()
