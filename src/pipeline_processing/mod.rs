@@ -59,6 +59,7 @@ generate_dynamic_node_creation_functions![
     Display,
 ];
 
+#[cfg(not(feature = "gst"))]
 generate_dynamic_node_creation_functions![
     RawBlobReader,
     RawDirectoryReader,
