@@ -18,8 +18,11 @@ layout(push_constant) uniform PushConstantData {
 layout(set = 0, binding = 0) buffer Source { uint8_t data[]; } source;
 layout(set = 0, binding = 1) buffer Sink   { uint8_t data[]; } sink;
 
+shared float local_mem [(gl_WorkGroupSize.x + 2) * (gl_WorkGroupSize.y + 2)];
+
 void main() {
     uvec2 pos = gl_GlobalInvocationID.xy;
+    uvec2 local_pos = gl_LocalInvocationID.xy + uvec2(1);
 
     /*
     variables a-i are the neighbour pixels (we are e)
@@ -27,16 +30,19 @@ void main() {
     d e f
     g h i
     */
+    local_mem[local_pos.y * (gl_WorkGroupSize.x + 2) + local_pos.x] = float(source.data[pos.y * params.width + pos.x]);
 
-    float a = float(source.data[(pos.x - 1) + (pos.y - 1) * params.width]);
-    float b = float(source.data[(pos.x    ) + (pos.y - 1) * params.width]);
-    float c = float(source.data[(pos.x + 1) + (pos.y - 1) * params.width]);
-    float d = float(source.data[(pos.x - 1) + (pos.y    ) * params.width]);
-    float e = float(source.data[(pos.x    ) + (pos.y    ) * params.width]);
-    float f = float(source.data[(pos.x + 1) + (pos.y    ) * params.width]);
-    float g = float(source.data[(pos.x - 1) + (pos.y + 1) * params.width]);
-    float h = float(source.data[(pos.x    ) + (pos.y + 1) * params.width]);
-    float i = float(source.data[(pos.x + 1) + (pos.y + 1) * params.width]);
+    barrier();
+
+    float a = local_mem[(local_pos.x - 1) + (local_pos.y - 1) * (gl_WorkGroupSize.x + 2)];
+    float b = local_mem[(local_pos.x    ) + (local_pos.y - 1) * (gl_WorkGroupSize.x + 2)];
+    float c = local_mem[(local_pos.x + 1) + (local_pos.y - 1) * (gl_WorkGroupSize.x + 2)];
+    float d = local_mem[(local_pos.x - 1) + (local_pos.y    ) * (gl_WorkGroupSize.x + 2)];
+    float e = local_mem[(local_pos.x    ) + (local_pos.y    ) * (gl_WorkGroupSize.x + 2)];
+    float f = local_mem[(local_pos.x + 1) + (local_pos.y    ) * (gl_WorkGroupSize.x + 2)];
+    float g = local_mem[(local_pos.x - 1) + (local_pos.y + 1) * (gl_WorkGroupSize.x + 2)];
+    float h = local_mem[(local_pos.x    ) + (local_pos.y + 1) * (gl_WorkGroupSize.x + 2)];
+    float i = local_mem[(local_pos.x + 1) + (local_pos.y + 1) * (gl_WorkGroupSize.x + 2)];
 
     vec3 red_pixel = vec3(
         e,
