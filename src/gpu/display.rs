@@ -43,16 +43,21 @@ use crate::{
     },
 };
 use itertools::join;
-use std::{any::Any, sync::{
-    mpsc::{
-        channel,
-        sync_channel,
-        Sender,
-        SyncSender,
-        TrySendError::{Disconnected, Full},
+use std::{
+    any::Any,
+    sync::{
+        mpsc::{
+            channel,
+            sync_channel,
+            Sender,
+            SyncSender,
+            TrySendError::{Disconnected, Full},
+        },
+        Arc,
     },
-    Arc,
-}, thread::{spawn, JoinHandle}, thread};
+    thread,
+    thread::{spawn, JoinHandle},
+};
 use vulkano_win::VkSurfaceBuild;
 use winit::{
     event::{Event, WindowEvent},

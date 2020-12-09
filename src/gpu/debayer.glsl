@@ -1,3 +1,5 @@
+
+
 #version 450
 #extension GL_EXT_shader_explicit_arithmetic_types: enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int8: require
@@ -8,7 +10,7 @@ layout(push_constant) uniform PushConstantData {
     uint width;
     uint height;
 
-    // these are actual coordinates of the first red pixel (unlike everywhere else)
+// these are actual coordinates of the first red pixel (unlike everywhere else)
     uint first_red_x;
     uint first_red_y;
 } params;
@@ -16,54 +18,61 @@ layout(push_constant) uniform PushConstantData {
 layout(set = 0, binding = 0) buffer Source { uint8_t data[]; } source;
 layout(set = 0, binding = 1) buffer Sink   { uint8_t data[]; } sink;
 
-uint8_t get_pixel_at(uint x, uint y) {
-    return source.data[y * params.width + x];
-}
-
-void write_rgb_at(uint x, uint y, uint8_t r, uint8_t g, uint8_t b) {
-    sink.data[(y * params.width + x) * 3 + 0] = r;
-    sink.data[(y * params.width + x) * 3 + 1] = g;
-    sink.data[(y * params.width + x) * 3 + 2] = b;
-}
-
-uint8_t avrg4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
-    return (a / uint8_t(4) + b / uint8_t(4) + c / uint8_t(4) + d / uint8_t(4));
-}
-
-uint8_t avrg2(uint8_t a, uint8_t b) {
-    return (a / uint8_t(2) + b / uint8_t(2));
-}
-
 void main() {
-    uint x = gl_GlobalInvocationID.x;
-    uint y = gl_GlobalInvocationID.y;
+    uvec2 pos = gl_GlobalInvocationID.xy;
 
-    bool x_red = (x + params.first_red_x) % 2 == 0;
-    bool y_red = (y + params.first_red_y) % 2 == 0;
+    /*
+    variables a-i are the neighbour pixels (we are e)
+    a b c
+    d e f
+    g h i
+    */
 
-    if (x_red && y_red) {  // we are a red pixel
-        write_rgb_at(x, y,
-            get_pixel_at(x, y),
-            avrg4(get_pixel_at(x+1, y), get_pixel_at(x-1, y), get_pixel_at(x, y+1), get_pixel_at(x, y-1)),
-            avrg4(get_pixel_at(x+1, y+1), get_pixel_at(x-1, y-1), get_pixel_at(x-1, y+1), get_pixel_at(x+1, y-1))
-        );
-    } else if (!x_red && !y_red) {  // we are a blue pixel
-        write_rgb_at(x, y,
-            avrg4(get_pixel_at(x+1, y+1), get_pixel_at(x-1, y-1), get_pixel_at(x-1, y+1), get_pixel_at(x+1, y-1)),
-            avrg4(get_pixel_at(x+1, y), get_pixel_at(x-1, y), get_pixel_at(x, y+1), get_pixel_at(x, y-1)),
-            get_pixel_at(x, y)
-        );
-    } else if (!x_red && y_red) {  // we are a green pixel in a red row
-        write_rgb_at(x, y,
-            avrg2(get_pixel_at(x-1, y), get_pixel_at(x+1, y)),
-            get_pixel_at(x, y),
-            avrg2(get_pixel_at(x, y-1), get_pixel_at(x, y+1))
-        );
-    } else if (x_red && !y_red) {  // we are a green pixel in a blue row
-        write_rgb_at(x, y,
-            avrg2(get_pixel_at(x, y-1), get_pixel_at(x, y+1)),
-            get_pixel_at(x, y),
-            avrg2(get_pixel_at(x-1, y), get_pixel_at(x+1, y))
-        );
-    }
+    float a = float(source.data[(pos.x - 1) + (pos.y - 1) * params.width]);
+    float b = float(source.data[(pos.x    ) + (pos.y - 1) * params.width]);
+    float c = float(source.data[(pos.x + 1) + (pos.y - 1) * params.width]);
+    float d = float(source.data[(pos.x - 1) + (pos.y    ) * params.width]);
+    float e = float(source.data[(pos.x    ) + (pos.y    ) * params.width]);
+    float f = float(source.data[(pos.x + 1) + (pos.y    ) * params.width]);
+    float g = float(source.data[(pos.x - 1) + (pos.y + 1) * params.width]);
+    float h = float(source.data[(pos.x    ) + (pos.y + 1) * params.width]);
+    float i = float(source.data[(pos.x + 1) + (pos.y + 1) * params.width]);
+
+    vec3 red_pixel = vec3(
+        e,
+        (f + d + h + b) / 4.,
+        (i + a + g + c) / 4.
+    );
+    vec3 blue_pixel = vec3(
+        (i + a + g + c) / 4.,
+        (f + d + h + b) / 4.,
+        e
+    );
+    vec3 green_pixel_red_row = vec3(
+        (d + f) / 2.,
+        e,
+        (b + h) / 2.
+    );
+    vec3 green_pixel_blue_row = vec3(
+        (b + h) / 2.,
+        e,
+        (d + f) / 2.
+    );
+
+    float x_red = float((pos.x + params.first_red_x + 1) % 2);
+    float x_red_not = float((pos.x + params.first_red_x) % 2);
+    float y_red = float((pos.y + params.first_red_y + 1) % 2);
+    float y_red_not = float((pos.y + params.first_red_y) % 2);
+
+    vec3 rgb = (
+        + red_pixel * x_red * y_red
+        + blue_pixel * x_red_not * y_red_not
+        + green_pixel_red_row * x_red_not * y_red
+        + green_pixel_blue_row * x_red * y_red_not
+    );
+
+    sink.data[(pos.y * params.width + pos.x) * 3 + 0] = uint8_t(rgb.r);
+    sink.data[(pos.y * params.width + pos.x) * 3 + 1] = uint8_t(rgb.g);
+    sink.data[(pos.y * params.width + pos.x) * 3 + 2] = uint8_t(rgb.b);
 }
+

@@ -74,7 +74,7 @@ impl ProgressNode {
                     .template("{wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} | {msg} ")
                     .progress_chars("#>-"));
                 bar
-            },
+            }
             None => ProgressBar::new_spinner(),
         };
 
