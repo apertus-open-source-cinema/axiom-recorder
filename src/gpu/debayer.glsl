@@ -13,30 +13,30 @@ layout(push_constant) uniform PushConstantData {
     uint first_red_y;
 } params;
 
-layout( set = 0, binding = 0, r8 ) uniform imageBuffer source;
-layout( set = 0, binding = 1, rgba8 ) uniform imageBuffer sink;
+layout(set = 0, binding = 0) buffer Source { uint8_t data[]; } source;
+layout(set = 0, binding = 1) buffer Sink   { uint8_t data[]; } sink;
 
-float get_pixel_at(int x, int y) {
-    return imageLoad(source, y * int(params.width) + x).r;
+uint8_t get_pixel_at(uint x, uint y) {
+    return source.data[y * params.width + x];
 }
 
-void write_rgb_at(int x, int y, float r, float g, float b) {
-    imageStore(sink, (y * int(params.width)+ x) * 3 + 0, vec4(r, 0., 0., 0.));
-    imageStore(sink, (y * int(params.width)+ x) * 3 + 1, vec4(g, 0., 0., 0.));
-    imageStore(sink, (y * int(params.width)+ x) * 3 + 2, vec4(b, 0., 0., 0.));
+void write_rgb_at(uint x, uint y, uint8_t r, uint8_t g, uint8_t b) {
+    sink.data[(y * params.width + x) * 3 + 0] = r;
+    sink.data[(y * params.width + x) * 3 + 1] = g;
+    sink.data[(y * params.width + x) * 3 + 2] = b;
 }
 
-float avrg4(float a, float b, float c, float d) {
-    return (a / float(4) + b / float(4) + c / float(4) + d / float(4));
+uint8_t avrg4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
+    return (a / uint8_t(4) + b / uint8_t(4) + c / uint8_t(4) + d / uint8_t(4));
 }
 
-float avrg2(float a, float b) {
-    return (a / float(2) + b / float(2));
+uint8_t avrg2(uint8_t a, uint8_t b) {
+    return (a / uint8_t(2) + b / uint8_t(2));
 }
 
 void main() {
-    int x = int(gl_GlobalInvocationID.x);
-    int y = int(gl_GlobalInvocationID.y);
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
 
     bool x_red = (x + params.first_red_x) % 2 == 0;
     bool y_red = (y + params.first_red_y) % 2 == 0;

@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg};
-use gstreamer::glib::bitflags::_core::sync::atomic::{AtomicU64, Ordering};
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use recorder::pipeline_processing::{
@@ -19,7 +18,13 @@ use std::{
     collections::HashMap,
     env,
     iter::{once, FromIterator},
-    sync::{Arc, Mutex, MutexGuard, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+        Mutex,
+        MutexGuard,
+        RwLock,
+    },
     time::SystemTime,
 };
 

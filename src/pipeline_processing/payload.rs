@@ -1,6 +1,8 @@
 use anyhow::anyhow;
-use std::any::{type_name, Any};
-use std::sync::Arc;
+use std::{
+    any::{type_name, Any},
+    sync::Arc,
+};
 
 #[derive(Clone, Debug)]
 pub struct Payload {

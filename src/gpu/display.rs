@@ -42,9 +42,9 @@ use crate::{
         payload::Payload,
     },
 };
-use std::any::Any;
 use itertools::join;
 use std::{
+    any::Any,
     sync::{
         mpsc::{
             channel,

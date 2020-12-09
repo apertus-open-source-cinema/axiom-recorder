@@ -15,13 +15,13 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use glob::glob;
-use std::time::Duration;
 use std::{
     fs::File,
     io::Read,
     path::PathBuf,
     sync::{Mutex, MutexGuard},
     thread::sleep,
+    time::Duration,
     vec::IntoIter,
 };
 
