@@ -6,7 +6,6 @@ use std::{ops::Deref, sync::Arc};
 use vulkano::{
     buffer::{
         cpu_access::{ReadLock, ReadLockError},
-        BufferAccess,
         BufferUsage,
         CpuAccessibleBuffer,
     },

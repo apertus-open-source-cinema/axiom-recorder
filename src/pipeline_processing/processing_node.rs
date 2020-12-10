@@ -1,9 +1,6 @@
 use crate::pipeline_processing::payload::Payload;
-use anyhow::{anyhow, Result};
-use std::{
-    any::{type_name, Any},
-    sync::{Arc, MutexGuard},
-};
+
+use std::sync::MutexGuard;
 
 pub trait ProcessingNode: Send + Sync {
     fn process(

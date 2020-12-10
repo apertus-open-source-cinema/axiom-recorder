@@ -1,35 +1,26 @@
 use crate::{
-    frame::raw_frame::RawFrame,
+    frame::{raw_frame::RawFrame, rgb_frame::RgbFrame},
+    gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
     pipeline_processing::{
         parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
+        payload::Payload,
         processing_node::ProcessingNode,
     },
 };
 use anyhow::{anyhow, Context, Result};
+use std::sync::{Arc, MutexGuard};
 use vulkano::{
-    buffer::{BufferUsage, CpuAccessibleBuffer},
+    buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess},
     command_buffer::AutoCommandBufferBuilder,
-    descriptor::{descriptor_set::PersistentDescriptorSet, PipelineLayoutAbstract},
-    device::{Device, DeviceExtensions},
-    instance::{Instance, InstanceExtensions, PhysicalDevice},
+    descriptor::{
+        descriptor_set::PersistentDescriptorSet,
+        pipeline_layout::PipelineLayout,
+        PipelineLayoutAbstract,
+    },
+    device::{Device, Queue},
     pipeline::ComputePipeline,
     sync,
     sync::GpuFuture,
-};
-
-use crate::{frame::rgba_frame::RgbaFrame, gpu::gpu_util::CpuAccessibleBufferReadView};
-
-use crate::{
-    frame::rgb_frame::RgbFrame,
-    gpu::gpu_util::VulkanContext,
-    pipeline_processing::payload::Payload,
-};
-use std::sync::{Arc, MutexGuard};
-use vulkano::{
-    buffer::{BufferView, TypedBufferAccess},
-    descriptor::pipeline_layout::PipelineLayout,
-    device::Queue,
-    format::{R8G8B8A8Unorm, R8G8B8Unorm, R8Unorm},
 };
 
 mod compute_shader {

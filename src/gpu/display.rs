@@ -9,13 +9,10 @@ use vulkano::{
     buffer::{BufferUsage, BufferView, CpuAccessibleBuffer},
     command_buffer::{AutoCommandBufferBuilder, DynamicState, SubpassContents},
     descriptor::descriptor_set::PersistentDescriptorSet,
-    device::{Device, DeviceExtensions},
-    format::{Format, R8G8B8A8Unorm, R8Unorm},
+    format::R8Unorm,
     framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract, Subpass},
-    image::{Dimensions, ImageUsage, ImmutableImage, SwapchainImage},
-    instance::{Instance, PhysicalDevice},
+    image::{ImageUsage, SwapchainImage},
     pipeline::{viewport::Viewport, GraphicsPipeline},
-    sampler::{Filter, MipmapMode, Sampler, SamplerAddressMode},
     swapchain,
     swapchain::{
         AcquireError,
@@ -31,32 +28,29 @@ use vulkano::{
 };
 
 use crate::{
-    frame::{rgb_frame::RgbFrame, rgba_frame::RgbaFrame},
+    frame::rgb_frame::RgbFrame,
     gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
     pipeline_processing::{
         parametrizable::{
             ParameterType::BoolParameter,
-            ParameterTypeDescriptor::{Mandatory, Optional},
+            ParameterTypeDescriptor::Optional,
             ParameterValue,
         },
         payload::Payload,
     },
 };
-use itertools::join;
+
 use std::{
-    any::Any,
     sync::{
         mpsc::{
-            channel,
             sync_channel,
-            Sender,
             SyncSender,
             TrySendError::{Disconnected, Full},
         },
         Arc,
     },
     thread,
-    thread::{spawn, JoinHandle},
+    thread::JoinHandle,
 };
 use vulkano_win::VkSurfaceBuild;
 use winit::{
@@ -246,7 +240,7 @@ impl Parameterizable for Display {
                 VulkanContext::get().device,
                 BufferUsage::all(),
                 true,
-                (0..1),
+                0..1,
             )
             .unwrap();
             let mut frame_width = 1u32;
@@ -383,7 +377,11 @@ impl Parameterizable for Display {
     }
 }
 impl ProcessingNode for Display {
-    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
+    fn process(
+        &self,
+        input: &mut Payload,
+        _frame_lock: MutexGuard<u64>,
+    ) -> Result<Option<Payload>> {
         let frame = input.downcast::<RgbFrame>().context("Wrong input format")?;
         if self.blocking {
             match self.tx.lock().unwrap().send(Some(frame)) {
@@ -405,7 +403,7 @@ impl ProcessingNode for Display {
 }
 impl Drop for Display {
     fn drop(&mut self) {
-        self.tx.lock().unwrap().send(None);
+        self.tx.lock().unwrap().send(None).unwrap();
         self.join_handle.take().unwrap().join().unwrap();
     }
 }

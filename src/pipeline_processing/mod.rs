@@ -4,6 +4,7 @@ use crate::{
     pipeline_processing::parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
     video_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
+        reader_usb3::Usb3Reader,
         writer_cinema_dng::CinemaDngWriter,
         writer_ffmpeg::FfmpegWriter,
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
@@ -47,6 +48,7 @@ macro_rules! generate_dynamic_node_creation_functions {
 // TODO(robin): this is stupid
 #[cfg(feature = "gst")]
 generate_dynamic_node_creation_functions![
+    Usb3Reader,
     RawBlobReader,
     RawDirectoryReader,
     BitDepthConverter,
@@ -61,6 +63,7 @@ generate_dynamic_node_creation_functions![
 
 #[cfg(not(feature = "gst"))]
 generate_dynamic_node_creation_functions![
+    Usb3Reader,
     RawBlobReader,
     RawDirectoryReader,
     BitDepthConverter,
