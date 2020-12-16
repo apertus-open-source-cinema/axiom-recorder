@@ -31,7 +31,7 @@ use std::{
 const MIN_READ_LEN: u64 = 2048 * 4;
 
 pub struct Usb3Reader {
-    data_rx: Mutex<Receiver<Vec<u8>>>,
+    data_rx: Mutex<Receiver<std::result::Result<Vec<u8>, ft60x::Error>>>,
     request_tx: Mutex<Sender<u64>>,
     width: u64,
     height: u64,
@@ -63,7 +63,7 @@ impl Parameterizable for Usb3Reader {
 
         let ft60x = FT60x::new(DEFAULT_VID, DEFAULT_PID)
             .context("cant open ft60x. maybe try running with sudo?")?;
-        let (empty_buffers_tx, full_buffers_rx) = ft60x.data_stream_mpsc(5);
+        let (empty_buffers_tx, full_buffers_rx, _) = ft60x.data_stream_mpsc(5);
 
         let (request_tx, request_rx) = channel();
         thread::Builder::new().name("usb3-allocate".to_string()).spawn(move || {
@@ -103,7 +103,7 @@ impl ProcessingNode for Usb3Reader {
     ) -> Result<Option<Payload>> {
         let mut wait_for_slip_size = 0;
         let buf = loop {
-            let buf = self.data_rx.lock().unwrap().recv()?;
+            let buf = self.data_rx.lock().unwrap().recv()??;
             if wait_for_slip_size == 0 {
                 let u32_buf: &[u32] = bytemuck::cast_slice(&buf);
                 let mut iter = u32_buf.iter().enumerate();

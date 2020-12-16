@@ -540,7 +540,7 @@ checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 [[package]]
 name = "ft60x"
 version = "0.1.1"
-source = "git+https://github.com/apertus-open-source-cinema/ft60x-rs#8b126317eceeb577c780e1e41596259d076c50ce"
+source = "git+https://github.com/apertus-open-source-cinema/ft60x-rs#dcab9da83baff45a2ea11ae83b97d610a862c124"
 dependencies = [
  "bitflags",
  "byteorder",
