@@ -15,7 +15,7 @@ impl RgbaFrame {
     ) -> Result<RgbaFrame> {
         if (width * height * 4) > (bytes.len() as u64) {
             return Err(anyhow!(
-                "buffer is to small (expected {}, found {})",
+                "buffer is to small for rgba frame (expected {}, found {})",
                 width * height * 3,
                 bytes.len()
             ));

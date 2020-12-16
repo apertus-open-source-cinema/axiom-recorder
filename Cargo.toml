@@ -32,6 +32,7 @@ gstreamer-base = { version = "0.16.5", optional = true }
 winit = "0.23.0"
 lazy_static = "1.4.0"
 ft60x = { git = "https://github.com/apertus-open-source-cinema/ft60x-rs" }
+num = "0.3.1"
 
 [profile.release]
 debug = true

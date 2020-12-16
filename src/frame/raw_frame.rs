@@ -21,7 +21,7 @@ impl RawFrame {
     ) -> Result<RawFrame> {
         if (width * height * bit_depth / 8) > (bytes.len() as u64) {
             return Err(anyhow!(
-                "buffer is to small (expected {}, found {})",
+                "buffer is to small for raw frame (expected {}, found {})",
                 width * height * bit_depth / 8,
                 bytes.len()
             ));

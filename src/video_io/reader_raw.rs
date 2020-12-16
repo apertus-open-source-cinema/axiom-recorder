@@ -32,6 +32,7 @@ pub struct RawBlobReader {
     width: u64,
     height: u64,
     cfa: CfaDescriptor,
+    sleep: f64,
 }
 impl Parameterizable for RawBlobReader {
     const DESCRIPTION: Option<&'static str> =
@@ -45,6 +46,7 @@ impl Parameterizable for RawBlobReader {
             .with("height", Mandatory(IntRange(0, i64::max_value())))
             .with("first-red-x", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
             .with("first-red-y", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
+            .with("sleep", Optional(FloatRange(0., f64::MAX), ParameterValue::FloatRange(0.0)))
     }
     fn from_parameters(options: &Parameters) -> anyhow::Result<Self>
     where
@@ -53,13 +55,21 @@ impl Parameterizable for RawBlobReader {
         let width = options.get("width")?;
         let height = options.get("height")?;
         let bit_depth = options.get("bit-depth")?;
-        let path: String = options.get("path")?;
+        let path: String = options.get("file")?;
         let cfa =
             CfaDescriptor::from_first_red(options.get("first-red-x")?, options.get("first-red-y")?);
 
         let file = File::open(&path)?;
         let frame_count = file.metadata()?.len() / (width * height * bit_depth / 8);
-        Ok(Self { file: Mutex::new(file), frame_count, bit_depth, width, height, cfa })
+        Ok(Self {
+            file: Mutex::new(file),
+            frame_count,
+            bit_depth,
+            width,
+            height,
+            cfa,
+            sleep: options.get("sleep")?,
+        })
     }
 }
 impl ProcessingNode for RawBlobReader {
@@ -68,6 +78,7 @@ impl ProcessingNode for RawBlobReader {
         _input: &mut Payload,
         _frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
+        sleep(Duration::from_secs_f64(self.sleep));
         let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
         let read_count = self.file.lock().unwrap().read(&mut bytes)?;
         if read_count == 0 {

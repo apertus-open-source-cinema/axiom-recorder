@@ -22,7 +22,7 @@ impl Payload {
         let downcast_result = self.data.clone().downcast::<T>();
         downcast_result.map_err(|_| {
             anyhow!(
-                "Payload containing {} cannot be made into {}",
+                "Payload containing {} cannot be made into {}. The nodes you connected have incompatible port types.",
                 self.type_name,
                 type_name::<T>()
             )

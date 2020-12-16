@@ -15,7 +15,7 @@ impl RgbFrame {
     ) -> Result<RgbFrame> {
         if (width * height * 3) > (bytes.len() as u64) {
             return Err(anyhow!(
-                "buffer is to small (expected {}, found {})",
+                "buffer is to small for rgb frame (expected {}, found {})",
                 width * height * 3,
                 bytes.len()
             ));

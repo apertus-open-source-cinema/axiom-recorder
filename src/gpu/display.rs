@@ -334,7 +334,7 @@ impl Parameterizable for Display {
                             pipeline.clone(),
                             &dynamic_state,
                             vertex_buffer.clone(),
-                            set.clone(),
+                            set,
                             push_constants,
                         )
                         .unwrap()
