@@ -1,5 +1,5 @@
 use crate::{
-    frame::rgba_frame::RgbaFrame,
+    frame::rgb_frame::RgbFrame,
     pipeline_processing::{
         parametrizable::{
             ParameterType::StringParameter,
@@ -80,10 +80,10 @@ impl ProcessingNode for GstWriter {
         input: &mut Payload,
         _frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RgbaFrame>()?;
+        let frame = input.downcast::<RgbFrame>()?;
 
         let video_info =
-            VideoInfo::builder(VideoFormat::Rgbx, frame.width as u32, frame.height as u32)
+            VideoInfo::builder(VideoFormat::Rgb, frame.width as u32, frame.height as u32)
                 .fps(Fraction::new(2, 1))
                 .build()
                 .expect("Failed to create video info");
