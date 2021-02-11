@@ -16,6 +16,7 @@ use std::{collections::HashMap, sync::Arc};
 
 #[cfg(feature = "gst")]
 use crate::video_io::writer_gstreamer::GstWriter;
+use crate::video_io::reader_tcp::TcpReader;
 
 pub mod execute;
 pub mod parametrizable;
@@ -59,6 +60,7 @@ generate_dynamic_node_creation_functions![
     FfmpegWriter,
     GstWriter,
     Display,
+    TcpReader,
 ];
 
 #[cfg(not(feature = "gst"))]
@@ -73,4 +75,5 @@ generate_dynamic_node_creation_functions![
     CinemaDngWriter,
     FfmpegWriter,
     Display,
+    TcpReader,
 ];
