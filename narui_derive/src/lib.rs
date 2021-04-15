@@ -15,6 +15,7 @@ pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
     if input.node_type == NodeType::Element {
         let name = input.name.unwrap();
+        let key = format!("{}@{}:{}", name, name.span().start().line, name.span().start().column);
 
         let constructor_ident = Ident::new(&format!("__{}_constructor", name), Span::call_site());
         let processed_attributes = input.attributes.into_iter().map(|x| {
@@ -28,7 +29,7 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
             quote! { children=vec![#(#children),*], }
         } else { quote! {} };
         quote! {
-            #constructor_ident!(@initial #(#processed_attributes,)* #children_processed __context=__context,);
+            #constructor_ident!(@initial #(#processed_attributes,)* #children_processed __context=__context.enter_widget(#key),);
         }
     } else {
         quote! {}
@@ -115,7 +116,6 @@ pub fn widget(args: proc_macro::TokenStream, item: proc_macro::TokenStream) -> p
     };
     transformed.into()
 }
-
 // a (simplified) example of the kind of macro this proc macro generates:
 /*
 macro_rules! button_constructor {
