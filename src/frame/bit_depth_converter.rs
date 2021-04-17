@@ -33,8 +33,14 @@ impl ProcessingNode for BitDepthConverter {
                 |(macro_output_chunk, macro_input_chunk)| {
                     macro_output_chunk.chunks_mut(2).zip(macro_input_chunk.chunks(3)).for_each(
                         |(output_chunk, input_chunk)| {
-                            output_chunk[0] = ((((input_chunk[0] as u16) << 4) & 0xff0) | (((input_chunk[1] as u16) >> 4) & 0xf)).wrapping_shr(4) as u8;
-                            output_chunk[1] = ((((input_chunk[1] as u16) << 8) & 0xf00) | ((input_chunk[2] as u16) & 0xff)).wrapping_shr(4) as u8;
+                            output_chunk[0] = ((((input_chunk[0] as u16) << 4) & 0xff0)
+                                | (((input_chunk[1] as u16) >> 4) & 0xf))
+                                .wrapping_shr(4)
+                                as u8;
+                            output_chunk[1] = ((((input_chunk[1] as u16) << 8) & 0xf00)
+                                | ((input_chunk[2] as u16) & 0xff))
+                                .wrapping_shr(4)
+                                as u8;
                         },
                     );
                 },

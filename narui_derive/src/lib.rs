@@ -1,9 +1,21 @@
-use syn_rsx::{Node, NodeType};
-use quote::{quote};
+use bind_match::bind_match;
 use proc_macro2::{Ident, Span};
-use syn::{ItemFn, FnArg, parse_macro_input, parse_quote, Token, Expr, ExprCall, Pat};
-use syn::punctuated::Punctuated;
-use syn::parse::{Parser, Parse, ParseStream};
+use quote::{quote, ToTokens};
+use std::collections::HashMap;
+use syn::{
+    parse::{Parse, ParseStream, Parser},
+    parse_macro_input,
+    parse_quote,
+    punctuated::Punctuated,
+    Expr,
+    ExprCall,
+    FnArg,
+    ItemFn,
+    Pat,
+    Token,
+    Type,
+};
+use syn_rsx::{Node, NodeType};
 
 #[proc_macro]
 pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -11,7 +23,7 @@ pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     assert_eq!(parsed.len(), 1);
     let transformed = handle_rsx_node(parsed.pop().unwrap());
-    (quote! { #transformed; }).into()
+    transformed.into()
 }
 fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
     if input.node_type == NodeType::Element {
@@ -41,14 +53,15 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
             #constructor_ident!(@initial #(#processed_attributes,)* #children_processed __context=__context.enter_widget(#key),)
         }
     } else {
+        println!("{}", input.node_type);
         unimplemented!();
     }
 }
 
 
 // a helper to parse the parameters to the widget proc macro attribute
-// we cant use the syn AttributeArgs here because it can only handle literals and we want expressions
-// (e.g. for closures)
+// we cant use the syn AttributeArgs here because it can only handle literals
+// and we want expressions (e.g. for closures)
 #[derive(Debug)]
 struct AttributeParameter {
     ident: Ident,
@@ -60,42 +73,55 @@ impl Parse for AttributeParameter {
         input.parse::<Token![=]>()?;
         let expr = input.parse::<Expr>()?;
 
-        Ok(AttributeParameter {
-            ident, expr
-        })
+        Ok(AttributeParameter { ident, expr })
     }
 }
 
 #[proc_macro_attribute]
-pub fn widget(args: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn widget(
+    args: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     let parsed: Result<ItemFn, _> = syn::parse2(item.into());
     let mut function = parsed.unwrap();
 
     let function_ident = function.sig.ident.clone();
-    let macro_ident = Ident::new(&format!("__{}_constructor", function.sig.ident.clone()), Span::call_site());
+    let macro_ident =
+        Ident::new(&format!("__{}_constructor", function.sig.ident.clone()), Span::call_site());
 
     let context_ident = Ident::new("__context", Span::call_site());
     function.sig.inputs.push(parse_quote! {#context_ident: Context});
 
-    let arg_names = function.clone().sig.inputs.into_iter().map(|x| { match x {
-        FnArg::Typed(v) => match *v.pat {
-            Pat::Ident(i) => {i.ident},
-            _ => unimplemented!()
-        },
-        _ => unimplemented!()
-    }});
+    let arg_names = function.clone().sig.inputs.into_iter().map(|arg| {
+        let pat_type = bind_match!(arg, FnArg::Typed(x) => x).unwrap();
+        let pat_ident = bind_match!(*pat_type.pat, Pat::Ident(x) => x).unwrap();
+        pat_ident.ident
+    });
+
+    let arg_types: HashMap<String, Box<Type>> = function
+        .clone()
+        .sig
+        .inputs
+        .into_iter()
+        .map(|arg| {
+            let pat_type = bind_match!(arg, FnArg::Typed(x) => x).unwrap();
+            let pat_ident = bind_match!(*pat_type.pat, Pat::Ident(x) => x).unwrap();
+
+            (pat_ident.ident.to_string(), pat_type.ty)
+        })
+        .collect();
 
     let arg_names_comma = {
         let arg_names = arg_names.clone();
-        quote!{#(#arg_names,)*}
+        quote! {#(#arg_names,)*}
     };
     let arg_names_comma_dollar = {
         let arg_names = arg_names.clone();
-        quote!{#($#arg_names,)*}
+        quote! {#($#arg_names,)*}
     };
     let arg_names_comma_ident = {
         let arg_names = arg_names.clone();
-        quote!{#($#arg_names:ident,)*}
+        quote! {#($#arg_names:ident,)*}
     };
 
     let match_arm = arg_names.clone().map(|x| {
@@ -120,10 +146,13 @@ pub fn widget(args: proc_macro::TokenStream, item: proc_macro::TokenStream) -> p
     let initializers = parsed_args.into_iter().map(|x| {
         let ident = x.ident;
         let value = x.expr;
-        quote! { let #ident = #value }
+        let ty = arg_types.get(&ident.to_string()).unwrap();
+        println!("{}", ty.to_token_stream());
+        quote! { let #ident: #ty = #value }
     });
 
     let transformed = quote! {
+        #[macro_export]
         macro_rules! #macro_ident {
             (@initial $($args:tt)*) => {
                 {
@@ -137,6 +166,10 @@ pub fn widget(args: proc_macro::TokenStream, item: proc_macro::TokenStream) -> p
 
             (@parse [#arg_names_comma_ident_1] ) => { };
         }
+
+        // we do this to have correct scoping of the macro. It should not just be placed at the
+        // crate root
+        pub use #macro_ident as #macro_ident;
 
         #function
     };
