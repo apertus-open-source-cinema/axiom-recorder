@@ -1,7 +1,7 @@
 use bind_match::bind_match;
 use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use syn::{
     parse::{Parse, ParseStream, Parser},
     parse_macro_input,
@@ -39,9 +39,14 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
 
         let children_processed = if input.children.is_empty() {
             quote! {}
-        } else if input.children.iter().all(|x| x.node_type == NodeType::Element) {
+        } else if input.children.iter().any(|x| x.node_type == NodeType::Element) {
             let children: Vec<_> = input.children.into_iter().map(|x| handle_rsx_node(x)).collect();
-            quote! { children=vec![#(#children),*], }
+            if children.len() == 1 {
+                let child = &children[0];
+                quote! { children=#child.into(), }
+            } else {
+                quote! { children=vec![#(#children),*], }
+            }
         } else {
             assert_eq!(input.children.len(), 1);
             let child = input.children[0].value.as_ref().unwrap();
@@ -52,6 +57,9 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
         quote! {
             #constructor_ident!(@initial #(#processed_attributes,)* #children_processed __context=__context.enter_widget(#key),)
         }
+    } else if input.node_type == NodeType::Block {
+        let v = input.value.unwrap();
+        quote!{#v}
     } else {
         println!("{}", input.node_type);
         unimplemented!();
@@ -62,7 +70,7 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
 // a helper to parse the parameters to the widget proc macro attribute
 // we cant use the syn AttributeArgs here because it can only handle literals
 // and we want expressions (e.g. for closures)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AttributeParameter {
     ident: Ident,
     expr: Expr,
@@ -124,17 +132,6 @@ pub fn widget(
         quote! {#($#arg_names:ident,)*}
     };
 
-    let match_arm = arg_names.clone().map(|x| {
-        let arg_names_comma_dollar = arg_names_comma_dollar.clone();
-        let arg_names_comma_ident = arg_names_comma_ident.clone();
-        quote! {
-            (@parse [#arg_names_comma_ident]  #x = $value:expr,$($rest:tt)*) => {
-                let $#x = $value;
-                #macro_ident!(@parse [#arg_names_comma_dollar] $($rest)*);
-            };
-        }
-    });
-
     let arg_names_comma_1 = arg_names_comma.clone();
     let arg_names_comma_2 = arg_names_comma.clone();
     let arg_names_comma_ident_1 = arg_names_comma_ident.clone();
@@ -143,12 +140,42 @@ pub fn widget(
     let parser = Punctuated::<AttributeParameter, Token![,]>::parse_terminated;
     let parsed_args = parser.parse(args).unwrap();
 
-    let initializers = parsed_args.into_iter().map(|x| {
+    let initializers = parsed_args.clone().into_iter().map(|x| {
         let ident = x.ident;
         let value = x.expr;
-        let ty = arg_types.get(&ident.to_string()).unwrap();
-        println!("{}", ty.to_token_stream());
-        quote! { let #ident: #ty = #value }
+        quote! { let #ident = #value }
+    });
+
+    let args_with: HashSet<_> = parsed_args.clone().into_iter().map(|x| {
+        x.ident.to_string()
+    }).collect();
+
+    let match_arm = arg_names.clone().map(|x| {
+        let arg_names_comma_dollar = arg_names_comma_dollar.clone();
+        let arg_names_comma_ident = arg_names_comma_ident.clone();
+
+        let dummy_function_ident = Ident::new(&format!("return_second_{}", x), Span::call_site());
+        let dummy_function_type = arg_types.get(&x.to_string()).unwrap();
+        let dummy_function = quote! {
+                // this is needed to be able to use the default argument with the correct type &
+                // mute unusesd warnings
+                fn #dummy_function_ident(_first: #dummy_function_type, second: #dummy_function_type) -> #dummy_function_type {
+                    second
+                }
+            };
+        let value = if args_with.contains(&x.to_string()) {
+            quote! {#dummy_function_ident($#x, $value)}
+        } else {
+            quote! {$value}
+        };
+
+        quote! {
+            (@parse [#arg_names_comma_ident]  #x = $value:expr,$($rest:tt)*) => {
+                #dummy_function
+                let $#x = #value;
+                #macro_ident!(@parse [#arg_names_comma_dollar] $($rest)*);
+            };
+        }
     });
 
     let transformed = quote! {
