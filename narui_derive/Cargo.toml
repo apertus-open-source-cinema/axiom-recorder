@@ -11,4 +11,5 @@ proc-macro = true
 syn-rsx = "0.8.0"
 quote = "1.0.9"
 proc-macro2 = { version = "1.0.26", features = ["span-locations"] }
-syn = "1.0.68"
+syn = {version = "1.0.68", features = ["full"] }
+

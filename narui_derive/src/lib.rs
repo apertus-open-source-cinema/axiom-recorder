@@ -1,16 +1,17 @@
-use syn_rsx::{parse2, Node, NodeType};
-use quote::{quote, ToTokens};
+use syn_rsx::{Node, NodeType};
+use quote::{quote};
 use proc_macro2::{Ident, Span};
-use syn::{ItemFn, FnArg, Meta, parse_macro_input, NestedMeta, parse_quote};
-use std::collections::HashMap;
+use syn::{ItemFn, FnArg, parse_macro_input, parse_quote, Token, Expr, ExprCall, Pat};
+use syn::punctuated::Punctuated;
+use syn::parse::{Parser, Parse, ParseStream};
 
 #[proc_macro]
 pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let mut parsed = parse2(input.into()).unwrap();
+    let mut parsed = syn_rsx::parse2(input.into()).unwrap();
 
     assert_eq!(parsed.len(), 1);
     let transformed = handle_rsx_node(parsed.pop().unwrap());
-    transformed.into()
+    (quote! { #transformed; }).into()
 }
 fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
     if input.node_type == NodeType::Element {
@@ -24,18 +25,46 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
             quote! {#name=#value}
         });
 
-        let children: Vec<_> = input.children.into_iter().map(|x| handle_rsx_node(x)).collect();
-        let children_processed = if !children.is_empty() {
+        let children_processed = if input.children.is_empty() {
+            quote! {}
+        } else if input.children.iter().all(|x| x.node_type == NodeType::Element) {
+            let children: Vec<_> = input.children.into_iter().map(|x| handle_rsx_node(x)).collect();
             quote! { children=vec![#(#children),*], }
-        } else { quote! {} };
+        } else {
+            assert_eq!(input.children.len(), 1);
+            let child = input.children[0].value.as_ref().unwrap();
+            quote! { children=#child, }
+        };
+
+
         quote! {
-            #constructor_ident!(@initial #(#processed_attributes,)* #children_processed __context=__context.enter_widget(#key),);
+            #constructor_ident!(@initial #(#processed_attributes,)* #children_processed __context=__context.enter_widget(#key),)
         }
     } else {
-        quote! {}
+        unimplemented!();
     }
 }
 
+
+// a helper to parse the parameters to the widget proc macro attribute
+// we cant use the syn AttributeArgs here because it can only handle literals and we want expressions
+// (e.g. for closures)
+#[derive(Debug)]
+struct AttributeParameter {
+    ident: Ident,
+    expr: Expr,
+}
+impl Parse for AttributeParameter {
+    fn parse(input: ParseStream<'_>) -> syn::parse::Result<Self> {
+        let ident = input.parse::<Ident>()?;
+        input.parse::<Token![=]>()?;
+        let expr = input.parse::<Expr>()?;
+
+        Ok(AttributeParameter {
+            ident, expr
+        })
+    }
+}
 
 #[proc_macro_attribute]
 pub fn widget(args: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -49,7 +78,10 @@ pub fn widget(args: proc_macro::TokenStream, item: proc_macro::TokenStream) -> p
     function.sig.inputs.push(parse_quote! {#context_ident: Context});
 
     let arg_names = function.clone().sig.inputs.into_iter().map(|x| { match x {
-        FnArg::Typed(v) => v.pat,
+        FnArg::Typed(v) => match *v.pat {
+            Pat::Ident(i) => {i.ident},
+            _ => unimplemented!()
+        },
         _ => unimplemented!()
     }});
 
@@ -81,20 +113,14 @@ pub fn widget(args: proc_macro::TokenStream, item: proc_macro::TokenStream) -> p
     let arg_names_comma_2 = arg_names_comma.clone();
     let arg_names_comma_ident_1 = arg_names_comma_ident.clone();
 
+    // parse & format the default arguments
+    let parser = Punctuated::<AttributeParameter, Token![,]>::parse_terminated;
+    let parsed_args = parser.parse(args).unwrap();
 
-    // get & format the default arguments
-    type AttributeArgs = Vec<NestedMeta>;
-    let meta = parse_macro_input!(args as AttributeArgs);
-    let arg_name_hashmap: HashMap<_, _> = arg_names.clone().into_iter().map(|x| (format!("{}", x.to_token_stream()), x)).collect();
-    let initializers = meta.into_iter().map(|x| {
-        match x {
-            NestedMeta::Meta(Meta::NameValue(x)) => {
-                let ident = arg_name_hashmap.get(&format!("{}", x.path.get_ident().unwrap()));
-                let value = x.lit;
-                quote! { let #ident = #value }
-            },
-            _ => unimplemented!()
-        }
+    let initializers = parsed_args.into_iter().map(|x| {
+        let ident = x.ident;
+        let value = x.expr;
+        quote! { let #ident = #value }
     });
 
     let transformed = quote! {
@@ -141,9 +167,8 @@ macro_rules! button_constructor {
 
 
 #[proc_macro]
-pub fn context(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let to_return = quote! {
-        __context
-    };
-    to_return.into()
+pub fn hook(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let mut parsed: ExprCall = parse_macro_input!(input);
+    parsed.args.push(parse_quote! {__context.clone()});
+    (quote! {#parsed}).into()
 }
