@@ -1,6 +1,6 @@
 use bind_match::bind_match;
 use proc_macro2::{Ident, Span};
-use quote::{quote, ToTokens};
+use quote::{quote};
 use std::collections::{HashMap, HashSet};
 use syn::{
     parse::{Parse, ParseStream, Parser},
@@ -159,6 +159,7 @@ pub fn widget(
         let dummy_function = quote! {
                 // this is needed to be able to use the default argument with the correct type &
                 // mute unusesd warnings
+                #[allow(non_snake_case)]
                 fn #dummy_function_ident(_first: #dummy_function_type, second: #dummy_function_type) -> #dummy_function_type {
                     second
                 }
