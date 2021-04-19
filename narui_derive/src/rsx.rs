@@ -34,7 +34,7 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
         } else {
             assert_eq!(input.children.len(), 1);
             let child = input.children[0].value.as_ref().unwrap();
-            quote! { children=#child, }
+            quote! { children=#child.into(), }
         };
 
 
