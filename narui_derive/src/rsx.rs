@@ -12,14 +12,21 @@ pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
     if input.node_type == NodeType::Element {
         let name = input.name.unwrap();
-        let key = format!("{}@{}:{}", name, name.span().start().line, name.span().start().column);
+        let key_string =
+            format!("{}@{}:{}", name, name.span().start().line, name.span().start().column);
+        let mut key = quote! {#key_string};
 
         let constructor_ident = Ident::new(&format!("__{}_constructor", name), Span::call_site());
-        let processed_attributes = input.attributes.into_iter().map(|x| {
-            let name = x.name.unwrap();
-            let value = x.value.unwrap();
-            quote! {#name=#value}
-        });
+        let mut processed_attributes = vec![];
+        for attribute in input.attributes {
+            let name = attribute.name.unwrap();
+            let value = attribute.value.unwrap();
+            if name.to_string() == "key" {
+                key = quote! {&#value.to_string()}
+            } else {
+                processed_attributes.push(quote! {#name=#value});
+            }
+        }
 
         let children_processed = if input.children.is_empty() {
             quote! {}
@@ -39,7 +46,10 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
 
 
         quote! {
-            #constructor_ident!(@initial #(#processed_attributes,)* #children_processed __context=__context.enter_widget(#key),)
+            {
+                let __context = __context.enter_widget(#key);
+                #constructor_ident!(@initial __context=__context.clone(), #(#processed_attributes,)* #children_processed )
+            }
         }
     } else if input.node_type == NodeType::Block {
         let v = input.value.unwrap();

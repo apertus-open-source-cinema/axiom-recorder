@@ -105,7 +105,7 @@ pub fn widget(
         let dummy_function = quote! {
                 // this is needed to be able to use the default argument with the correct type &
                 // mute unusesd warnings
-                #[allow(non_snake_case)]
+                #[allow(non_snake_case, unused)]
                 fn #dummy_function_ident(_first: #dummy_function_type, second: #dummy_function_type) -> #dummy_function_type {
                     second
                 }
