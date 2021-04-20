@@ -13,7 +13,7 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
     if input.node_type == NodeType::Element {
         let name = input.name.unwrap();
         let key_string =
-            format!("{}@{}:{}", name, name.span().start().line, name.span().start().column);
+            format!("widget:{}@{}:{}", name, name.span().start().line, name.span().start().column);
         let mut key = quote! {#key_string};
 
         let constructor_ident = Ident::new(&format!("__{}_constructor", name), Span::call_site());
@@ -22,7 +22,7 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
             let name = attribute.name.unwrap();
             let value = attribute.value.unwrap();
             if name.to_string() == "key" {
-                key = quote! {&#value.to_string()}
+                key = quote! {&format!("{}:{}", #key_string, #value.to_string())}
             } else {
                 processed_attributes.push(quote! {#name=#value});
             }
@@ -47,7 +47,7 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
 
         quote! {
             {
-                let __context = __context.enter_widget(#key);
+                let __context = __context.enter(#key);
                 #constructor_ident!(@initial __context=__context.clone(), #(#processed_attributes,)* #children_processed )
             }
         }
