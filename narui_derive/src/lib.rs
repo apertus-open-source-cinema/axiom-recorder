@@ -15,7 +15,7 @@ pub fn toplevel_rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let rsx_macro_output: proc_macro2::TokenStream = rsx::rsx(input).into();
     let transformed = quote! {
         |__context: Context| {
-            #rsx_macro_output
+            std::sync::Arc::new(#rsx_macro_output)
         }
     };
     transformed.into()
