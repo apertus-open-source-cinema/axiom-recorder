@@ -1,7 +1,7 @@
 use bind_match::bind_match;
 use core::result::{Result, Result::Ok};
 use proc_macro2::{Ident, Span};
-use quote::quote;
+use quote::{quote, ToTokens};
 use std::collections::{HashMap, HashSet};
 use syn::{
     parse::{Parse, ParseStream, Parser},
@@ -126,6 +126,14 @@ pub fn widget(
         }
     });
 
+    let return_type =
+        function.sig.output.clone().to_token_stream().into_iter().last().unwrap().to_string();
+    let inner = match return_type.as_str() {
+        "Widget" => quote! {WidgetInner::Composed { widget: #function_ident(#arg_names_comma_2)}},
+        "WidgetInner" => quote! { #function_ident(#arg_names_comma_2) },
+        t => unimplemented!("widget functions must return either Widget or WidgetInner not {}", t),
+    };
+
     let transformed = quote! {
         #[macro_export]
         macro_rules! #macro_ident {
@@ -133,7 +141,7 @@ pub fn widget(
                 {
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma_1] $($args)*);
-                    Widget::Composed { widget: std::sync::Arc::new(#function_ident(#arg_names_comma_2)), name: #function_name_str.to_string()}
+                    Widget { key: (&__context.key).clone(), name: #function_name_str.to_string(), inner: std::sync::Arc::new(#inner) }
                 }
             };
 
