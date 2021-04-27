@@ -43,7 +43,6 @@ pub fn widget(
     let function_ident = function.sig.ident.clone();
     let macro_ident =
         Ident::new(&format!("__{}_constructor", function_ident.clone()), Span::call_site());
-    let function_name_str = function_ident.to_string();
 
     let context_ident = Ident::new("__context", Span::call_site());
     function.sig.inputs.push(parse_quote! {#context_ident: Context});
@@ -141,7 +140,7 @@ pub fn widget(
                 {
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma_1] $($args)*);
-                    Widget { key: (&__context.key).clone(), name: #function_name_str.to_string(), inner: std::sync::Arc::new(#inner) }
+                    Widget { key: (&__context.key).clone(), inner: LazyVal::new(move || {#inner}) }
                 }
             };
 
