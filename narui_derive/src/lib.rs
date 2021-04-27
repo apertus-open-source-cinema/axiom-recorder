@@ -32,13 +32,13 @@ pub fn widget(
 pub fn hook(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut parsed: ExprCall = parse_macro_input!(input);
     let span = parsed.func.span();
-    let key_string = format!(
-        "hook:{}@{}:{}",
-        parsed.func.to_token_stream(),
+    let name = parsed.func.to_token_stream().to_string();
+    let loc = format!(
+        "{}:{}",
         span.start().line,
         span.start().column
     );
-    parsed.args.push(parse_quote! {__context.enter(#key_string)});
+    parsed.args.push(parse_quote! {__context.enter_hook(#name, #loc)});
     (quote! {#parsed}).into()
 }
 
