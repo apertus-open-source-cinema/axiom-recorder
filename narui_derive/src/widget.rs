@@ -78,6 +78,10 @@ pub fn widget(
         let arg_names = arg_names.clone();
         quote! {#($#arg_names:ident,)*}
     };
+    let arg_names_cloned = {
+        let arg_names = arg_names.clone();
+        quote! {#(#arg_names.clone(),)*}
+    };
 
     let arg_names_comma_1 = arg_names_comma.clone();
     let arg_names_comma_2 = arg_names_comma.clone();
@@ -133,6 +137,26 @@ pub fn widget(
         t => unimplemented!("widget functions must return either Widget or WidgetInner not {}", t),
     };
 
+    /*let args_hash = {
+        let arg_names = arg_names.clone();
+        let arg_types = arg_types.clone();
+        let to_hash: Vec<_> = arg_names.filter_map(|name| {
+            if name.to_string() == "__context" {
+                None
+            } else {
+                let ty = arg_types[&name.to_string()].clone();
+                Some(quote! { IsHash::<#ty>::hash_all(&IsHash(core::marker::PhantomData::default()), &#name, &mut hasher); })
+            }
+        }).collect();
+
+        quote! {{
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            #(#to_hash)*
+            hasher.finish()
+        }}
+    };*/
+
     let transformed = quote! {
         #[macro_export]
         macro_rules! #macro_ident {
@@ -140,7 +164,20 @@ pub fn widget(
                 {
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma_1] $($args)*);
-                    Widget { key: (&__context.key).clone(), inner: LazyVal::new(move || {#inner}) }
+                    Widget { key: (&__context.key).clone(), inner: LazyVal::new(move || {
+                        let args_tuple = (#arg_names_cloned);
+                        let args_state_value = StateValue::new(__context.clone(), "args");
+                        if args_state_value.get_default(0) != args_hash {
+                            args_state_value.set(#args_hash);
+                        }
+                        args_hash_state_value.context.mark_used();
+                        let cloned_context = __context.clone();
+
+                        let to_return = { #inner };
+
+                        StateValue::new(cloned_context.clone(), "used").set_sneaky(cloned_context.used.clone());
+                        to_return
+                    }) }
                 }
             };
 
