@@ -1,6 +1,6 @@
 use bind_match::bind_match;
 use core::result::{Result, Result::Ok};
-use proc_macro2::{Ident, Span, Literal};
+use proc_macro2::{Ident, Literal, Span};
 use quote::{quote, ToTokens};
 use std::collections::{HashMap, HashSet};
 use syn::{
@@ -125,16 +125,20 @@ pub fn widget(
         }
     });
 
-    let return_type =
-        function.sig.output.clone().to_token_stream().into_iter().last().unwrap().to_string();
+    let return_type = function.sig.output.clone().to_token_stream().to_string().replace("-> ", "");
     let num_args = (0..arg_names.len()).map(|i| Literal::usize_unsuffixed(i));
 
     let inner = {
         let num_args = num_args.clone();
         match return_type.as_str() {
-            "Widget" => quote! {WidgetInner::Composed { widget: #function_ident(#(args_tuple.#num_args,)*)}},
-            "WidgetInner" => quote! { #function_ident(#(args_tuple.#num_args,)*) },
-            t => unimplemented!("widget functions must return either Widget or WidgetInner not {}", t),
+            "Widget" => {
+                quote! {WidgetInner::Composed { widget: #function_ident(#(args_tuple.#num_args,)*)}}
+            }
+            "WidgetInner < Widget >" => quote! { #function_ident(#(args_tuple.#num_args,)*) },
+            t => unimplemented!(
+                "widget functions must return either Widget or WidgetInner not {}",
+                t
+            ),
         }
     };
 
@@ -145,7 +149,7 @@ pub fn widget(
                 {
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma_1] $($args)*);
-                    Widget { key: (&__context.key).clone(), inner: LazyVal::new(move || {
+                    Widget { key: (&__context.key).clone(), inner: Box::new(move || {
                         let cloned_context = __context.clone();
                         let args_tuple = (#(#arg_names,)*);
 
