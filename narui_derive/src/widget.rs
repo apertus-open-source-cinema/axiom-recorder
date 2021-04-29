@@ -1,6 +1,6 @@
 use bind_match::bind_match;
 use core::result::{Result, Result::Ok};
-use proc_macro2::{Ident, Span};
+use proc_macro2::{Ident, Span, Literal};
 use quote::{quote, ToTokens};
 use std::collections::{HashMap, HashSet};
 use syn::{
@@ -78,10 +78,6 @@ pub fn widget(
         let arg_names = arg_names.clone();
         quote! {#($#arg_names:ident,)*}
     };
-    let arg_names_cloned = {
-        let arg_names = arg_names.clone();
-        quote! {#(#arg_names.clone(),)*}
-    };
 
     let arg_names_comma_1 = arg_names_comma.clone();
     let arg_names_comma_2 = arg_names_comma.clone();
@@ -131,31 +127,16 @@ pub fn widget(
 
     let return_type =
         function.sig.output.clone().to_token_stream().into_iter().last().unwrap().to_string();
-    let inner = match return_type.as_str() {
-        "Widget" => quote! {WidgetInner::Composed { widget: #function_ident(#arg_names_comma_2)}},
-        "WidgetInner" => quote! { #function_ident(#arg_names_comma_2) },
-        t => unimplemented!("widget functions must return either Widget or WidgetInner not {}", t),
+    let num_args = (0..arg_names.len()).map(|i| Literal::usize_unsuffixed(i));
+
+    let inner = {
+        let num_args = num_args.clone();
+        match return_type.as_str() {
+            "Widget" => quote! {WidgetInner::Composed { widget: #function_ident(#(args_tuple.#num_args,)*)}},
+            "WidgetInner" => quote! { #function_ident(#(args_tuple.#num_args,)*) },
+            t => unimplemented!("widget functions must return either Widget or WidgetInner not {}", t),
+        }
     };
-
-    /*let args_hash = {
-        let arg_names = arg_names.clone();
-        let arg_types = arg_types.clone();
-        let to_hash: Vec<_> = arg_names.filter_map(|name| {
-            if name.to_string() == "__context" {
-                None
-            } else {
-                let ty = arg_types[&name.to_string()].clone();
-                Some(quote! { IsHash::<#ty>::hash_all(&IsHash(core::marker::PhantomData::default()), &#name, &mut hasher); })
-            }
-        }).collect();
-
-        quote! {{
-            use std::hash::{Hash, Hasher};
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            #(#to_hash)*
-            hasher.finish()
-        }}
-    };*/
 
     let transformed = quote! {
         #[macro_export]
@@ -165,13 +146,19 @@ pub fn widget(
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma_1] $($args)*);
                     Widget { key: (&__context.key).clone(), inner: LazyVal::new(move || {
-                        let args_tuple = (#arg_names_cloned);
-                        let args_state_value = StateValue::new(__context.clone(), "args");
-                        if args_state_value.get_default(0) != args_hash {
-                            args_state_value.set(#args_hash);
-                        }
-                        args_hash_state_value.context.mark_used();
                         let cloned_context = __context.clone();
+                        let args_tuple = (#(#arg_names,)*);
+
+                        let args_state_value = StateValue::new(cloned_context.clone(), "args");
+                        fn constrain_type_helper<T> (_a: &StateValue<T>, _b: &T) {}
+                        constrain_type_helper(&args_state_value, &args_tuple);
+                        if (!args_state_value.context.is_present()) {
+                            args_state_value.set(args_tuple.clone());
+                        } else if (&args_state_value.get() != &args_tuple) {
+                            //#(dbg!(&args_tuple.#num_args == &args_state_value.get().#num_args);)*
+                            args_state_value.set(args_tuple.clone());
+                        }
+                        args_state_value.context.mark_used();
 
                         let to_return = { #inner };
 
@@ -192,6 +179,7 @@ pub fn widget(
 
         #function
     };
+    println!("{}", transformed.clone());
     transformed.into()
 }
 // a (simplified) example of the kind of macro this proc macro generates:
