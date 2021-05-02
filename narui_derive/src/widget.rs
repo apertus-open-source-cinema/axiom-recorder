@@ -127,14 +127,15 @@ pub fn widget(
 
     let return_type = function.sig.output.clone().to_token_stream().to_string().replace("-> ", "");
     let num_args = (0..arg_names.len()).map(|i| Literal::usize_unsuffixed(i));
+    let num_args_cloned = num_args.clone();
 
     let inner = {
         let num_args = num_args.clone();
         match return_type.as_str() {
             "Widget" => {
-                quote! {WidgetInner::Composed { widget: #function_ident(#(args_tuple.#num_args,)*)}}
+                quote! {WidgetInner::Composed { widget: parking_lot::Mutex::new(#function_ident(#(clone_without_deref(&args_tuple.#num_args),)*))}}
             }
-            "WidgetInner < Widget >" => quote! { #function_ident(#(args_tuple.#num_args,)*) },
+            "WidgetInner" => quote! { #function_ident(#(clone_without_deref(&args_tuple.#num_args),)*) },
             t => unimplemented!(
                 "widget functions must return either Widget or WidgetInner not {}",
                 t
@@ -149,26 +150,37 @@ pub fn widget(
                 {
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma_1] $($args)*);
-                    Widget { key: (&__context.key).clone(), inner: Box::new(move || {
-                        let cloned_context = __context.clone();
-                        let args_tuple = (#(#arg_names,)*);
+                    let cloned_context = __context.clone();
+                    let args_tuple = (#(#arg_names,)*);
+                    fn clone_without_deref<T: Clone>(x: &T) -> T {
+                        x.clone()
+                    }
 
-                        let args_state_value = StateValue::new(cloned_context.clone(), "args");
-                        fn constrain_type_helper<T> (_a: &StateValue<T>, _b: &T) {}
-                        constrain_type_helper(&args_state_value, &args_tuple);
-                        if (!args_state_value.context.is_present()) {
-                            args_state_value.set(args_tuple.clone());
-                        } else if (&args_state_value.get() != &args_tuple) {
-                            //#(dbg!(&args_tuple.#num_args == &args_state_value.get().#num_args);)*
-                            args_state_value.set(args_tuple.clone());
-                        }
-                        args_state_value.context.mark_used();
+                    let args_state_value = StateValue::new(cloned_context.clone(), "args");
+                    args_state_value.context.mark_used();
 
+                    //dbg!(&cloned_context.key);
+
+                    fn constrain_type_helper<T> (_a: &StateValue<T>, _b: &T) {}
+                    constrain_type_helper(&args_state_value, &args_tuple);
+                    if (!args_state_value.context.is_present()) {
+                        //dbg!("args not prev");
+                        args_state_value.set(args_tuple.clone());
+                    } else if (&args_state_value.get() != &args_tuple) {
+                        //dbg!("args changed");
+                        //#(dbg!(&args_tuple.#num_args == &args_state_value.get().#num_args);)*
+                        args_state_value.set(args_tuple.clone());
+                    } else {
+                        //dbg!("args stayed");
+                        //#(dbg!(&args_tuple.#num_args_cloned == &args_state_value.get().#num_args_cloned);)*
+                    }
+
+                    Widget::Unevaluated(UnevaluatedWidget { key: (&cloned_context.key).clone(), gen: std::sync::Arc::new(move || {
                         let to_return = { #inner };
 
                         StateValue::new(cloned_context.clone(), "used").set_sneaky(cloned_context.used.clone());
                         to_return
-                    }) }
+                    }) })
                 }
             };
 
