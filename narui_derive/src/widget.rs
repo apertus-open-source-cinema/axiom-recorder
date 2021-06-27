@@ -41,11 +41,10 @@ pub fn widget(
     let mut function = parsed.unwrap();
 
     let function_ident = function.sig.ident.clone();
-    let macro_ident =
-        Ident::new(&format!("__{}_constructor", function_ident.clone()), Span::call_site());
-
-    let context_ident = Ident::new("__context", Span::call_site());
-    function.sig.inputs.push(parse_quote! {#context_ident: Context});
+    let macro_ident = Ident::new(
+        &format!("__{}_constructor", function_ident.clone()),
+        Span::call_site()
+    );
 
     let arg_names = function.clone().sig.inputs.into_iter().map(|arg| {
         let pat_type = bind_match!(arg, FnArg::Typed(x) => x).unwrap();
@@ -90,11 +89,10 @@ pub fn widget(
     let initializers = parsed_args.clone().into_iter().map(|x| {
         let ident = x.ident;
         let value = x.expr;
-        quote! { let #ident = #value }
+        quote! { let #ident = move || #value }
     });
 
-    let args_with: HashSet<_> =
-        parsed_args.clone().into_iter().map(|x| x.ident.to_string()).collect();
+    let args_with: HashSet<_> = parsed_args.clone().into_iter().map(|x| x.ident.to_string()).collect();
 
     let match_arm = arg_names.clone().map(|x| {
         let arg_names_comma_dollar = arg_names_comma_dollar.clone();
@@ -106,18 +104,21 @@ pub fn widget(
                 // this is needed to be able to use the default argument with the correct type &
                 // mute unusesd warnings
                 #[allow(non_snake_case, unused)]
-                fn #dummy_function_ident(_first: #dummy_function_type, second: #dummy_function_type) -> #dummy_function_type {
+                fn #dummy_function_ident(
+                    _first: impl Fn() -> #dummy_function_type + Clone,
+                    second: impl Fn() -> #dummy_function_type + Clone
+                ) -> impl Fn() -> #dummy_function_type + Clone {
                     second
                 }
             };
         let value = if args_with.contains(&x.to_string()) {
-            quote! {#dummy_function_ident($#x, $value)}
+            quote! {#dummy_function_ident($#x, move || $value)}
         } else {
-            quote! {$value}
+            quote! {move || $value}
         };
 
         quote! {
-            (@parse [#arg_names_comma_ident]  #x = $value:expr,$($rest:tt)*) => {
+            (@parse [#arg_names_comma_ident] #x = $value:expr,$($rest:tt)*) => {
                 #dummy_function
                 let $#x = #value;
                 #macro_ident!(@parse [#arg_names_comma_dollar] $($rest)*);
@@ -127,15 +128,14 @@ pub fn widget(
 
     let return_type = function.sig.output.clone().to_token_stream().to_string().replace("-> ", "");
     let num_args = (0..arg_names.len()).map(|i| Literal::usize_unsuffixed(i));
-    let num_args_cloned = num_args.clone();
 
     let inner = {
         let num_args = num_args.clone();
         match return_type.as_str() {
             "Widget" => {
-                quote! {WidgetInner::Composed { widget: parking_lot::Mutex::new(#function_ident(#(clone_without_deref(&args_tuple.#num_args),)*))}}
+                quote! {WidgetInner::Composed { widget: parking_lot::Mutex::new(#function_ident(#(clone_without_deref(&args_tuple.#num_args),)* __context.clone()))}}
             }
-            "WidgetInner" => quote! { #function_ident(#(clone_without_deref(&args_tuple.#num_args),)*) },
+            "WidgetInner" => quote! { #function_ident(#(clone_without_deref(&args_tuple.#num_args),)* __context.clone()) },
             t => unimplemented!(
                 "widget functions must return either Widget or WidgetInner not {}",
                 t
@@ -143,42 +143,29 @@ pub fn widget(
         }
     };
 
+    let context_ident = Ident::new("__context", Span::call_site());
+    function.sig.inputs.push(parse_quote! {#context_ident: Context});
+
     let transformed = quote! {
         #[macro_export]
         macro_rules! #macro_ident {
-            (@initial $($args:tt)*) => {
+            (@initial __context=$context:expr, $($args:tt)*) => {
                 {
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma_1] $($args)*);
-                    let cloned_context = __context.clone();
-                    let args_tuple = (#(#arg_names,)*);
-                    fn clone_without_deref<T: Clone>(x: &T) -> T {
-                        x.clone()
-                    }
 
-                    let args_state_value = StateValue::new(cloned_context.clone(), "args");
-                    args_state_value.context.mark_used();
+                    let __context = $context.clone();
+                    Widget::Unevaluated(UnevaluatedWidget { key: __context.key.clone(), gen: std::sync::Arc::new(move || {
+                        fn clone_without_deref<T: Clone>(x: &T) -> T { x.clone() }
+                        let args_tuple = (#({let __context = __context.clone(); (#arg_names.clone())()},)*);
+                        let args_state_value = StateValue::new(__context.clone(), "args");
+                        fn constrain_type_helper<T> (_a: &StateValue<T>, _b: &T) {}
+                        constrain_type_helper(&args_state_value, &args_tuple);
+                        args_state_value.update_now(args_tuple.clone());
 
-                    //dbg!(&cloned_context.key);
-
-                    fn constrain_type_helper<T> (_a: &StateValue<T>, _b: &T) {}
-                    constrain_type_helper(&args_state_value, &args_tuple);
-                    if (!args_state_value.context.is_present()) {
-                        //dbg!("args not prev");
-                        args_state_value.set(args_tuple.clone());
-                    } else if (&args_state_value.get() != &args_tuple) {
-                        //dbg!("args changed");
-                        //#(dbg!(&args_tuple.#num_args == &args_state_value.get().#num_args);)*
-                        args_state_value.set(args_tuple.clone());
-                    } else {
-                        //dbg!("args stayed");
-                        //#(dbg!(&args_tuple.#num_args_cloned == &args_state_value.get().#num_args_cloned);)*
-                    }
-
-                    Widget::Unevaluated(UnevaluatedWidget { key: (&cloned_context.key).clone(), gen: std::sync::Arc::new(move || {
                         let to_return = { #inner };
 
-                        StateValue::new(cloned_context.clone(), "used").set_sneaky(cloned_context.used.clone());
+                        StateValue::new(__context.clone(), "used").set_sneaky_now(__context.used.clone());
                         to_return
                     }) })
                 }
@@ -195,7 +182,7 @@ pub fn widget(
 
         #function
     };
-    println!("{}", transformed.clone());
+    println!(" {}", transformed.clone());
     transformed.into()
 }
 // a (simplified) example of the kind of macro this proc macro generates:

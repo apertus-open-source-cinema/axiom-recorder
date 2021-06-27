@@ -1,7 +1,11 @@
-use proc_macro2::{Ident, Span};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn_rsx::{Node, NodeType};
+use std::collections::HashMap;
+use syn::__private::ToTokens;
 
+
+// TODO: handle eager evaluation of parameters by having a hashmap and eagerly evaluating everythnig in the beginning
 pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut parsed = syn_rsx::parse2(input.into()).unwrap();
 
@@ -9,7 +13,7 @@ pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let transformed = handle_rsx_node(parsed.pop().unwrap());
     transformed.into()
 }
-fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
+fn handle_rsx_node(input: Node, ) -> proc_macro2::TokenStream {
     if input.node_type == NodeType::Element {
         let name = input.name.unwrap();
         let name_str = name.to_string();
@@ -25,6 +29,7 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
             if name.to_string() == "key" {
                 key = quote! {enter_widget_key(#name_str, #loc, #value.to_string())}
             } else {
+                let value = value.into_token_stream();
                 processed_attributes.push(quote! {#name=#value});
             }
         }
@@ -42,9 +47,9 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
         } else {
             assert_eq!(input.children.len(), 1);
             let child = input.children[0].value.as_ref().unwrap();
+            let child = child.into_token_stream();
             quote! { children=#child.into(), }
         };
-
 
         quote! {
             {
@@ -52,7 +57,8 @@ fn handle_rsx_node(input: Node) -> proc_macro2::TokenStream {
                 #constructor_ident!(@initial __context=__context.clone(), #(#processed_attributes,)* #children_processed )
             }
         }
-    } else if input.node_type == NodeType::Block {
+    }
+    else if input.node_type == NodeType::Block {
         let v = input.value.unwrap();
         quote! {#v}
     } else {

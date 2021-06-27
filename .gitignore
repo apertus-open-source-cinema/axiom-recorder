@@ -2,6 +2,7 @@ target
 **/*.rs.bk
 **/*~.idea/
 .idea/
+.vscode
 
 .cargo
 flamegraph*.svg

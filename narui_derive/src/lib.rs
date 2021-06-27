@@ -6,6 +6,7 @@ use syn::parse_macro_input;
 
 use quote::ToTokens;
 use syn::{parse_quote, spanned::Spanned, ExprCall};
+use proc_macro::Ident;
 
 #[proc_macro]
 pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream { rsx::rsx(input) }
@@ -36,6 +37,24 @@ pub fn hook(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let loc = format!("{}:{}", span.start().line, span.start().column);
     parsed.args.push(parse_quote! {__context.enter_hook(#name, #loc)});
     (quote! {#parsed}).into()
+}
+
+#[proc_macro]
+pub fn get(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input: proc_macro2::TokenStream = input.into();
+    (quote! {{
+        (&__context).mark_used(&#input.context.key);
+        #input.get_sneaky()
+    }}).into()
+}
+
+#[proc_macro]
+pub fn get_ref(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input: proc_macro2::TokenStream = input.into();
+    (quote! {{
+        __context.mark_used(&#input.context.key);
+        #input.get_ref_sneaky()
+    }}).into()
 }
 
 #[proc_macro]
