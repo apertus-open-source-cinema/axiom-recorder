@@ -1,51 +1,35 @@
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn_rsx::{Node, NodeType};
-use syn::__private::ToTokens;
+use crate::widget_macro::widget;
 
 pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let parsed = syn_rsx::parse2(input.into()).unwrap();
-    let transformed = handle_rsx_nodes(&parsed);
+    let (begining, inplace) = handle_rsx_nodes(&parsed, Ident::new("__widget", Span::call_site()));
+    let transformed = quote! {{
+        #begining
+
+        #inplace
+    }};
+    println!("rsx: \n{}\n\n", transformed);
     transformed.into()
 }
 
-// if attrs or children of rsx constructs are closures that get the context as an argument,
-// we call these closures. TODO: find a way to explicitly prevent this? maybe addidional braces?
+// if attrs or children of rsx constructs are expressions in the form context => value,
+// we transform them into a closure and call these closures
 fn call_context_closure(input: syn::Expr) -> proc_macro2::TokenStream {
-    match input {
-        syn::Expr::Closure(c) => {
-            let c = c.into_token_stream();
-            quote!{{
-                fn constrain_type<T>(x: impl Fn(Context) -> T) -> (impl Fn(Context) -> T) { x }
-                constrain_type(#c)(context.clone())
-            }}
-        },
-        syn::Expr::Block(b) => {
-            if b.block.stmts.len() == 1 {
-                call_context_closure(match (&b.block.stmts[0]).clone() {
-                    syn::Stmt::Expr(e) => e,
-                    _ => unimplemented!(),
-                })
-            } else {
-                let value = b.into_token_stream();
-                quote! { #value }
-            }
-        }
-        other => {
-            let value = other.into_token_stream();
-            quote! { #value }
-        },
-    }
+    quote! {#input}
 }
 
-fn handle_rsx_nodes(input: &Vec<Node>) -> proc_macro2::TokenStream {
+fn handle_rsx_nodes(input: &Vec<Node>, widget_ident: Ident) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     if input.iter().all(|x| x.node_type == NodeType::Element) {
-        let mapped: Vec<_> = input.iter().map(|x| {
+        let (beginning, inplace): (Vec<_>, Vec<_>) = input.iter().map(|x| {
             let name = x.name.as_ref().unwrap();
             let name_str = name.to_string();
-            let loc = format!("{}:{}", name.span().start().line, name.span().start().column);
+            let loc = format!("{}_{}", name.span().start().line, name.span().start().column);
 
             let mut key = quote! {KeyPart::Widget { name: #name_str, loc: #loc }};
+            let widget_ident = Ident::new(&format!("__widget_{}_{}", name_str, loc), Span::call_site());
 
             let constructor_ident = Ident::new(&format!("__{}_constructor", name), Span::call_site());
             let mut processed_attributes = vec![];
@@ -58,27 +42,40 @@ fn handle_rsx_nodes(input: &Vec<Node>) -> proc_macro2::TokenStream {
                     processed_attributes.push(quote! {#name=#value});
                 }
             }
-            let children_processed = if x.children.is_empty() {
-                quote! {}
+            let (beginning, children_processed) = if x.children.is_empty() {
+                (quote! {}, quote! {})
             } else {
-                handle_rsx_nodes(&x.children)
+                let (begining, inplace) = handle_rsx_nodes(&x.children, widget_ident);
+                (begining, quote! {
+                    children=#inplace,
+                })
             };
 
-            quote! {(
+            (beginning, quote! {(
                 #key,
-                Box::new(|context: Context| {
+                std::sync::Arc::new(move |context: Context| {
                     #constructor_ident!(@initial context=context.clone(), #(#processed_attributes,)* #children_processed )
                 })
-            )}
-        }).collect();
+            )})
+        }).unzip();
 
-        quote! {
-            Widget::Node(vec![#(#mapped,)*])
-        }
+        let to_beginning = quote! {
+            #(#beginning)*
+
+            let #widget_ident = Widget {
+                children: vec![#(#inplace,)*],
+                layout_object: None,
+            };
+        };
+        let inplace = quote! {#widget_ident.clone()};
+        (to_beginning, inplace)
     } else if input.len() == 1 {
         let value = input.iter().next().unwrap();
         let value_processed = call_context_closure(value.value.as_ref().unwrap().clone());
-        quote! {#value_processed}
+
+        let to_beginning = quote! {};
+        let inplace = quote! {#value_processed};
+        (to_beginning, inplace)
     } else {
         panic!("each rsx node can either contain n nodes or one block, got {:?}", input);
     }

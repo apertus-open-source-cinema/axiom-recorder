@@ -55,7 +55,7 @@ pub fn widget(
     );
 
     let match_arms: Vec<_> = {
-        let args_with: HashSet<_> = parsed_args.clone().into_iter().map(|x| x.ident.to_string()).collect();
+        let args_with_default: HashSet<_> = parsed_args.clone().into_iter().map(|x| x.ident.to_string()).collect();
         let arg_names_comma_dollar = {
             let arg_names = get_arg_names(&function).clone();
             quote! {#($#arg_names,)*}
@@ -65,29 +65,33 @@ pub fn widget(
             quote! {#($#arg_names:ident,)*}
         };
 
-        get_arg_names(&function).iter().map(|x| {
+        let arg_types = get_arg_types(&function);
+        get_arg_names(&function).iter()
+            .map(|unhygienic| {
             let arg_names_comma_dollar = arg_names_comma_dollar.clone();
             let arg_names_comma_ident = arg_names_comma_ident.clone();
 
-            let dummy_function_ident = Ident::new(&format!("return_second_{}", x), Span::call_site());
+            let arg_type = &arg_types[&unhygienic.to_string()];
+            let dummy_function_ident = Ident::new(&format!("_constrain_arg_type_{}", unhygienic), Span::call_site());
             let dummy_function = quote! {
                     // this is needed to be able to use the default argument with the correct type &
                     // mute unusesd warnings
                     #[allow(non_snake_case, unused)]
-                    fn #dummy_function_ident<T>(_first: T, second: T) -> T {
-                        second
-                    }
+                    fn #dummy_function_ident(_arg: #arg_type) {  }
                 };
-            let value = if args_with.contains(&x.to_string()) {
-                quote! {#dummy_function_ident($#x, move || $value)}
+            let value = if args_with_default.contains(&unhygienic.to_string()) {
+                quote! {{
+                    #dummy_function
+                    #dummy_function_ident($#unhygienic);
+                    $value
+                }}
             } else {
-                quote! {move || $value}
+                quote! {$value}
             };
 
             quote! {
-                (@parse [#arg_names_comma_ident] #x = $value:expr,$($rest:tt)*) => {
-                    #dummy_function
-                    let $#x = #value;
+                (@parse [#arg_names_comma_ident] #unhygienic = $value:expr,$($rest:tt)*) => {
+                    let $#unhygienic = #value;
                     #macro_ident!(@parse [#arg_names_comma_dollar] $($rest)*);
                 };
             }
@@ -96,12 +100,12 @@ pub fn widget(
 
     let initial_arm = {
         let initializers = parsed_args.clone().into_iter().map(|x| {
-            let ident = x.ident;
+            let ident = desinfect_ident(&x.ident);
             let value = x.expr;
-            quote! { let #ident = move || #value }
+            quote! { let #ident = #value }
         });
         let arg_names_comma = {
-            let arg_names = get_arg_names(&function);
+            let arg_names = get_arg_names_hygienic(&function);
             quote! {#(#arg_names,)*}
         };
         let function_call = quote! {
@@ -110,7 +114,7 @@ pub fn widget(
 
 
         quote! {
-            (@initial context=$context:expr, $($args:tt)*) => {
+            (@initial $($args:tt)*) => {
                 {
                     #(#initializers;)*
                     #macro_ident!(@parse [#arg_names_comma] $($args)*);
@@ -123,7 +127,7 @@ pub fn widget(
 
     let constructor_macro = {
         let arg_names_comma_ident = {
-            let arg_names = get_arg_names(&function).clone();
+            let arg_names = get_arg_names_hygienic(&function).clone();
             quote! {#($#arg_names:ident,)*}
         };
 
@@ -150,7 +154,7 @@ pub fn widget(
 
         #transformed_function
     };
-    println!(" {}", transformed.clone());
+    println!("widget: \n{}\n\n", transformed.clone());
     transformed.into()
 }
 // a (simplified) example of the kind of macro this proc macro generates:
@@ -190,15 +194,13 @@ fn transform_function_args_to_context(function: ItemFn) -> proc_macro2::TokenStr
     let arg_names = get_arg_names(&function_clone);
     let function_transformed = quote! {
         #(#attrs)* #vis #sig {
-            let args_listenable = #context_ident.listenable_key(#context_ident.widget_local.key.with(KeyInner::sideband("args")));
-            #context_ident.shout(&args_listenable, (#(#arg_names.clone(), )*));
-            #context_ident.listen(&args_listenable);
+            #context_ident.args(&(#(#arg_names.clone(), )*));
 
             let to_return = {
                 #(#stmts)*
             };
 
-            mem::forget(context);  // we consume the context here to prevent the other widgets from giving it out
+            //TODO: mem::forget(context);  // we consume the context here to prevent the other widgets from giving it out
             to_return
         }
     };
@@ -211,6 +213,18 @@ fn get_arg_names(function: &ItemFn) -> Vec<Ident> {
         let pat_ident = bind_match!(*pat_type.pat, Pat::Ident(x) => x).unwrap();
         pat_ident.ident
     }).collect()
+}
+
+fn get_arg_names_hygienic(function: &ItemFn) ->Vec<Ident> {
+    get_arg_names(function)
+        .iter()
+        .map(desinfect_ident)
+        .collect()
+}
+
+// creates a hyginic (kind of) identifier from an unhyginic one
+fn desinfect_ident(ident: &Ident) -> Ident {
+    Ident::new(&format!("__{}", ident), Span::call_site())
 }
 
 fn get_arg_types(function: &ItemFn) -> HashMap<String, Box<Type>> {
