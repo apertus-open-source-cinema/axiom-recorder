@@ -1,7 +1,6 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn_rsx::{Node, NodeType};
-use crate::widget_macro::widget;
 
 pub fn rsx(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let parsed = syn_rsx::parse2(input.into()).unwrap();
