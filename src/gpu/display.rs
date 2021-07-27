@@ -1,32 +1,3 @@
-use crate::pipeline_processing::{
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
-    processing_node::ProcessingNode,
-};
-use anyhow::{Context, Result};
-use std::sync::{Mutex, MutexGuard};
-
-use vulkano::{
-    buffer::{BufferUsage, BufferView, CpuAccessibleBuffer},
-    command_buffer::{AutoCommandBufferBuilder, DynamicState, SubpassContents},
-    descriptor::descriptor_set::PersistentDescriptorSet,
-    format::R8Unorm,
-    framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract, Subpass},
-    image::{ImageUsage, SwapchainImage},
-    pipeline::{viewport::Viewport, GraphicsPipeline},
-    swapchain,
-    swapchain::{
-        AcquireError,
-        ColorSpace,
-        FullscreenExclusive,
-        PresentMode,
-        SurfaceTransform,
-        Swapchain,
-        SwapchainCreationError,
-    },
-    sync,
-    sync::{FlushError, GpuFuture},
-};
-
 use crate::{
     frame::rgb_frame::RgbFrame,
     gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
@@ -35,11 +6,15 @@ use crate::{
             ParameterType::BoolParameter,
             ParameterTypeDescriptor::Optional,
             ParameterValue,
+            Parameterizable,
+            Parameters,
+            ParametersDescriptor,
         },
         payload::Payload,
+        processing_node::ProcessingNode,
     },
 };
-
+use anyhow::{Context, Result};
 use std::{
     sync::{
         mpsc::{
@@ -48,15 +23,36 @@ use std::{
             TrySendError::{Disconnected, Full},
         },
         Arc,
+        Mutex,
+        MutexGuard,
     },
     thread,
     thread::JoinHandle,
+};
+use vulkano::{
+    buffer::{BufferUsage, BufferView, CpuAccessibleBuffer},
+    command_buffer::{
+        AutoCommandBufferBuilder,
+        CommandBufferUsage::OneTimeSubmit,
+        DynamicState,
+        SubpassContents,
+    },
+    descriptor_set::PersistentDescriptorSet,
+    device::DeviceOwned,
+    format::Format::R8Unorm,
+    image::{view::ImageView, ImageAccess, ImageUsage, SwapchainImage},
+    pipeline::{viewport::Viewport, GraphicsPipeline, GraphicsPipelineAbstract},
+    render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass},
+    swapchain,
+    swapchain::{AcquireError, Swapchain, SwapchainCreationError},
+    sync,
+    sync::{FlushError, GpuFuture},
 };
 use vulkano_win::VkSurfaceBuild;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    platform::{desktop::EventLoopExtDesktop, unix::EventLoopExtUnix},
+    platform::{run_return::EventLoopExtRunReturn, unix::EventLoopExtUnix},
     window::{Window, WindowBuilder},
 };
 
@@ -144,29 +140,20 @@ impl Parameterizable for Display {
                 .unwrap()
                 .clone();
 
+            let caps = surface.capabilities(device.physical_device()).unwrap();
             let (mut swapchain, images) = {
-                let caps = surface.capabilities(device.physical_device()).unwrap();
                 let alpha = caps.supported_composite_alpha.iter().next().unwrap();
                 let format = caps.supported_formats[0].0;
-                let dimensions: [u32; 2] = surface.window().inner_size().into();
-
-                Swapchain::new(
-                    device.clone(),
-                    surface.clone(),
-                    caps.min_image_count,
-                    format,
-                    dimensions,
-                    1,
-                    ImageUsage::color_attachment(),
-                    &queue,
-                    SurfaceTransform::Identity,
-                    alpha,
-                    PresentMode::Fifo,
-                    FullscreenExclusive::Default,
-                    true,
-                    ColorSpace::SrgbNonLinear,
-                )
-                .unwrap()
+                dbg!(format);
+                let dimensions = surface.window().inner_size().into();
+                Swapchain::start(device.clone(), surface.clone())
+                    .usage(ImageUsage::color_attachment())
+                    .num_images(caps.min_image_count)
+                    .composite_alpha(alpha)
+                    .dimensions(dimensions)
+                    .format(format)
+                    .build()
+                    .expect("cant create swapchain")
             };
 
             #[derive(Default, Debug, Clone)]
@@ -257,7 +244,7 @@ impl Parameterizable for Display {
                     if recreate_swapchain {
                         let dimensions: [u32; 2] = surface.window().inner_size().into();
                         let (new_swapchain, new_images) =
-                            match swapchain.recreate_with_dimensions(dimensions) {
+                            match swapchain.recreate().dimensions(dimensions).build() {
                                 Ok(r) => r,
                                 Err(SwapchainCreationError::UnsupportedDimensions) => return,
                                 Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
@@ -301,7 +288,7 @@ impl Parameterizable for Display {
                         }
                     }
 
-                    let layout = pipeline.layout().descriptor_set_layout(0).unwrap();
+                    let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
                     let set = Arc::new(
                         PersistentDescriptorSet::start(layout.clone())
                             .add_buffer_view(
@@ -318,9 +305,10 @@ impl Parameterizable for Display {
                     };
 
                     let clear_values = vec![[0.0, 0.0, 0.0, 1.0].into()];
-                    let mut builder = AutoCommandBufferBuilder::primary_one_time_submit(
+                    let mut builder = AutoCommandBufferBuilder::primary(
                         device.clone(),
                         queue.family(),
+                        OneTimeSubmit,
                     )
                     .unwrap();
                     builder
@@ -412,14 +400,14 @@ impl Drop for Display {
 /// window is resized
 fn window_size_dependent_setup(
     images: &[Arc<SwapchainImage<Window>>],
-    render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
+    render_pass: Arc<RenderPass>,
     dynamic_state: &mut DynamicState,
 ) -> Vec<Arc<dyn FramebufferAbstract + Send + Sync>> {
     let dimensions = images[0].dimensions();
 
     let viewport = Viewport {
         origin: [0.0, 0.0],
-        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+        dimensions: [dimensions.width() as f32, dimensions.height() as f32],
         depth_range: 0.0..1.0,
     };
     dynamic_state.viewports = Some(vec![viewport]);
@@ -427,13 +415,19 @@ fn window_size_dependent_setup(
     images
         .iter()
         .map(|image| {
-            Arc::new(
-                Framebuffer::start(render_pass.clone())
-                    .add(image.clone())
-                    .unwrap()
-                    .build()
-                    .unwrap(),
-            ) as Arc<dyn FramebufferAbstract + Send + Sync>
+            let intermediary = ImageView::new(
+                AttachmentImage::transient_multisampled(
+                    render_pass.device().clone(),
+                    [dimensions.width(), dimensions.height()],
+                    Sample4,
+                    image.format(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let view = ImageView::new(image.clone()).unwrap();
+            Arc::new(Framebuffer::start(render_pass.clone()).add(view).unwrap().build().unwrap())
+                as Arc<dyn FramebufferAbstract + Send + Sync>
         })
         .collect::<Vec<_>>()
 }

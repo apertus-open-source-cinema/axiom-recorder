@@ -9,12 +9,13 @@ use vulkano::{
         BufferUsage,
         CpuAccessibleBuffer,
     },
-    device::{Device, DeviceExtensions, Queue},
-    instance::{Instance, PhysicalDevice},
+    device::{physical::PhysicalDevice, Device, DeviceExtensions, Queue},
+    instance::Instance,
     memory::{
         pool::{PotentialDedicatedAllocation, StdMemoryPoolAlloc},
         Content,
     },
+    Version,
 };
 
 #[derive(Clone)]
@@ -28,7 +29,7 @@ lazy_static! {
 impl VulkanContext {
     pub fn create() -> Result<Self> {
         let required_extensions = vulkano_win::required_extensions();
-        let instance = Instance::new(None, &required_extensions, None)?;
+        let instance = Instance::new(None, Version::V1_2, &required_extensions, None)?;
         let physical = PhysicalDevice::enumerate(&instance)
             .next()
             .ok_or_else(|| anyhow!("No physical device found"))?;
@@ -60,7 +61,7 @@ impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
                     let uninitialized: Arc<CpuAccessibleBuffer<[u8]>> =
                         CpuAccessibleBuffer::uninitialized_array(
                             VulkanContext::get().device,
-                            buffer.len(),
+                            buffer.len() as u64,
                             BufferUsage::all(),
                             true,
                         )?;
