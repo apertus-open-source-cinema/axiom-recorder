@@ -11,14 +11,10 @@ use anyhow::{anyhow, Context, Result};
 use std::sync::{Arc, MutexGuard};
 use vulkano::{
     buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess},
-    command_buffer::AutoCommandBufferBuilder,
-    descriptor::{
-        descriptor_set::PersistentDescriptorSet,
-        pipeline_layout::PipelineLayout,
-        PipelineLayoutAbstract,
-    },
+    command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit},
+    descriptor_set::persistent::PersistentDescriptorSet,
     device::{Device, Queue},
-    pipeline::ComputePipeline,
+    pipeline::{ComputePipeline, ComputePipelineAbstract},
     sync,
     sync::GpuFuture,
 };
@@ -32,7 +28,7 @@ mod compute_shader {
 
 pub struct Debayer {
     device: Arc<Device>,
-    pipeline: Arc<ComputePipeline<PipelineLayout<compute_shader::Layout>>>,
+    pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
 }
 
@@ -85,7 +81,7 @@ impl ProcessingNode for Debayer {
             first_red_y: (!frame.cfa.first_is_red_y) as u32,
         };
 
-        let layout = self.pipeline.layout().descriptor_set_layout(0).unwrap();
+        let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
         let set = Arc::new(
             PersistentDescriptorSet::start(layout.clone())
                 .add_buffer(source_buffer)?
@@ -93,9 +89,10 @@ impl ProcessingNode for Debayer {
                 .build()?,
         );
 
-        let mut builder = AutoCommandBufferBuilder::primary_one_time_submit(
+        let mut builder = AutoCommandBufferBuilder::primary(
             self.device.clone(),
             self.queue.family(),
+            OneTimeSubmit,
         )
         .unwrap();
         builder.dispatch(
