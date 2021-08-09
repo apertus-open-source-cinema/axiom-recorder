@@ -24,6 +24,14 @@ impl RgbaFrame {
         Ok(RgbaFrame { width, height, buffer: Arc::new(bytes) })
     }
 }
+impl PartialEq for RgbaFrame {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.buffer, &other.buffer)
+            && self.width == other.width
+            && self.height == other.height
+    }
+}
+
 
 impl AsRef<[u8]> for RgbaFrame {
     fn as_ref(&self) -> &[u8] { &self.buffer }
