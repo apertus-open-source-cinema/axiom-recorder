@@ -38,7 +38,7 @@ mod fragment_shader {
             layout(location = 0) in vec2 tex_coords;
             layout(location = 0) out vec4 f_color;
 
-            layout( set = 0, binding = 0, r8 ) uniform imageBuffer buf;
+            layout( set = 0, binding = 0, r8 ) uniform readonly imageBuffer buf;
 
             vec3 get_px(int x, int y) {
                 return vec3(
