@@ -17,6 +17,7 @@ use std::{
     sync::{Arc, MutexGuard},
 };
 use winit::{platform::unix::WindowBuilderExtUnix, window::WindowBuilder};
+use std::sync::Mutex;
 
 #[derive(Clone)]
 enum Message {
@@ -25,6 +26,7 @@ enum Message {
 
 pub struct PlayerSink<T: Fn(Arc<RgbFrame>) + Send + Sync> {
     callback: T,
+    fps_report: Mutex<FPSReporter>,
 }
 impl<T: Fn(Arc<RgbFrame>) + Send + Sync> ProcessingNode for PlayerSink<T> {
     fn process(
@@ -32,6 +34,7 @@ impl<T: Fn(Arc<RgbFrame>) + Send + Sync> ProcessingNode for PlayerSink<T> {
         input: &mut Payload,
         _frame_lock: MutexGuard<u64>,
     ) -> anyhow::Result<Option<Payload>> {
+        self.fps_report.lock().unwrap().frame();
         let frame = input.downcast::<RgbFrame>().expect("Wrong input format");
         (self.callback)(frame);
         Ok(Some(Payload::empty()))
@@ -62,7 +65,7 @@ pub fn player(context: Context) -> Fragment {
                 ])))).unwrap(),
                 create_node_from_name("BitDepthConverter", &Parameters(HashMap::new())).unwrap(),
                 create_node_from_name("Debayer", &Parameters(HashMap::new())).unwrap(),
-                Arc::new(PlayerSink { callback }) as Arc<dyn ProcessingNode>
+                Arc::new(PlayerSink { callback, fps_report: Mutex::new(FPSReporter::new("pipeline")) }) as Arc<dyn ProcessingNode>
             ];
             execute_pipeline(nodes).unwrap();
         },

@@ -105,7 +105,6 @@ pub fn image(image: Arc<RgbFrame>, style: Style, context: Context) -> Fragment {
     let cloned_image = image.clone();
     let render_fn: Arc<RenderFnInner> =
         Arc::new(move |render_pass, command_buffer_builder, dynamic_state, _rect| {
-            dbg!("render raw image");
             let (vertex_buffer, pipeline) = initialize(render_pass);
 
             let source_buffer =
