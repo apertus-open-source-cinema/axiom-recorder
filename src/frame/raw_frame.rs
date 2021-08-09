@@ -30,7 +30,17 @@ impl RawFrame {
         Ok(RawFrame { width, height, buffer: Arc::new(bytes), bit_depth, cfa })
     }
 }
-#[derive(Debug, Copy, Clone)]
+impl PartialEq for RawFrame {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.buffer, &other.buffer)
+            && self.width == other.width
+            && self.height == other.height
+            && self.bit_depth == other.bit_depth
+            && self.cfa == other.cfa
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct CfaDescriptor {
     pub first_is_red_x: bool,
     pub first_is_red_y: bool,

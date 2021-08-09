@@ -24,6 +24,13 @@ impl RgbFrame {
         Ok(RgbFrame { width, height, buffer: Arc::new(bytes) })
     }
 }
+impl PartialEq for RgbFrame {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.buffer, &other.buffer)
+            && self.width == other.width
+            && self.height == other.height
+    }
+}
 
 
 impl AsRef<[u8]> for RgbFrame {
