@@ -1,6 +1,6 @@
 use crate::frame::typing_hacks::Buffer;
-use anyhow::{anyhow, Result};
-use lazy_static::lazy_static;
+use anyhow::Result;
+
 use owning_ref::OwningHandle;
 use std::{ops::Deref, sync::Arc};
 use vulkano::{
@@ -9,13 +9,10 @@ use vulkano::{
         BufferUsage,
         CpuAccessibleBuffer,
     },
-    device::{physical::PhysicalDevice, Device, DeviceExtensions, Queue},
-    instance::Instance,
     memory::{
         pool::{PotentialDedicatedAllocation, StdMemoryPoolAlloc},
         Content,
     },
-    Version,
 };
 
 pub use narui::VulkanContext;
