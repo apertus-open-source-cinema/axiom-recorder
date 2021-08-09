@@ -62,6 +62,7 @@ use winit::{
     platform::{run_return::EventLoopExtRunReturn, unix::EventLoopExtUnix},
     window::{Window, WindowBuilder},
 };
+use vulkano::image::SampleCount::Sample1;
 
 
 mod vertex_shader {
@@ -422,21 +423,9 @@ fn window_size_dependent_setup(
     images
         .iter()
         .map(|image| {
-            let intermediary = ImageView::new(
-                AttachmentImage::transient_multisampled(
-                    render_pass.device().clone(),
-                    [dimensions.width(), dimensions.height()],
-                    Sample4,
-                    image.format(),
-                )
-                .unwrap(),
-            )
-            .unwrap();
             let view = ImageView::new(image.clone()).unwrap();
             Arc::new(
                 Framebuffer::start(render_pass.clone())
-                    .add(intermediary)
-                    .unwrap()
                     .add(view)
                     .unwrap()
                     .build()
