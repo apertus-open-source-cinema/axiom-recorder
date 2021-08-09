@@ -63,7 +63,7 @@ struct Vertex {
 vulkano::impl_vertex!(Vertex, position);
 
 fn initialize(render_pass: Arc<RenderPass>) -> (Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<GraphicsPipeline<BuffersDefinition>>) {
-    let device = VULKAN_CONTEXT.device.clone();
+    let device = VulkanContext::get().device.clone();
 
     let vertex_buffer = CpuAccessibleBuffer::<[Vertex]>::from_iter(
         device.clone(),
