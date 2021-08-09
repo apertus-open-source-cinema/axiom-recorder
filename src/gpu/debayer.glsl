@@ -13,8 +13,8 @@ layout(push_constant) uniform PushConstantData {
     uint first_red_y;
 } params;
 
-layout(set = 0, binding = 0) buffer Source { uint8_t data[]; } source;
-layout(set = 0, binding = 1) buffer Sink   { uint8_t data[]; } sink;
+layout(set = 0, binding = 0) buffer readonly Source { uint8_t data[]; } source;
+layout(set = 0, binding = 1) buffer writeonly Sink   { uint8_t data[]; } sink;
 
 void main() {
     uvec2 pos = gl_GlobalInvocationID.xy;
