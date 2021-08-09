@@ -3,12 +3,11 @@ use narui::{style::Style, *};
 use std::sync::Arc;
 use vulkano::{
     buffer::{BufferUsage, BufferView, CpuAccessibleBuffer},
+    descriptor_set::PersistentDescriptorSet,
     format::Format::R8Unorm,
+    pipeline::{vertex::BuffersDefinition, GraphicsPipeline, GraphicsPipelineAbstract},
     render_pass::{RenderPass, Subpass},
 };
-use vulkano::pipeline::{GraphicsPipeline, GraphicsPipelineAbstract};
-use vulkano::pipeline::vertex::BuffersDefinition;
-use vulkano::descriptor_set::PersistentDescriptorSet;
 
 mod vertex_shader {
     vulkano_shaders::shader! {
@@ -62,8 +61,10 @@ struct Vertex {
 }
 vulkano::impl_vertex!(Vertex, position);
 
-fn initialize(render_pass: Arc<RenderPass>) -> (Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<GraphicsPipeline<BuffersDefinition>>) {
-    let device = VulkanContext::get().device.clone();
+fn initialize(
+    render_pass: Arc<RenderPass>,
+) -> (Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<GraphicsPipeline<BuffersDefinition>>) {
+    let device = VulkanContext::get().device;
 
     let vertex_buffer = CpuAccessibleBuffer::<[Vertex]>::from_iter(
         device.clone(),
@@ -91,8 +92,8 @@ fn initialize(render_pass: Arc<RenderPass>) -> (Arc<CpuAccessibleBuffer<[Vertex]
             .viewports_dynamic_scissors_irrelevant(1)
             .fragment_shader(fs.main_entry_point(), ())
             .blend_alpha_blending()
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-            .build(device.clone())
+            .render_pass(Subpass::from(render_pass, 0).unwrap())
+            .build(device)
             .unwrap(),
     );
 
@@ -103,26 +104,30 @@ fn initialize(render_pass: Arc<RenderPass>) -> (Arc<CpuAccessibleBuffer<[Vertex]
 pub fn image(image: Arc<RgbFrame>, style: Style, context: Context) -> Fragment {
     let cloned_image = image.clone();
     let render_fn: Arc<RenderFnInner> =
-        Arc::new(move |render_pass, command_buffer_builder, dynamic_state, rect| {
+        Arc::new(move |render_pass, command_buffer_builder, dynamic_state, _rect| {
             dbg!("render raw image");
             let (vertex_buffer, pipeline) = initialize(render_pass);
 
-            let source_buffer = CpuAccessibleBufferReadView::<u8>::from_buffer(cloned_image.buffer.clone())
-                .unwrap()
-                .as_cpu_accessible_buffer();
+            let source_buffer =
+                CpuAccessibleBufferReadView::<u8>::from_buffer(cloned_image.buffer.clone())
+                    .unwrap()
+                    .as_cpu_accessible_buffer();
 
             let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
             let set = Arc::new(
-                PersistentDescriptorSet::start(layout.clone())
-                    .add_buffer_view(BufferView::new(source_buffer.clone(), R8Unorm).unwrap())
+                PersistentDescriptorSet::start(layout)
+                    .add_buffer_view(BufferView::new(source_buffer, R8Unorm).unwrap())
                     .unwrap()
                     .build()
                     .unwrap(),
             );
 
-            let push_constants = fragment_shader::ty::PushConstantData { width: image.width as u32, height: image.height as u32 };
+            let push_constants = fragment_shader::ty::PushConstantData {
+                width: image.width as u32,
+                height: image.height as u32,
+            };
             command_buffer_builder
-                .draw(pipeline.clone(), &dynamic_state, vertex_buffer.clone(), set, push_constants)
+                .draw(pipeline, dynamic_state, vertex_buffer, set, push_constants)
                 .expect("image draw failed");
         });
     Fragment {

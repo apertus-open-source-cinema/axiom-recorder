@@ -83,7 +83,7 @@ impl ProcessingNode for Debayer {
 
         let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
         let set = Arc::new(
-            PersistentDescriptorSet::start(layout.clone())
+            PersistentDescriptorSet::start(layout)
                 .add_buffer(source_buffer)?
                 .add_buffer(sink_buffer.clone())?
                 .build()?,

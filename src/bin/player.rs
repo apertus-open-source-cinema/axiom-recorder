@@ -1,19 +1,22 @@
 use narui::*;
+use recorder::{
+    frame::rgb_frame::RgbFrame,
+    gui::image::*,
+    pipeline_processing::{
+        create_node_from_name,
+        execute::execute_pipeline,
+        parametrizable::{ParameterValue, Parameters},
+        payload::Payload,
+        processing_node::ProcessingNode,
+    },
+};
 use std::{
-    sync::mpsc::RecvTimeoutError,
+    array::IntoIter,
+    collections::HashMap,
+    iter::FromIterator,
+    sync::{Arc, MutexGuard},
 };
 use winit::{platform::unix::WindowBuilderExtUnix, window::WindowBuilder};
-use recorder::pipeline_processing::create_node_from_name;
-use recorder::pipeline_processing::parametrizable::{Parameters, ParameterValue};
-use recorder::gui::image::*;
-use std::collections::HashMap;
-use std::iter::FromIterator;
-use std::array::IntoIter;
-use recorder::pipeline_processing::processing_node::ProcessingNode;
-use recorder::pipeline_processing::payload::Payload;
-use std::sync::{MutexGuard, Arc};
-use recorder::frame::rgb_frame::RgbFrame;
-use recorder::pipeline_processing::execute::execute_pipeline;
 
 #[derive(Clone)]
 enum Message {
@@ -24,7 +27,11 @@ pub struct PlayerSink<T: Fn(Arc<RgbFrame>) + Send + Sync> {
     callback: T,
 }
 impl<T: Fn(Arc<RgbFrame>) + Send + Sync> ProcessingNode for PlayerSink<T> {
-    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> anyhow::Result<Option<Payload>> {
+    fn process(
+        &self,
+        input: &mut Payload,
+        _frame_lock: MutexGuard<u64>,
+    ) -> anyhow::Result<Option<Payload>> {
         let frame = input.downcast::<RgbFrame>().expect("Wrong input format");
         (self.callback)(frame);
         Ok(Some(Payload::empty()))
@@ -36,7 +43,7 @@ impl<T: Fn(Arc<RgbFrame>) + Send + Sync> ProcessingNode for PlayerSink<T> {
 pub fn player(context: Context) -> Fragment {
     let current_frame = context.listenable(None);
     context.thread(
-        move |context, rx| {
+        move |context, _rx| {
             let callback = move |frame: Arc<RgbFrame>| {
                 context.shout(current_frame, Some(frame));
             };
@@ -67,7 +74,7 @@ pub fn player(context: Context) -> Fragment {
     if let Some(frame) = frame {
         rsx! { <image image={frame}/> }
     } else {
-        rsx! { }
+        rsx! {}
     }
 }
 

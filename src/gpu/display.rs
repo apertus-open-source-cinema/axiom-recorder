@@ -38,16 +38,8 @@ use vulkano::{
         SubpassContents,
     },
     descriptor_set::PersistentDescriptorSet,
-    device::DeviceOwned,
     format::Format::R8Unorm,
-    image::{
-        view::ImageView,
-        AttachmentImage,
-        ImageAccess,
-        ImageUsage,
-        SampleCount::Sample4,
-        SwapchainImage,
-    },
+    image::{view::ImageView, ImageAccess, ImageUsage, SwapchainImage},
     pipeline::{viewport::Viewport, GraphicsPipeline, GraphicsPipelineAbstract},
     render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass},
     swapchain,
@@ -62,7 +54,6 @@ use winit::{
     platform::{run_return::EventLoopExtRunReturn, unix::EventLoopExtUnix},
     window::{Window, WindowBuilder},
 };
-use vulkano::image::SampleCount::Sample1;
 
 
 mod vertex_shader {
@@ -298,7 +289,7 @@ impl Parameterizable for Display {
 
                     let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
                     let set = Arc::new(
-                        PersistentDescriptorSet::start(layout.clone())
+                        PersistentDescriptorSet::start(layout)
                             .add_buffer_view(
                                 BufferView::new(source_buffer.clone(), R8Unorm).unwrap(),
                             )
@@ -424,13 +415,8 @@ fn window_size_dependent_setup(
         .iter()
         .map(|image| {
             let view = ImageView::new(image.clone()).unwrap();
-            Arc::new(
-                Framebuffer::start(render_pass.clone())
-                    .add(view)
-                    .unwrap()
-                    .build()
-                    .unwrap(),
-            ) as Arc<dyn FramebufferAbstract + Send + Sync>
+            Arc::new(Framebuffer::start(render_pass.clone()).add(view).unwrap().build().unwrap())
+                as Arc<dyn FramebufferAbstract + Send + Sync>
         })
         .collect::<Vec<_>>()
 }
