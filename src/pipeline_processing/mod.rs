@@ -1,6 +1,6 @@
 use crate::{
     frame::bit_depth_converter::BitDepthConverter,
-    gpu::{debayer::Debayer, display::Display},
+    gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer, display::Display},
     pipeline_processing::parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
     video_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
@@ -61,6 +61,7 @@ generate_dynamic_node_creation_functions![
     GstWriter,
     Display,
     TcpReader,
+    GpuBitDepthConverter,
 ];
 
 #[cfg(not(feature = "gst"))]
@@ -76,4 +77,5 @@ generate_dynamic_node_creation_functions![
     FfmpegWriter,
     Display,
     TcpReader,
+    GpuBitDepthConverter,
 ];
