@@ -43,7 +43,7 @@ use vulkano::{
     pipeline::{viewport::Viewport, GraphicsPipeline, GraphicsPipelineAbstract},
     render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass},
     swapchain,
-    swapchain::{AcquireError, Swapchain, SwapchainCreationError},
+    swapchain::{AcquireError, PresentMode, Swapchain, SwapchainCreationError},
     sync,
     sync::{FlushError, GpuFuture},
 };
@@ -113,6 +113,7 @@ pub struct Display {
 impl Parameterizable for Display {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
+            .with("mailbox", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
             .with("blocking", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
     }
 
@@ -121,6 +122,7 @@ impl Parameterizable for Display {
         Self: Sized,
     {
         let (tx, rx) = sync_channel(10);
+        let mailbox = parameters.get("mailbox").unwrap();
 
         let join_handle = thread::Builder::new().name("display".to_string()).spawn(move || {
             let mut event_loop: EventLoop<()> = EventLoopExtUnix::new_any_thread();
@@ -145,12 +147,14 @@ impl Parameterizable for Display {
                 let format = caps.supported_formats[0].0;
                 dbg!(format);
                 let dimensions = surface.window().inner_size().into();
+                let present_mode = if mailbox { PresentMode::Mailbox } else { PresentMode::Fifo };
                 Swapchain::start(device.clone(), surface.clone())
                     .usage(ImageUsage::color_attachment())
                     .num_images(caps.min_image_count)
                     .composite_alpha(alpha)
                     .dimensions(dimensions)
                     .format(format)
+                    .present_mode(present_mode)
                     .build()
                     .expect("cant create swapchain")
             };
