@@ -14,15 +14,10 @@ use std::{
     array::IntoIter,
     collections::HashMap,
     iter::FromIterator,
-    sync::{Arc, MutexGuard},
+    sync::{mpsc::sync_channel, Arc, Mutex, MutexGuard},
+    thread::spawn,
 };
 use winit::{platform::unix::WindowBuilderExtUnix, window::WindowBuilder};
-use std::sync::Mutex;
-
-#[derive(Clone)]
-enum Message {
-    Stop,
-}
 
 pub struct PlayerSink<T: Fn(Arc<RgbFrame>) + Send + Sync> {
     callback: T,
@@ -45,10 +40,13 @@ impl<T: Fn(Arc<RgbFrame>) + Send + Sync> ProcessingNode for PlayerSink<T> {
 #[widget]
 pub fn player(context: Context) -> Fragment {
     let current_frame = context.listenable(None);
-    context.thread(
-        move |context, _rx| {
+    let handle = context.effect(move || {
+        let (sender, receiver) = sync_channel(4);
+
+        // TODO: handle thread destroy
+        spawn(move || {
             let callback = move |frame: Arc<RgbFrame>| {
-                context.shout(current_frame, Some(frame));
+                sender.send(frame).unwrap();
             };
 
             let nodes = vec![
@@ -63,15 +61,28 @@ pub fn player(context: Context) -> Fragment {
                     ("loop".to_string(), ParameterValue::BoolParameter(true)),
                     ("sleep".to_string(), ParameterValue::FloatRange(0.0)),
                 ])))).unwrap(),
-                create_node_from_name("BitDepthConverter", &Parameters(HashMap::new())).unwrap(),
+                create_node_from_name("GpuBitDepthConverter", &Parameters(HashMap::new())).unwrap(),
                 create_node_from_name("Debayer", &Parameters(HashMap::new())).unwrap(),
                 Arc::new(PlayerSink { callback, fps_report: Mutex::new(FPSReporter::new("pipeline")) }) as Arc<dyn ProcessingNode>
             ];
             execute_pipeline(nodes).unwrap();
-        },
-        Message::Stop,
-        (),
-    );
+        });
+
+        Arc::new(Mutex::new(receiver))
+    }, ());
+
+    let dummy_listenable = context.listenable(0);
+    context.listen(dummy_listenable);
+    let rx = handle.read().clone();
+    context.after_frame(move |context: Context| {
+        let lock = rx.try_lock().unwrap();
+        if let Ok(frame) = lock.try_recv() {
+            context.shout(current_frame, Some(frame));
+        } else {
+            let old = context.listen(dummy_listenable);
+            context.shout(dummy_listenable, old + 1);
+        }
+    });
 
     let frame = context.listen(current_frame);
     if let Some(frame) = frame {
