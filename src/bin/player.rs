@@ -14,12 +14,12 @@ use std::{
     array::IntoIter,
     collections::HashMap,
     iter::FromIterator,
-    sync::{mpsc::sync_channel, Arc, Mutex, MutexGuard},
+    sync::{mpsc::{sync_channel, Receiver}, Arc, Mutex, MutexGuard},
     thread::spawn,
 };
 use winit::{platform::unix::WindowBuilderExtUnix, window::WindowBuilder};
 
-pub struct PlayerSink<T: Fn(Arc<RgbFrame>) + Send + Sync> {
+struct PlayerSink<T: Fn(Arc<RgbFrame>) + Send + Sync> {
     callback: T,
     fps_report: Mutex<FPSReporter>,
 }
@@ -36,10 +36,31 @@ impl<T: Fn(Arc<RgbFrame>) + Send + Sync> ProcessingNode for PlayerSink<T> {
     }
 }
 
+fn listenable_from_channel_handle<T: Send + Sync + PartialEq + 'static>(context: &Context, channel_handle: EffectHandle<Arc<Mutex<Receiver<T>>>>) -> Listenable<Option<T>> {
+    // this dummy listenable gets updated to ensure that we get called again, even if no new frame
+    // was available
+    let dummy_listenable = context.listenable(0);
+    context.listen(dummy_listenable);
+
+    let current_frame = context.listenable(None);
+
+    let rx = channel_handle.read().clone();
+    context.after_frame(move |context: Context| {
+        let lock = rx.try_lock().unwrap();
+        if let Ok(frame) = lock.try_recv() {
+            context.shout(current_frame, Some(frame));
+        } else {
+            let old = context.listen(dummy_listenable);
+            context.shout(dummy_listenable, old + 1);
+        }
+    });
+
+    current_frame
+}
+
 
 #[widget]
 pub fn player(context: Context) -> Fragment {
-    let current_frame = context.listenable(None);
     let handle = context.effect(move || {
         let (sender, receiver) = sync_channel(4);
 
@@ -59,7 +80,7 @@ pub fn player(context: Context) -> Fragment {
                     ("width".to_string(), ParameterValue::IntRange(4096)),
                     ("height".to_string(), ParameterValue::IntRange(3072)),
                     ("loop".to_string(), ParameterValue::BoolParameter(true)),
-                    ("sleep".to_string(), ParameterValue::FloatRange(0.0)),
+                    ("sleep".to_string(), ParameterValue::FloatRange(1.0 / 24.0)),
                 ])))).unwrap(),
                 create_node_from_name("GpuBitDepthConverter", &Parameters(HashMap::new())).unwrap(),
                 create_node_from_name("Debayer", &Parameters(HashMap::new())).unwrap(),
@@ -71,18 +92,7 @@ pub fn player(context: Context) -> Fragment {
         Arc::new(Mutex::new(receiver))
     }, ());
 
-    let dummy_listenable = context.listenable(0);
-    context.listen(dummy_listenable);
-    let rx = handle.read().clone();
-    context.after_frame(move |context: Context| {
-        let lock = rx.try_lock().unwrap();
-        if let Ok(frame) = lock.try_recv() {
-            context.shout(current_frame, Some(frame));
-        } else {
-            let old = context.listen(dummy_listenable);
-            context.shout(dummy_listenable, old + 1);
-        }
-    });
+    let current_frame = listenable_from_channel_handle(&context, handle);
 
     let frame = context.listen(current_frame);
     if let Some(frame) = frame {
