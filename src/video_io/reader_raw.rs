@@ -154,9 +154,9 @@ impl ProcessingNode for RawDirectoryReader {
         frame_lock: MutexGuard<u64>,
     ) -> Result<Option<Payload>> {
         let frame_number = *frame_lock;
+        sleep(Duration::from_secs_f64(self.sleep));
         drop(frame_lock);
 
-        sleep(Duration::from_secs_f64(self.sleep));
         let path = { self.files_iterator.lock().unwrap().next() };
         let payload = match path {
             None => {
