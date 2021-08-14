@@ -14,7 +14,12 @@ use std::{
     array::IntoIter,
     collections::HashMap,
     iter::FromIterator,
-    sync::{mpsc::{sync_channel, Receiver}, Arc, Mutex, MutexGuard},
+    sync::{
+        mpsc::{sync_channel, Receiver},
+        Arc,
+        Mutex,
+        MutexGuard,
+    },
     thread::spawn,
 };
 use winit::{platform::unix::WindowBuilderExtUnix, window::WindowBuilder};
@@ -36,9 +41,12 @@ impl<T: Fn(Arc<RgbFrame>) + Send + Sync> ProcessingNode for PlayerSink<T> {
     }
 }
 
-fn listenable_from_channel_handle<T: Send + Sync + PartialEq + 'static>(context: &Context, channel_handle: EffectHandle<Arc<Mutex<Receiver<T>>>>) -> Listenable<Option<T>> {
-    // this dummy listenable gets updated to ensure that we get called again, even if no new frame
-    // was available
+fn listenable_from_channel_handle<T: Send + Sync + PartialEq + 'static>(
+    context: &Context,
+    channel_handle: EffectHandle<Arc<Mutex<Receiver<T>>>>,
+) -> Listenable<Option<T>> {
+    // this dummy listenable gets updated to ensure that we get called again, even
+    // if no new frame was available
     let dummy_listenable = context.listenable(0);
     context.listen(dummy_listenable);
 
