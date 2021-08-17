@@ -101,7 +101,7 @@ fn initialize(
 }
 
 #[widget(style = Default::default())]
-pub fn image(image: Arc<RgbFrame>, style: Style, context: Context) -> Fragment {
+pub fn image(image: Arc<RgbFrame>, style: Style, context: Context) -> FragmentInner {
     let cloned_image = image.clone();
     let render_fn: Arc<RenderFnInner> =
         Arc::new(move |render_pass, command_buffer_builder, dynamic_state, _rect| {
@@ -129,8 +129,7 @@ pub fn image(image: Arc<RgbFrame>, style: Style, context: Context) -> Fragment {
                 .draw(pipeline, dynamic_state, vertex_buffer, set, push_constants)
                 .expect("image draw failed");
         });
-    Fragment {
-        key: context.widget_local.key,
+    FragmentInner {
         children: vec![],
         layout_object: Some(LayoutObject {
             style,
