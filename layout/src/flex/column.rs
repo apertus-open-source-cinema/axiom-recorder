@@ -23,7 +23,6 @@ impl Layoutable for Column {
     fn layout(&self, constraint: BoxConstraints, children: LayoutableChildren) -> Size {
         let orig_constraint = constraint;
         let constraint = constraint.loosen_width();
-        assert!(constraint.height_is_bounded() || matches!(self.main_axis_size, MainAxisSize::Min));
 
         let non_flex_constraint = constraint.with_unbounded_height();
         let mut max_width = 0.0f32;
@@ -36,7 +35,7 @@ impl Layoutable for Column {
                 Some(Flex { flex, fit }) => {
                     total_flex += flex;
                     any_tight = any_tight || matches!(fit, FlexFit::Tight);
-                },
+                }
                 None => {
                     let size = child.layout(non_flex_constraint);
                     max_width = max_width.max(size.width);
@@ -45,7 +44,10 @@ impl Layoutable for Column {
             }
         }
 
-        assert!(constraint.height_is_bounded() || (!any_tight && matches!(self.main_axis_size, MainAxisSize::Min)));
+        assert!(
+            constraint.height_is_bounded()
+                || (!any_tight && matches!(self.main_axis_size, MainAxisSize::Min))
+        );
 
         let unit_flex = if total_flex != 0.0 {
             (constraint.max_height - bounded_height) / total_flex

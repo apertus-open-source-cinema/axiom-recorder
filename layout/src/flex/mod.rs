@@ -34,11 +34,14 @@ impl Flexible {
 
 impl Layoutable for Flexible {
     fn layout(&self, constraint: BoxConstraints, children: LayoutableChildren) -> Size {
-        assert_eq!(children.len(), 1);
-        let child = children.into_iter().last().unwrap();
-        let size = child.layout(constraint);
-        child.set_pos(Offset::zero());
-        size
+        assert!(children.len() <= 1);
+        if let Some(child) = children.into_iter().last() {
+            let size = child.layout(constraint);
+            child.set_pos(Offset::zero());
+            size
+        } else {
+            constraint.constrain(Size::zero())
+        }
     }
 
     fn query<'a>(
@@ -49,8 +52,12 @@ impl Layoutable for Flexible {
         if <dyn Any>::downcast_ref::<FlexibleQuery>(query).is_some() {
             Some(&self.flex)
         } else {
-            assert_eq!(children.len(), 1);
-            (&children).into_iter().last().unwrap().query(query)
+            assert!(children.len() <= 1);
+            if let Some(child) = children.into_iter().last() {
+                child.query(query)
+            } else {
+                None
+            }
         }
     }
 }
@@ -63,11 +70,11 @@ pub enum CrossAxisAlignment {
 }
 
 impl CrossAxisAlignment {
-    pub fn spacing_for(&self, max_width: f32, width: f32) -> f32 {
+    pub fn spacing_for(&self, max_size: f32, size: f32) -> f32 {
         match self {
             Self::Start => 0.0,
-            Self::End => (max_width - width).max(0.0),
-            Self::Center => (max_width - width).max(0.0) / 2.0,
+            Self::End => (max_size - size).max(0.0),
+            Self::Center => (max_size - size).max(0.0) / 2.0,
         }
     }
 }

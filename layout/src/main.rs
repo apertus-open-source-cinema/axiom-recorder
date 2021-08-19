@@ -14,6 +14,11 @@ use layout::{
     SizedBox,
 };
 
+// Interesting widgets:
+// Align
+// Positioned
+// Padding
+// FractionallySizedBox
 
 fn main() {
     let mut layouter = Layouter::<&str, Box<dyn Layoutable>>::new();
