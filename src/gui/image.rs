@@ -77,15 +77,13 @@ fn vertex_buffer(rect: Rect, res: Vec2) -> Arc<CpuAccessibleBuffer<[Vertex]>> {
             Vertex { position: [bottom_right.x, top_left.y], tex: [1., 0.] },
             Vertex { position: [bottom_right.x, bottom_right.y], tex: [1., 1.] },
         ]
-            .iter()
-            .cloned(),
+        .iter()
+        .cloned(),
     )
-        .unwrap()
+    .unwrap()
 }
 
-fn initialize(
-    render_pass: Arc<RenderPass>,
-) -> Arc<GraphicsPipeline<BuffersDefinition>> {
+fn initialize(render_pass: Arc<RenderPass>) -> Arc<GraphicsPipeline<BuffersDefinition>> {
     let device = VulkanContext::get().device;
 
     let vs = vertex_shader::Shader::load(device.clone()).unwrap();

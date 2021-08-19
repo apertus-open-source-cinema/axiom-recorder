@@ -1,6 +1,4 @@
-use narui::*;
-use narui::style::*;
-use narui::Style;
+use narui::{style::*, Style, *};
 use recorder::{
     frame::rgb_frame::RgbFrame,
     gui::image::*,
@@ -135,16 +133,12 @@ fn rec_slide_button(
     options: Vec<String>,
     val: usize,
     on_change: impl Fn(Context, String) + Send + Sync + Clone + 'static,
-    context: Context
+    context: Context,
 ) -> Fragment {
     let on_change_clone = on_change.clone();
-    let on_left = move |context: Context, down: bool| {
-
-    };
+    let on_left = move |context: Context, down: bool| {};
     let on_change_clone = on_change.clone();
-    let on_right = move |context: Context, down: bool| {
-
-    };
+    let on_right = move |context: Context, down: bool| {};
 
     let text_size = 36.;
 
@@ -201,7 +195,12 @@ fn recording_button(style: Style, size: f32, context: Context) -> Fragment {
 }
 
 #[widget(style = Default::default())]
-fn aspect_ratio_container(children: Vec<Fragment>, aspect_ratio: f32, style: Style, context: Context) -> Fragment {
+fn aspect_ratio_container(
+    children: Vec<Fragment>,
+    aspect_ratio: f32,
+    style: Style,
+    context: Context,
+) -> Fragment {
     rsx! {
         <container style={style.justify_content(JustifyContent::Center).flex_direction(Row)}>
             <container style={STYLE.justify_content(JustifyContent::Center).flex_direction(Column).aspect_ratio(Defined(aspect_ratio))}>
