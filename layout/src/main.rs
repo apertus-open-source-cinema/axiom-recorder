@@ -15,12 +15,10 @@ use layout::{
 };
 
 
-
-
 fn main() {
     let mut layouter = Layouter::<&str, Box<dyn Layoutable>>::new();
     let column = Box::new(Column {
-        cross_axis_alignment: CrossAxisAlignment::Start,
+        cross_axis_alignment: CrossAxisAlignment::Center,
         main_axis_alignment: MainAxisAlignment::Start,
         main_axis_size: MainAxisSize::Max,
     });

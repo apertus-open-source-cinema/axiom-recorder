@@ -66,8 +66,8 @@ impl CrossAxisAlignment {
     pub fn spacing_for(&self, max_width: f32, width: f32) -> f32 {
         match self {
             Self::Start => 0.0,
-            Self::End => (max_width - width).min(0.0),
-            Self::Center => (max_width - width).min(0.0) / 2.0,
+            Self::End => (max_width - width).max(0.0),
+            Self::Center => (max_width - width).max(0.0) / 2.0,
         }
     }
 }

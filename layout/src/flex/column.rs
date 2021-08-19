@@ -21,17 +21,22 @@ pub struct Column {
 
 impl Layoutable for Column {
     fn layout(&self, constraint: BoxConstraints, children: LayoutableChildren) -> Size {
-        println!("{:?}, {:?}", constraint, self);
+        let orig_constraint = constraint;
+        let constraint = constraint.loosen_width();
         assert!(constraint.height_is_bounded() || matches!(self.main_axis_size, MainAxisSize::Min));
 
         let non_flex_constraint = constraint.with_unbounded_height();
         let mut max_width = 0.0f32;
         let mut bounded_height = 0.0;
         let mut total_flex = 0.0;
+        let mut any_tight = false;
 
         for child in children.into_iter() {
             match Flexible::get(&child) {
-                Some(Flex { flex, .. }) => total_flex += flex,
+                Some(Flex { flex, fit }) => {
+                    total_flex += flex;
+                    any_tight = any_tight || matches!(fit, FlexFit::Tight);
+                },
                 None => {
                     let size = child.layout(non_flex_constraint);
                     max_width = max_width.max(size.width);
@@ -39,6 +44,8 @@ impl Layoutable for Column {
                 }
             }
         }
+
+        assert!(constraint.height_is_bounded() || (!any_tight && matches!(self.main_axis_size, MainAxisSize::Min)));
 
         let unit_flex = if total_flex != 0.0 {
             (constraint.max_height - bounded_height) / total_flex
@@ -69,8 +76,8 @@ impl Layoutable for Column {
             }
         }
 
-        let max_width = max_width.clamp(constraint.min_width, constraint.max_width);
-        let total_spacing = (total_spacing - actual_flex_height).min(0.0);
+        let max_width = max_width.clamp(orig_constraint.min_width, orig_constraint.max_width);
+        let total_spacing = (total_spacing - actual_flex_height).max(0.0);
         let total_height = bounded_height + actual_flex_height;
 
         let (space_before, space_between) =

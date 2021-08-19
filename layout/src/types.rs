@@ -9,6 +9,20 @@ pub struct BoxConstraints {
 }
 
 impl BoxConstraints {
+    pub fn loosen_width(self) -> Self {
+        Self {
+            min_width: 0.0,
+            ..self
+        }
+    }
+
+    pub fn loosen_height(self) -> Self {
+        Self {
+            min_height: 0.0,
+            ..self
+        }
+    }
+
     pub fn enforce(&self, other: BoxConstraints) -> Self {
         Self {
             min_width: self.min_width.clamp(other.min_width, other.max_width),
