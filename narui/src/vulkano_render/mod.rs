@@ -63,6 +63,7 @@ pub fn render(window_builder: WindowBuilder, top_node: Fragment) {
     let mut dimensions;
 
     let caps = surface.capabilities(device.physical_device()).unwrap();
+    dbg!(caps.clone());
     let (mut swapchain, images) = {
         let alpha = caps.supported_composite_alpha.iter().next().unwrap();
         let format = caps.supported_formats[0].0;
