@@ -15,10 +15,11 @@ mod vertex_shader {
         src: "
             #version 450
             layout(location = 0) in vec2 position;
+            layout(location = 1) in vec2 tex;
             layout(location = 0) out vec2 tex_coords;
             void main() {
                 gl_Position = vec4(position, 0.0, 1.0);
-                tex_coords = (position + vec2(1.)) / vec2(2.);
+                tex_coords = tex;
             }
         "
     }
@@ -58,33 +59,39 @@ mod fragment_shader {
 #[derive(Default, Debug, Clone)]
 struct Vertex {
     position: [f32; 2],
+    tex: [f32; 2],
 }
-vulkano::impl_vertex!(Vertex, position);
+vulkano::impl_vertex!(Vertex, position, tex);
 
-fn initialize(
-    render_pass: Arc<RenderPass>,
-) -> (Arc<CpuAccessibleBuffer<[Vertex]>>, Arc<GraphicsPipeline<BuffersDefinition>>) {
+fn vertex_buffer(rect: Rect, res: Vec2) -> Arc<CpuAccessibleBuffer<[Vertex]>> {
+    let top_left = rect.pos / res * 2. - 1.;
+    let bottom_right = (rect.pos + rect.size) / res * 2. - 1.;
     let device = VulkanContext::get().device;
-
-    let vertex_buffer = CpuAccessibleBuffer::<[Vertex]>::from_iter(
+    CpuAccessibleBuffer::<[Vertex]>::from_iter(
         device.clone(),
         BufferUsage::all(),
         false,
         [
-            Vertex { position: [-1., -1.] },
-            Vertex { position: [-1., 1.] },
-            Vertex { position: [1., -1.] },
-            Vertex { position: [1., 1.] },
+            Vertex { position: [top_left.x, top_left.y], tex: [0., 0.] },
+            Vertex { position: [top_left.x, bottom_right.y], tex: [0., 1.] },
+            Vertex { position: [bottom_right.x, top_left.y], tex: [1., 0.] },
+            Vertex { position: [bottom_right.x, bottom_right.y], tex: [1., 1.] },
         ]
-        .iter()
-        .cloned(),
+            .iter()
+            .cloned(),
     )
-    .unwrap();
+        .unwrap()
+}
+
+fn initialize(
+    render_pass: Arc<RenderPass>,
+) -> Arc<GraphicsPipeline<BuffersDefinition>> {
+    let device = VulkanContext::get().device;
 
     let vs = vertex_shader::Shader::load(device.clone()).unwrap();
     let fs = fragment_shader::Shader::load(device.clone()).unwrap();
 
-    let pipeline = Arc::new(
+    Arc::new(
         GraphicsPipeline::start()
             .vertex_input_single_buffer::<Vertex>()
             .vertex_shader(vs.main_entry_point(), ())
@@ -95,17 +102,16 @@ fn initialize(
             .render_pass(Subpass::from(render_pass, 0).unwrap())
             .build(device)
             .unwrap(),
-    );
-
-    (vertex_buffer, pipeline)
+    )
 }
 
 #[widget(style = Default::default())]
 pub fn image(image: Arc<RgbFrame>, style: Style, context: Context) -> FragmentInner {
     let cloned_image = image.clone();
     let render_fn: Arc<RenderFnInner> =
-        Arc::new(move |render_pass, command_buffer_builder, dynamic_state, _rect| {
-            let (vertex_buffer, pipeline) = initialize(render_pass);
+        Arc::new(move |render_pass, command_buffer_builder, dynamic_state, rect, res| {
+            let pipeline = initialize(render_pass);
+            let vertex_buffer = vertex_buffer(rect, res);
 
             let source_buffer =
                 CpuAccessibleBufferReadView::<u8>::from_buffer(cloned_image.buffer.clone())
