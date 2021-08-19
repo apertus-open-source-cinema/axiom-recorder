@@ -38,3 +38,10 @@ narui = { path = "narui" }
 
 [profile.release]
 debug = true
+
+
+[workspace]
+members = [
+    "narui",
+    "narui/narui_macros",
+]

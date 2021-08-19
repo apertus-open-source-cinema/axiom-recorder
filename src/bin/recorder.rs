@@ -114,14 +114,14 @@ pub fn player(context: Context) -> Fragment {
                 <container style={STYLE.position_type(Absolute).height(Points(100.)).width_fill().flex_direction(Column).justify_content(JustifyContent::Center).align_items(AlignItems::Center)}>
                     <rec_button>{"00:00:00".to_string()}</rec_button>
                 </container>
-                <rounded_rect
+                <rect
                     style={STYLE.position_type(Absolute).bottom(Points(0.)).height(Points(122.)).width_fill().justify_content(JustifyContent::SpaceAround).align_items(AlignItems::Center)}
                     fill_color=Some(Color::new(0.0, 0.0, 0.0, 0.8))
                 >
                     <rec_slide_button options=vec!["ISO 400".to_string(), "ISO 800".to_string(), "ISO 1600".to_string()] val=1 />
                     <rec_slide_button options=vec!["ISO 400".to_string(), "ISO 800".to_string(), "ISO 1600".to_string()] val=1 />
                     <recording_button size=80. />
-                </rounded_rect>
+                </rect>
             </container>
         }
     } else {
@@ -174,29 +174,29 @@ pub fn rec_button(style: Style, children: String, context: Context) -> Fragment 
 #[widget(style = Default::default())]
 pub fn rec_rect(style: Style, children: Vec<Fragment>, context: Context) -> Fragment {
     rsx! {
-        <rounded_rect
+        <rect
             style=style.width(Points(300.)).height(Points(70.)).padding(Points(20.)).justify_content(JustifyContent::SpaceAround).align_items(AlignItems::Center)
             border_radius=Points(28.)
             stroke_color=Some(color!(#ffffff))
             fill_color=None
         >
             {children}
-        </rounded_rect>
+        </rect>
     }
 }
 
 #[widget(style = Default::default(), size = 80.)]
 fn recording_button(style: Style, size: f32, context: Context) -> Fragment {
     rsx! {
-        <rounded_rect
+        <rect
             border_radius=Percent(1.)
             style=style.width(Points(size)).height(Points(size)).padding(Points(6.))
             stroke_color=Some(color!(#ffffff))
             fill_color=None
             stroke_options={StrokeOptions::default().with_line_width(5.)}
         >
-            <rounded_rect border_radius=Percent(1.) style=STYLE.fill() fill_color=Some(color!(#FF5C5C))/>
-        </rounded_rect>
+            <rect border_radius=Percent(1.) style=STYLE.fill() fill_color=Some(color!(#FF5C5C))/>
+        </rect>
     }
 }
 
