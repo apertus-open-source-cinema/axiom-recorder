@@ -23,6 +23,7 @@ use std::{
     thread::spawn,
 };
 use winit::{platform::unix::WindowBuilderExtUnix, window::WindowBuilder};
+use winit::dpi::PhysicalSize;
 
 struct PlayerSink<T: Fn(Arc<RgbFrame>) + Send + Sync> {
     callback: T,
@@ -101,29 +102,37 @@ pub fn player(context: Context) -> Fragment {
     }, ());
 
     let current_frame = listenable_from_channel_handle(&context, handle);
-
     let frame = context.listen(current_frame);
-    if let Some(frame) = frame {
-        rsx! {
-            <container style={STYLE.fill()}>
-                <aspect_ratio_container style={STYLE.fill()} aspect_ratio={4. / 3.}>
-                    <image image={frame} style={STYLE.fill()}/>
-                </aspect_ratio_container>
-                <container style={STYLE.position_type(Absolute).height(Points(100.)).width_fill().flex_direction(Column).justify_content(JustifyContent::Center).align_items(AlignItems::Center)}>
-                    <rec_button>{"00:00:00".to_string()}</rec_button>
-                </container>
-                <rect
-                    style={STYLE.position_type(Absolute).bottom(Points(0.)).height(Points(122.)).width_fill().justify_content(JustifyContent::SpaceAround).align_items(AlignItems::Center)}
-                    fill_color=Some(Color::new(0.0, 0.0, 0.0, 0.8))
-                >
-                    <rec_slide_button options=vec!["ISO 400".to_string(), "ISO 800".to_string(), "ISO 1600".to_string()] val=1 />
-                    <rec_slide_button options=vec!["ISO 400".to_string(), "ISO 800".to_string(), "ISO 1600".to_string()] val=1 />
-                    <recording_button size=80. />
-                </rect>
+
+    let iso_idx = context.listenable(1usize);
+    let deg_idx = context.listenable(1usize);
+
+    rsx! {
+        <container style={STYLE.fill()}>
+            <aspect_ratio_container style={STYLE.fill()} aspect_ratio={4. / 3.}>
+                {if let Some(frame) = frame { vec![rsx! {<image image={frame} style={STYLE.fill()}/> }]} else { vec![] }}
+            </aspect_ratio_container>
+            <container style={STYLE.position_type(Absolute).height(Points(100.)).width_fill().flex_direction(Column).justify_content(JustifyContent::Center).align_items(AlignItems::Center)}>
+                <rec_button style=STYLE.justify_content(JustifyContent::Center)>{"00:00:00".to_string()}</rec_button>
             </container>
-        }
-    } else {
-        rsx! {}
+            <rect
+                style=STYLE.position_type(Absolute).bottom(Points(0.)).height(Points(122.)).width_fill()
+                           .justify_content(JustifyContent::SpaceBetween).align_items(AlignItems::Center)
+                           .padding_left(Points(30.)).padding_right(Points(30.))
+                fill_color=Some(Color::new(0.0, 0.0, 0.0, 0.3))
+            >
+                <rec_rect style=STYLE.flex_direction(Column).width(Points(150.)).justify_content(JustifyContent::Center).padding(Points(0.))>
+                    <text size=25.>{"1080p".to_string()}</text>
+                    <text size=25.>{"24 FPS".to_string()}</text>
+                </rec_rect>
+                <container>
+                    <rec_slide_button options=vec!["45°".to_string(), "90°".to_string(), "120°".to_string(), "180°".to_string(), "270°".to_string()] on_change={move |context: Context, val: usize| {context.shout(deg_idx, val)}} val={context.listen(deg_idx)} />
+                    <min_size width=Points(50.) />
+                    <rec_slide_button options=vec!["ISO 400".to_string(), "ISO 800".to_string(), "ISO 1600".to_string()] on_change={move |context: Context, val: usize| {context.shout(iso_idx, val)}} val={context.listen(iso_idx)} />
+                </container>
+                <recording_button size=80. />
+            </rect>
+        </container>
     }
 }
 
@@ -132,24 +141,36 @@ fn rec_slide_button(
     style: Style,
     options: Vec<String>,
     val: usize,
-    on_change: impl Fn(Context, String) + Send + Sync + Clone + 'static,
+    on_change: impl Fn(Context, usize) + Send + Sync + Clone + 'static,
     context: Context,
 ) -> Fragment {
     let on_change_clone = on_change.clone();
-    let on_left = move |context: Context, down: bool| {};
+    let on_left = move |context: Context, down: bool| {
+        if down && val > 0 {
+            on_change_clone(context, val - 1)
+        }
+    };
     let on_change_clone = on_change.clone();
-    let on_right = move |context: Context, down: bool| {};
+    let options_len = options.len();
+    let on_right = move |context: Context, down: bool| {
+        if down && val < options_len - 1 {
+            on_change_clone(context, val + 1)
+        }
+    };
 
     let text_size = 36.;
 
+    let white = color!(#ffffff);
+    let transparent = Color::new(1., 1., 1., 0.1);
+
     rsx! {
-        <rec_rect>
+        <rec_rect style=style>
             <input on_click=on_left>
-                <text size=text_size >{"<".to_string()}</text>
+                <text size=text_size color={if val > 0 {white} else {transparent}}>{"<".to_string()}</text>
             </input>
             <text size=text_size >{options[val].clone()}</text>
             <input on_click=on_right>
-                <text size=text_size >{">".to_string()}</text>
+                <text size=text_size color={if val < options_len - 1 {white} else {transparent}}>{">".to_string()}</text>
             </input>
         </rec_rect>
     }
@@ -169,7 +190,7 @@ pub fn rec_button(style: Style, children: String, context: Context) -> Fragment 
 pub fn rec_rect(style: Style, children: Vec<Fragment>, context: Context) -> Fragment {
     rsx! {
         <rect
-            style=style.width(Points(300.)).height(Points(70.)).padding(Points(20.)).justify_content(JustifyContent::SpaceAround).align_items(AlignItems::Center)
+            style=style.width(Points(300.)).height(Points(70.)).padding_left(Points(20.)).padding_right(Points(20.)).justify_content(JustifyContent::SpaceBetween).align_items(AlignItems::Center)
             border_radius=Points(28.)
             stroke_color=Some(color!(#ffffff))
             fill_color=None
@@ -214,6 +235,7 @@ fn aspect_ratio_container(
 
 fn main() {
     let window_builder = WindowBuilder::new()
+        .with_inner_size(PhysicalSize::new(1200, 900))
         .with_title("axiom recorder")
         .with_gtk_theme_variant("dark".parse().unwrap());
 
