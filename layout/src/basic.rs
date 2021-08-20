@@ -166,6 +166,14 @@ pub struct AbsolutePosition {
     pos: Offset,
 }
 
+impl AbsolutePosition {
+    pub fn zero() -> Self {
+        Self {
+            pos: Offset::zero()
+        }
+    }
+}
+
 impl Positioner for AbsolutePosition {
     fn position(&self, _outer_size: Size, _inner_size: Size) -> Offset { self.pos }
 }
@@ -292,6 +300,65 @@ impl FractionallySizedBox {
             constrainer: size,
             sizer: PassthroughSizer,
             empty_sizer: size,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AspectRatio {
+    // width / height
+    ratio: f32
+}
+
+impl AspectRatio {
+    fn width_for(self, height: f32) -> f32 {
+        height * self.ratio
+    }
+
+    fn height_for(self, width: f32) -> f32 {
+        width / self.ratio
+    }
+
+    fn target_size(self, input_constraint: BoxConstraints) -> Size {
+        assert!(input_constraint.width_is_bounded() || input_constraint.height_is_bounded());
+
+        let width = if input_constraint.width_is_bounded() {
+            input_constraint.max_width
+        } else {
+            self.width_for(input_constraint.max_height).min(input_constraint.max_width)
+        };
+        let height = self.height_for(width).min(input_constraint.max_height);
+        // TODO(robin): flutter does these, but I don't think these actually do anything?
+        // let width = self.width_for(height).max(input_constraint.min_width);
+        // let height = self.height_for(width).max(input_constraint.min_height);
+        let width = self.width_for(height);
+
+        Size { width, height }
+    }
+}
+
+impl Constrainer for AspectRatio {
+    fn constrain(&self, input_constraint: BoxConstraints) -> BoxConstraints {
+        let size = self.target_size(input_constraint);
+        BoxConstraints::tight_for(input_constraint.constrain(size))
+    }
+}
+
+impl EmptySizer for AspectRatio {
+    fn size(&self, input_constraint: BoxConstraints) -> Size {
+        self.target_size(input_constraint)
+    }
+}
+
+pub type AspectRatioBox = SingleChildLayouter<AbsolutePosition, AspectRatio, PassthroughSizer, AspectRatio>;
+
+impl AspectRatioBox {
+    pub fn new(ratio: AspectRatio) -> Self {
+        Self {
+            positioner: AbsolutePosition::zero(),
+            constrainer: ratio,
+            sizer: PassthroughSizer,
+            empty_sizer: ratio
         }
     }
 }
