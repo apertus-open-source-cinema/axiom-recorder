@@ -14,9 +14,9 @@ use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
 use std::{collections::HashMap, sync::Arc};
 
+use crate::video_io::reader_tcp::TcpReader;
 #[cfg(feature = "gst")]
 use crate::video_io::writer_gstreamer::GstWriter;
-use crate::video_io::reader_tcp::TcpReader;
 
 pub mod execute;
 pub mod parametrizable;
