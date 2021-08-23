@@ -293,7 +293,7 @@ impl Parameterizable for Display {
 
                     let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
                     let set = Arc::new(
-                        PersistentDescriptorSet::start(layout.clone())
+                        PersistentDescriptorSet::start(layout)
                             .add_buffer_view(
                                 BufferView::new(source_buffer.clone(), R8Unorm).unwrap(),
                             )

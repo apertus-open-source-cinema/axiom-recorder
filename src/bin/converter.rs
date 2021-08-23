@@ -50,7 +50,7 @@ fn work() -> Result<()> {
 
     let mut nodes = arg_blocks[1..]
         .iter()
-        .map(|arg_block| processing_node_from_commandline(&arg_block))
+        .map(|arg_block| processing_node_from_commandline(arg_block))
         .collect::<Result<Vec<_>>>()?;
     nodes.push(Arc::new(ProgressNode::new(nodes[0].size_hint())));
 

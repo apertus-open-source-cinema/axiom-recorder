@@ -83,7 +83,7 @@ impl Parameters {
             .0
             .get(key)
             .ok_or_else(|| anyhow!("key {} not present in parameter storage", key))?;
-        Ok(parameter_value.clone().try_into()?)
+        parameter_value.clone().try_into()
     }
 }
 
@@ -228,6 +228,6 @@ pub trait Parameterizable {
             return Err(anyhow!("bogous input parameters were supplied!"));
         }
 
-        Ok(Self::new(&Parameters(parameters?))?)
+        Self::new(&Parameters(parameters?))
     }
 }
