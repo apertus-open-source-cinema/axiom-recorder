@@ -2398,6 +2398,7 @@ dependencies = [
 [[package]]
 name = "vulkano"
 version = "0.25.0"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=clear_depth_stencil#3eba1046f62ad0ae74a5879d1f119cb8b3e2e5eb"
 dependencies = [
  "ash",
  "crossbeam-queue",
@@ -2420,6 +2421,7 @@ dependencies = [
 [[package]]
 name = "vulkano-shaders"
 version = "0.25.0"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=clear_depth_stencil#3eba1046f62ad0ae74a5879d1f119cb8b3e2e5eb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2431,6 +2433,7 @@ dependencies = [
 [[package]]
 name = "vulkano-win"
 version = "0.25.0"
+source = "git+https://github.com/apertus-open-source-cinema/vulkano?branch=clear_depth_stencil#3eba1046f62ad0ae74a5879d1f119cb8b3e2e5eb"
 dependencies = [
  "cocoa 0.20.2",
  "metal",

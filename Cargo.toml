@@ -23,9 +23,9 @@ bytemuck = "1.4.1"
 # vulkano = "0.25.0"
 # vulkano-shaders = "0.25.0"
 # vulkano-win = "0.25.0"
-vulkano = { path = "../vulkano/vulkano" }
-vulkano-shaders = { path = "../vulkano/vulkano-shaders" }
-vulkano-win = { path = "../vulkano/vulkano-win" }
+vulkano = { git = "https://github.com/apertus-open-source-cinema/vulkano", branch = "clear_depth_stencil" }
+vulkano-shaders = { git = "https://github.com/apertus-open-source-cinema/vulkano", branch = "clear_depth_stencil" }
+vulkano-win = { git = "https://github.com/apertus-open-source-cinema/vulkano", branch = "clear_depth_stencil" }
 owning_ref = "0.4.1"
 shlex = "0.1.1"
 gstreamer = { version = "0.16.5", optional = true }

@@ -136,9 +136,11 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
 
     rsx! {
         <stack>
-            <aspect_ratio aspect_ratio={4. / 3.}>
-                {frame.map(|frame| rsx! {<image image={frame} style={STYLE.fill()}/> })}
-            </aspect_ratio>
+            <backdrop_blur sigma=10.>
+                <aspect_ratio aspect_ratio={4. / 3.}>
+                    {frame.map(|frame| rsx! {<image image={frame} style={STYLE.fill()}/> })}
+                </aspect_ratio>
+            </backdrop_blur>
             <positioned>
                 <padding padding=EdgeInsets::all(30.0)>
                     <column main_axis_alignment=MainAxisAlignment::SpaceBetween>
