@@ -7,7 +7,7 @@ Software to record and convert moving images from Apertus° AXIOM cameras via US
 ```shell script
 git clone https://github.com/axiom-micro/recorder
 cd recorder
-cargo run buid --release --all
+cargo build --release --all
 ```
 
 If you want to be able to use the gstreamer integration, add `--features gst`
