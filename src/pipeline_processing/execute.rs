@@ -1,41 +1,44 @@
 use crate::pipeline_processing::{payload::Payload, processing_node::ProcessingNode};
 use anyhow::Result;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use rayon::prelude::*;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+    Condvar,
+    Mutex,
+};
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
+    let nodes = Arc::new(nodes);
     let progress =
-        (0..nodes.len()).map(|_| Arc::new(ProcessingStageLock::new())).collect::<Vec<_>>();
+        Arc::new((0..nodes.len()).map(|_| ProcessingStageLock::new()).collect::<Vec<_>>());
+    let frame = AtomicU64::new(1);
 
-    let result = Arc::new(RwLock::new(None));
-    rayon::in_place_scope_fifo(|s| {
-        for frame in 1.. {
-            if result.clone().read().unwrap().is_some() {
-                return;
-            }
-            let nodes = nodes.clone();
-            let result = result.clone();
-            let progress = progress.clone();
-            s.spawn_fifo(move |_| {
-                let mut payload = Payload::empty();
-                for (node_num, node) in nodes.into_iter().enumerate() {
-                    // emits a waiter for the previous frame
-                    match node.process(&mut payload, progress[node_num].waiter_for(frame - 1)) {
-                        Ok(Some(new_payload)) => payload = new_payload,
-                        Ok(None) => {
-                            *result.write().unwrap() = Some(Ok(()));
-                            return;
-                        }
-                        Err(e) => {
-                            *result.write().unwrap() = Some(Err(e));
-                            return;
-                        }
+    let result = rayon::iter::repeat(0)
+        .into_par_iter()
+        .map(|_| {
+            let frame = frame.fetch_add(1, Ordering::SeqCst);
+            let mut payload = Payload::empty();
+            for (node_num, node) in nodes.iter().enumerate() {
+                // emits a waiter for the previous frame
+
+                match node.process(&mut payload, progress[node_num].waiter_for(frame - 1)) {
+                    Ok(Some(new_payload)) => payload = new_payload,
+                    Ok(None) => {
+                        return Some(Ok(()));
                     }
-                    progress[node_num].process(frame);
+                    Err(e) => {
+                        return Some(Err(e));
+                    }
                 }
-            });
-        }
-    });
-    Arc::try_unwrap(result).unwrap().into_inner().unwrap().unwrap()
+                progress[node_num].process(frame);
+            }
+
+            None
+        })
+        .find_first(|result| result.is_some())
+        .unwrap();
+    result.unwrap()
 }
 
 pub struct ProcessingStageLock {

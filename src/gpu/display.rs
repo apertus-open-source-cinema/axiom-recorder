@@ -374,7 +374,6 @@ impl ProcessingNode for Display {
         frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         frame_lock.wait();
-        println!("displaying frame {}", frame_lock.frame());
         let frame = input.downcast::<RgbFrame>().context("Wrong input format")?;
         if self.blocking {
             match self.tx.lock().unwrap().send(Some(frame)) {
