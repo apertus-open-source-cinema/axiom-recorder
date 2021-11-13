@@ -1,6 +1,7 @@
 use crate::{
     frame::raw_frame::{CfaDescriptor, RawFrame},
     pipeline_processing::{
+        execute::ProcessingStageLockWaiter,
         parametrizable::{
             ParameterType::{BoolParameter, IntRange, StringParameter},
             ParameterTypeDescriptor::{Mandatory, Optional},
@@ -14,11 +15,7 @@ use crate::{
     },
 };
 use anyhow::Result;
-use std::{
-    io::Read,
-    net::TcpStream,
-    sync::{Mutex, MutexGuard},
-};
+use std::{io::Read, net::TcpStream, sync::Mutex};
 
 pub struct TcpReader {
     pub tcp_connection: Mutex<TcpStream>,
@@ -59,7 +56,7 @@ impl ProcessingNode for TcpReader {
     fn process(
         &self,
         _input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
         self.tcp_connection.lock().unwrap().read_exact(&mut bytes)?;

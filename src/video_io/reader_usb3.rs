@@ -4,6 +4,7 @@ use crate::{
         typing_hacks::SubBuffer,
     },
     pipeline_processing::{
+        execute::ProcessingStageLockWaiter,
         parametrizable::{
             ParameterType::{BoolParameter, IntRange},
             ParameterTypeDescriptor::{Mandatory, Optional},
@@ -23,7 +24,6 @@ use std::{
     sync::{
         mpsc::{channel, Receiver, Sender, TryRecvError},
         Mutex,
-        MutexGuard,
     },
     thread,
 };
@@ -99,7 +99,7 @@ impl ProcessingNode for Usb3Reader {
     fn process(
         &self,
         _input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         let mut wait_for_slip_size = 0;
         let buf = loop {

@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::pipeline_processing::{
+    execute::ProcessingStageLockWaiter,
     parametrizable::{
         ParameterType::StringParameter,
         ParameterTypeDescriptor::Mandatory,
@@ -20,10 +21,7 @@ use crate::{
     frame::{raw_frame::RawFrame, rgb_frame::RgbFrame},
     pipeline_processing::payload::Payload,
 };
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    MutexGuard,
-};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 
 pub struct RawBlobWriter {
@@ -44,7 +42,7 @@ impl ProcessingNode for RawBlobWriter {
     fn process(
         &self,
         input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         if let Ok(frame) = input.downcast::<RawFrame>() {
             self.file.lock().unwrap().write_all(&frame.buffer)?;
@@ -76,9 +74,12 @@ impl Parameterizable for RawDirectoryWriter {
     }
 }
 impl ProcessingNode for RawDirectoryWriter {
-    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
-        let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
-        drop(frame_lock);
+    fn process(
+        &self,
+        input: &mut Payload,
+        frame_lock: ProcessingStageLockWaiter,
+    ) -> Result<Option<Payload>> {
+        let current_frame_number = frame_lock.frame();
         let mut file =
             File::create(format!("{}/{:06}.data", &self.dir_path, current_frame_number))?;
         if let Ok(frame) = input.downcast::<RawFrame>() {

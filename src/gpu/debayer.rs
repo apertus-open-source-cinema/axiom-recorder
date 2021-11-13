@@ -2,13 +2,14 @@ use crate::{
     frame::{raw_frame::RawFrame, rgb_frame::RgbFrame},
     gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
     pipeline_processing::{
+        execute::ProcessingStageLockWaiter,
         parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
         payload::Payload,
         processing_node::ProcessingNode,
     },
 };
 use anyhow::{anyhow, Context, Result};
-use std::sync::{Arc, MutexGuard};
+use std::sync::Arc;
 use vulkano::{
     buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit},
@@ -56,8 +57,11 @@ impl Parameterizable for Debayer {
 }
 
 impl ProcessingNode for Debayer {
-    fn process(&self, input: &mut Payload, frame_lock: MutexGuard<u64>) -> Result<Option<Payload>> {
-        drop(frame_lock);
+    fn process(
+        &self,
+        input: &mut Payload,
+        frame_lock: ProcessingStageLockWaiter,
+    ) -> Result<Option<Payload>> {
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
 
         if frame.bit_depth != 8 {

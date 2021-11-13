@@ -4,7 +4,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use recorder::pipeline_processing::{
     create_node_from_name,
-    execute::execute_pipeline,
+    execute::{execute_pipeline, ProcessingStageLockWaiter},
     list_available_nodes,
     parametrizable::{
         ParameterTypeDescriptor::{Mandatory, Optional},
@@ -21,7 +21,6 @@ use std::{
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
-        MutexGuard,
         RwLock,
     },
     time::SystemTime,
@@ -88,7 +87,7 @@ impl ProcessingNode for ProgressNode {
     fn process(
         &self,
         _input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         self.progressbar.inc(1);
         self.fps_counter.fetch_add(1, Ordering::Relaxed);

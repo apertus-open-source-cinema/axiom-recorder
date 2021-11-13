@@ -1,6 +1,7 @@
 use crate::{
     frame::rgb_frame::RgbFrame,
     pipeline_processing::{
+        execute::ProcessingStageLockWaiter,
         parametrizable::{
             ParameterType::{FloatRange, StringParameter},
             ParameterTypeDescriptor::{Mandatory, Optional},
@@ -17,7 +18,7 @@ use anyhow::{anyhow, Result};
 use std::{
     io::Write,
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
 };
 
 pub struct FfmpegWriter {
@@ -54,8 +55,9 @@ impl ProcessingNode for FfmpegWriter {
     fn process(
         &self,
         input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
+        frame_lock.wait();
         let frame = input.downcast::<RgbFrame>()?;
 
         {
