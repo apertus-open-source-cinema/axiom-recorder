@@ -2,6 +2,7 @@ use crate::{
     frame::rgb_frame::RgbFrame,
     gpu::gpu_util::CpuAccessibleBufferReadView,
     pipeline_processing::{
+        execute::ProcessingStageLockWaiter,
         parametrizable::{
             ParameterType::BoolParameter,
             ParameterTypeDescriptor::Optional,
@@ -26,7 +27,6 @@ use std::{
         },
         Arc,
         Mutex,
-        MutexGuard,
     },
     thread,
     thread::JoinHandle,
@@ -345,8 +345,10 @@ impl ProcessingNode for Display {
     fn process(
         &self,
         input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
+        frame_lock.wait();
+        println!("displaying frame {}", frame_lock.frame());
         let frame = input.downcast::<RgbFrame>().context("Wrong input format")?;
         if self.blocking {
             match self.tx.lock().unwrap().send(Some(frame)) {
