@@ -165,23 +165,27 @@ impl ProcessingNode for RawDirectoryReader {
                 }
             }
             ref mut none => {
-                let path = &self.files[(frame_number - 1) as usize % self.frame_count];
-                let mut file = File::open(path)?;
-                let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
-                file.read_exact(&mut bytes)?;
-                let payload = Payload::from(RawFrame::from_bytes(
-                    bytes,
-                    self.width,
-                    self.height,
-                    self.bit_depth,
-                    self.cfa,
-                )?);
+                if self.do_loop || frame_number <= self.frame_count {
+                    let path = &self.files[(frame_number - 1) as usize % self.frame_count];
+                    let mut file = File::open(path)?;
+                    let mut bytes =
+                        vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
+                    file.read_exact(&mut bytes)?;
+                    let payload = Payload::from(RawFrame::from_bytes(
+                        bytes,
+                        self.width,
+                        self.height,
+                        self.bit_depth,
+                        self.cfa,
+                    )?);
 
-                if self.do_loop {
-                    *none = Some(payload.clone());
+                    if self.do_loop {
+                        *none = Some(payload.clone());
+                    }
+                    Some(payload)
+                } else {
+                    None
                 }
-
-                Some(payload)
             }
         })
     }
