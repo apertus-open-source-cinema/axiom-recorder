@@ -1,6 +1,7 @@
 use crate::{
     frame::raw_frame::{CfaDescriptor, RawFrame},
     pipeline_processing::{
+        execute::ProcessingStageLockWaiter,
         parametrizable::{
             ParameterType::{BoolParameter, FloatRange, IntRange, StringParameter},
             ParameterTypeDescriptor::{Mandatory, Optional},
@@ -19,7 +20,7 @@ use std::{
     fs::File,
     io::Read,
     path::PathBuf,
-    sync::{Mutex, MutexGuard},
+    sync::Mutex,
     thread::sleep,
     time::Duration,
     vec::IntoIter,
@@ -76,7 +77,7 @@ impl ProcessingNode for RawBlobReader {
     fn process(
         &self,
         _input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         sleep(Duration::from_secs_f64(self.sleep));
         let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
@@ -99,14 +100,14 @@ impl ProcessingNode for RawBlobReader {
 }
 
 pub struct RawDirectoryReader {
-    files_iterator: Mutex<IntoIter<PathBuf>>,
-    frame_count: u64,
+    files: Vec<PathBuf>,
+    frame_count: usize,
     bit_depth: u64,
     width: u64,
     height: u64,
     cfa: CfaDescriptor,
     do_loop: bool,
-    payload_vec: Mutex<Vec<Payload>>,
+    payload_vec: Mutex<Vec<Option<Payload>>>,
     sleep: f64,
 }
 impl Parameterizable for RawDirectoryReader {
@@ -129,20 +130,19 @@ impl Parameterizable for RawDirectoryReader {
         Self: Sized,
     {
         let file_pattern: String = options.get("file-pattern")?;
-        let entries = glob(&file_pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
-        let frame_count = entries.len() as u64;
-        let files_iterator = Mutex::new(entries.into_iter());
+        let files = glob(&file_pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let frame_count = files.len();
         let cfa =
             CfaDescriptor::from_first_red(options.get("first-red-x")?, options.get("first-red-y")?);
         Ok(Self {
-            files_iterator,
+            files,
             frame_count,
             bit_depth: options.get("bit-depth")?,
             width: options.get("width")?,
             height: options.get("height")?,
             cfa,
             do_loop: options.get("loop")?,
-            payload_vec: Mutex::new((0..frame_count).map(|_| Payload::empty()).collect()),
+            payload_vec: Mutex::new((0..frame_count).map(|_| None).collect()),
             sleep: options.get("sleep")?,
         })
     }
@@ -151,23 +151,21 @@ impl ProcessingNode for RawDirectoryReader {
     fn process(
         &self,
         _input: &mut Payload,
-        frame_lock: MutexGuard<u64>,
+        frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
-        let frame_number = *frame_lock;
+        let frame_number = frame_lock.frame() as usize;
         sleep(Duration::from_secs_f64(self.sleep));
-        drop(frame_lock);
 
-        let path = { self.files_iterator.lock().unwrap().next() };
-        let payload = match path {
-            None => {
-                if self.do_loop {
-                    let payload_vec = self.payload_vec.lock().unwrap();
-                    Some(payload_vec[frame_number as usize % payload_vec.len()].clone())
+        Ok(match self.payload_vec.lock().unwrap()[(frame_number - 1) as usize % self.frame_count] {
+            Some(ref payload) => {
+                if self.do_loop || frame_number <= self.frame_count {
+                    Some(payload.clone())
                 } else {
                     None
                 }
             }
-            Some(path) => {
+            ref mut none => {
+                let path = &self.files[(frame_number - 1) as usize % self.frame_count];
                 let mut file = File::open(path)?;
                 let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
                 file.read_exact(&mut bytes)?;
@@ -178,20 +176,21 @@ impl ProcessingNode for RawDirectoryReader {
                     self.bit_depth,
                     self.cfa,
                 )?);
+
                 if self.do_loop {
-                    self.payload_vec.lock().unwrap()[frame_number as usize - 1] = payload.clone();
+                    *none = Some(payload.clone());
                 }
+
                 Some(payload)
             }
-        };
-
-        Ok(payload)
+        })
     }
+
     fn size_hint(&self) -> Option<u64> {
         if self.do_loop {
             None
         } else {
-            Some(self.frame_count)
+            Some(self.frame_count as _)
         }
     }
 }

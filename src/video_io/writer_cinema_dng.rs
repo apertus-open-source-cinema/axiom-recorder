@@ -1,4 +1,5 @@
 use crate::pipeline_processing::{
+    execute::ProcessingStageLockWaiter,
     parametrizable::{
         ParameterType::{FloatRange, StringParameter},
         ParameterTypeDescriptor::Mandatory,
@@ -13,10 +14,7 @@ use anyhow::{Context, Result};
 use crate::{frame::raw_frame::RawFrame, pipeline_processing::payload::Payload};
 use std::{
     fs::create_dir,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        MutexGuard,
-    },
+    sync::atomic::{AtomicU64, Ordering},
 };
 use tiff_encoder::{
     ifd::{tags, Ifd},
@@ -62,10 +60,10 @@ impl ProcessingNode for CinemaDngWriter {
     fn process(
         &self,
         input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
-        let current_frame_number = self.frame_number.fetch_add(1, Ordering::SeqCst);
+        let current_frame_number = frame_lock.frame();
 
         let cfa_pattern = match (frame.cfa.first_is_red_x, frame.cfa.first_is_red_y) {
             (true, true) => BYTE![0, 1, 1, 2],
