@@ -74,7 +74,10 @@ impl ProcessingNode for GpuBitDepthConverter {
             CpuAccessibleBuffer::uninitialized_array(
                 self.device.clone(),
                 source_buffer.len() * 8 / 12,
-                BufferUsage::all(),
+                BufferUsage {
+                    storage_buffer: true,
+                    ..BufferUsage::none()
+                },
                 true,
             )?
         };

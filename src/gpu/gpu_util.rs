@@ -33,7 +33,10 @@ impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
                         CpuAccessibleBuffer::uninitialized_array(
                             device,
                             buffer.len() as u64,
-                            BufferUsage::all(),
+                            BufferUsage {
+                                storage_buffer: true,
+                                ..BufferUsage::none()
+                            },
                             true,
                         )?;
 
