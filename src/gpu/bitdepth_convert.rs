@@ -73,7 +73,7 @@ impl ProcessingNode for GpuBitDepthConverter {
         let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
             CpuAccessibleBuffer::uninitialized_array(
                 self.device.clone(),
-                source_buffer.len() * 12 / 8,
+                source_buffer.len() * 8 / 12,
                 BufferUsage::all(),
                 true,
             )?
