@@ -28,6 +28,7 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
                         return Some(Ok(()));
                     }
                     Err(e) => {
+                        println!("an error occured {}", e);
                         return Some(Err(e));
                     }
                 }
@@ -36,7 +37,7 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
 
             None
         })
-        .find_first(|result| result.is_some())
+        .find_any(|result| result.is_some())
         .unwrap();
     result.unwrap()
 }
