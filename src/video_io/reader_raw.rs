@@ -1,5 +1,4 @@
 use crate::{
-    frame::raw_frame::{CfaDescriptor, RawFrame},
     pipeline_processing::{
         execute::ProcessingStageLockWaiter,
         parametrizable::{
@@ -25,14 +24,12 @@ use std::{
     time::Duration,
     vec::IntoIter,
 };
+use crate::frame::{CfaDescriptor, Frame, FrameInterpretation, Raw};
 
 pub struct RawBlobReader {
     file: Mutex<File>,
+    interp: Raw,
     frame_count: u64,
-    bit_depth: u64,
-    width: u64,
-    height: u64,
-    cfa: CfaDescriptor,
     sleep: f64,
 }
 impl Parameterizable for RawBlobReader {
@@ -65,10 +62,12 @@ impl Parameterizable for RawBlobReader {
         Ok(Self {
             file: Mutex::new(file),
             frame_count,
-            bit_depth,
-            width,
-            height,
-            cfa,
+            interp: Raw {
+                bit_depth,
+                width,
+                height,
+                cfa,
+            },
             sleep: options.get("sleep")?,
         })
     }
@@ -80,17 +79,14 @@ impl ProcessingNode for RawBlobReader {
         _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         sleep(Duration::from_secs_f64(self.sleep));
-        let mut bytes = vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
+        let mut bytes = vec![0u8; self.interp.required_bytes()];
         let read_count = self.file.lock().unwrap().read(&mut bytes)?;
         if read_count == 0 {
             Ok(None)
         } else if read_count == bytes.len() {
-            Ok(Some(Payload::from(RawFrame::from_bytes(
+            Ok(Some(Payload::from(Frame::from_bytes(
                 bytes,
-                self.width,
-                self.height,
-                self.bit_depth,
-                self.cfa,
+                self.interp
             )?)))
         } else {
             Err(anyhow!("File could not be fully consumed. is the resolution set right?"))
@@ -171,12 +167,14 @@ impl ProcessingNode for RawDirectoryReader {
                     let mut bytes =
                         vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
                     file.read_exact(&mut bytes)?;
-                    let payload = Payload::from(RawFrame::from_bytes(
+                    let payload = Payload::from(Frame::from_bytes(
                         bytes,
-                        self.width,
-                        self.height,
-                        self.bit_depth,
-                        self.cfa,
+                        Raw {
+                            width: self.width,
+                            height: self.height,
+                            bit_depth: self.bit_depth,
+                            cfa: self.cfa,
+                        }
                     )?);
 
                     if self.do_loop {

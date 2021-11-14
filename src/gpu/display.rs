@@ -1,6 +1,5 @@
 use crate::{
-    frame::rgb_frame::RgbFrame,
-    gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
+    gpu::gpu_util::{VulkanContext},
     pipeline_processing::{
         execute::ProcessingStageLockWaiter,
         parametrizable::{
@@ -54,6 +53,8 @@ use winit::{
     platform::{run_return::EventLoopExtRunReturn, unix::EventLoopExtUnix},
     window::{Window, WindowBuilder},
 };
+use crate::frame::{Frame, GpuBuffer, Raw, Rgb};
+use crate::gpu::gpu_util::ensure_gpu_buffer;
 
 
 mod vertex_shader {
@@ -106,7 +107,7 @@ mod fragment_shader {
 
 
 pub struct Display {
-    tx: Mutex<SyncSender<Option<Arc<RgbFrame>>>>,
+    tx: Mutex<SyncSender<Option<Payload>>>,
     join_handle: Option<JoinHandle<()>>,
     blocking: bool,
 }
@@ -121,7 +122,7 @@ impl Parameterizable for Display {
     where
         Self: Sized,
     {
-        let (tx, rx) = sync_channel(10);
+        let (tx, rx) = sync_channel::<Option<Payload>>(10);
         let mailbox = parameters.get("mailbox").unwrap();
 
         let join_handle = thread::Builder::new().name("display".to_string()).spawn(move || {
@@ -145,7 +146,6 @@ impl Parameterizable for Display {
             let (mut swapchain, images) = {
                 let alpha = caps.supported_composite_alpha.iter().next().unwrap();
                 let format = caps.supported_formats[0].0;
-                dbg!(format);
                 let dimensions = surface.window().inner_size().into();
                 let present_mode = if mailbox { PresentMode::Mailbox } else { PresentMode::Fifo };
                 Swapchain::start(device.clone(), surface.clone())
@@ -226,17 +226,8 @@ impl Parameterizable for Display {
                 window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
             let mut recreate_swapchain = false;
             let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
-            let mut source_buffer = CpuAccessibleBuffer::from_iter(
-                VulkanContext::get().device,
-                BufferUsage {
-                    storage_texel_buffer: true,
-                    storage_buffer: true,
-                    ..BufferUsage::none()
-                },
-                true,
-                0..1,
-            )
-            .unwrap();
+            let mut source_buffer = None;
+            let mut source_future = None;
             let mut frame_width = 1u32;
             let mut frame_height = 1u32;
             event_loop.run_return(move |event, _, control_flow| match event {
@@ -266,6 +257,23 @@ impl Parameterizable for Display {
                         recreate_swapchain = false;
                     }
 
+                    let mut frame = rx.try_recv();
+                    match frame {
+                        Err(_) => {}
+                        Ok(None) => *control_flow = ControlFlow::Exit,
+                        Ok(Some(ref mut frame)) => {
+                            let (frame, fut) = ensure_gpu_buffer::<Rgb>(frame).context("Wrong input format").unwrap();
+                            frame_width = frame.interp.width as _;
+                            frame_height = frame.interp.height as _;
+                            source_buffer = Some(frame);
+                            source_future = Some(fut);
+                        }
+                    }
+                    if source_buffer.is_none() {
+                        *control_flow = ControlFlow::Poll;
+                        return
+                    }
+
                     let (image_num, suboptimal, acquire_future) =
                         match swapchain::acquire_next_image(swapchain.clone(), None) {
                             Ok(r) => r,
@@ -280,26 +288,11 @@ impl Parameterizable for Display {
                         recreate_swapchain = true;
                     }
 
-                    let frame: core::result::Result<Option<Arc<RgbFrame>>, _> = rx.try_recv();
-                    match frame {
-                        Err(_) => {}
-                        Ok(None) => *control_flow = ControlFlow::Exit,
-                        Ok(Some(frame)) => {
-                            source_buffer = CpuAccessibleBufferReadView::<u8>::from_buffer(
-                                frame.buffer.clone(),
-                            )
-                            .unwrap()
-                            .as_cpu_accessible_buffer();
-                            frame_width = frame.width as u32;
-                            frame_height = frame.height as u32;
-                        }
-                    }
-
                     let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
                     let set = Arc::new(
                         PersistentDescriptorSet::start(layout)
                             .add_buffer_view(
-                                BufferView::new(source_buffer.clone(), R8Unorm).unwrap(),
+                                BufferView::new(source_buffer.as_ref().unwrap().storage.clone(), R8Unorm).unwrap(),
                             )
                             .unwrap()
                             .build()
@@ -337,11 +330,16 @@ impl Parameterizable for Display {
                         .unwrap();
                     let command_buffer = builder.build().unwrap();
 
-                    let future = previous_frame_end
+                    let mut future = previous_frame_end
                         .take()
                         .unwrap()
                         .join(acquire_future)
-                        .then_execute(queue.clone(), command_buffer)
+                        .boxed();
+                    if let Some(fut) = source_future.take() {
+                        future = future.join(fut).boxed();
+                    }
+
+                    let future = future.then_execute(queue.clone(), command_buffer)
                         .unwrap()
                         .then_swapchain_present(queue.clone(), swapchain.clone(), image_num)
                         .then_signal_fence_and_flush();
@@ -378,9 +376,9 @@ impl ProcessingNode for Display {
         frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         frame_lock.wait();
-        let frame = input.downcast::<RgbFrame>().context("Wrong input format")?;
+
         if self.blocking {
-            match self.tx.lock().unwrap().send(Some(frame)) {
+            match self.tx.lock().unwrap().send(Some(input.clone())) {
                 Ok(_) => Ok(Some(Payload::empty())),
                 Err(_) => Ok(None),
             }
@@ -388,7 +386,7 @@ impl ProcessingNode for Display {
             self.tx
                 .lock()
                 .unwrap()
-                .try_send(Some(frame))
+                .try_send(Some(input.clone()))
                 .map(|_| Ok(Some(Payload::empty())))
                 .unwrap_or_else(|e| match e {
                     Full(_) => Ok(Some(Payload::empty())),

@@ -4,19 +4,14 @@ use crate::{
     pipeline_processing::parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
     video_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
-        reader_usb3::Usb3Reader,
-        writer_cinema_dng::CinemaDngWriter,
-        writer_ffmpeg::FfmpegWriter,
-        writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
 };
 use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::video_io::reader_tcp::TcpReader;
-#[cfg(feature = "gst")]
-use crate::video_io::writer_gstreamer::GstWriter;
+// #[cfg(feature = "gst")]
+// use crate::video_io::writer_gstreamer::GstWriter;
 
 pub mod execute;
 pub mod parametrizable;
@@ -64,6 +59,7 @@ generate_dynamic_node_creation_functions![
     GpuBitDepthConverter,
 ];
 
+/*
 #[cfg(not(feature = "gst"))]
 generate_dynamic_node_creation_functions![
     Usb3Reader,
@@ -78,4 +74,15 @@ generate_dynamic_node_creation_functions![
     Display,
     TcpReader,
     GpuBitDepthConverter,
+];
+*/
+
+#[cfg(not(feature = "gst"))]
+generate_dynamic_node_creation_functions![
+    RawBlobReader,
+    RawDirectoryReader,
+    BitDepthConverter,
+    GpuBitDepthConverter,
+    Debayer,
+    Display
 ];

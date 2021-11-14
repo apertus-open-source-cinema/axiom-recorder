@@ -37,3 +37,4 @@ num = "0.3.1"
 
 [profile.release]
 debug = true
+panic = "abort"

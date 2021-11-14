@@ -1,6 +1,5 @@
 use crate::{
-    frame::raw_frame::RawFrame,
-    gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
+    gpu::gpu_util::{VulkanContext},
     pipeline_processing::{
         execute::ProcessingStageLockWaiter,
         parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
@@ -19,6 +18,9 @@ use vulkano::{
     sync,
     sync::GpuFuture,
 };
+use vulkano::buffer::{DeviceLocalBuffer, ImmutableBuffer};
+use crate::frame::{Frame, GpuBuffer, Raw};
+use crate::gpu::gpu_util::ensure_gpu_buffer;
 
 mod compute_shader {
     vulkano_shaders::shader! {
@@ -62,31 +64,28 @@ impl ProcessingNode for GpuBitDepthConverter {
         input: &mut Payload,
         frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
+        let (frame, fut) = ensure_gpu_buffer::<Raw>(input).context("Wrong input format")?;
 
-        if frame.bit_depth != 12 {
-            return Err(anyhow!("A frame with bit_depth=8 is required. Repack the frame!"));
+        if frame.interp.bit_depth != 12 {
+            return Err(anyhow!("A frame with bit_depth=12 is required. Convert the bitdepth of the frame!"));
         }
-        let source_buffer = CpuAccessibleBufferReadView::<u8>::from_buffer(frame.buffer.clone())?
-            .as_cpu_accessible_buffer();
-        let sink_buffer: Arc<CpuAccessibleBuffer<[u8]>> = unsafe {
-            CpuAccessibleBuffer::uninitialized_array(
-                self.device.clone(),
-                source_buffer.len() * 8 / 12,
-                BufferUsage {
-                    storage_buffer: true,
-                    ..BufferUsage::none()
-                },
-                true,
-            )?
-        };
 
-        let push_constants = compute_shader::ty::PushConstantData { width: frame.width as u32 };
+        let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
+            self.device.clone(),
+            frame.interp.width * frame.interp.height,
+            BufferUsage {
+                storage_buffer: true,
+                ..BufferUsage::none()
+            },
+            std::iter::once(self.queue.family())
+        )?;
+
+        let push_constants = compute_shader::ty::PushConstantData { width: frame.interp.width as u32 };
 
         let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
         let set = Arc::new(
             PersistentDescriptorSet::start(layout)
-                .add_buffer(source_buffer)?
+                .add_buffer(frame.storage.clone())?
                 .add_buffer(sink_buffer.clone())?
                 .build()?,
         );
@@ -98,25 +97,26 @@ impl ProcessingNode for GpuBitDepthConverter {
         )
         .unwrap();
         builder.dispatch(
-            [frame.width as u32 / 16 / 2, frame.height as u32 / 32, 1],
+            [frame.interp.width as u32 / 16 / 2, frame.interp.height as u32 / 32, 1],
             self.pipeline.clone(),
             set,
             push_constants,
         )?;
         let command_buffer = builder.build()?;
 
-        let future = sync::now(self.device.clone())
+        let future = fut
             .then_execute(self.queue.clone(), command_buffer)?
             .then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        let output_data = CpuAccessibleBufferReadView::from_cpu_accessible_buffer(sink_buffer)?;
-        Ok(Some(Payload::from(RawFrame::from_bytes(
-            output_data,
-            frame.width,
-            frame.height,
-            8,
-            frame.cfa,
-        )?)))
+        Ok(Some(Payload::from(
+            Frame {
+                interp: Raw {
+                    bit_depth: 8,
+                    ..frame.interp
+                },
+                storage: sink_buffer as GpuBuffer
+            }
+        )))
     }
 }

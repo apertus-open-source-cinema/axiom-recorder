@@ -17,6 +17,10 @@ use vulkano::{
     },
     Version,
 };
+use vulkano::buffer::{DeviceLocalBuffer, ImmutableBuffer};
+use vulkano::sync::GpuFuture;
+use crate::frame::{CpuStorage, Frame, GpuBuffer};
+use crate::pipeline_processing::payload::Payload;
 
 #[derive(Clone)]
 pub struct VulkanContext {
@@ -47,50 +51,31 @@ impl VulkanContext {
     pub fn get() -> Self { VULKAN_CONTEXT.clone() }
 }
 
-pub struct CpuAccessibleBufferReadView<T: 'static + ?Sized>(
-    OwningHandle<Arc<CpuAccessibleBuffer<T>>, ReadLock<'static, T>>,
-);
-impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
-    pub fn from_buffer(buffer: Arc<dyn Buffer>) -> Result<Arc<CpuAccessibleBufferReadView<[u8]>>> {
-        let any_buffer = buffer.clone().into_any();
-        Ok(match any_buffer.downcast::<CpuAccessibleBufferReadView<[u8]>>() {
-            Ok(cpu_accessible_buffer) => cpu_accessible_buffer,
-            Err(any_buffer) => {
-                drop(any_buffer);
-                Arc::new(CpuAccessibleBufferReadView::from_cpu_accessible_buffer(unsafe {
-                    let uninitialized: Arc<CpuAccessibleBuffer<[u8]>> =
-                        CpuAccessibleBuffer::uninitialized_array(
-                            VulkanContext::get().device,
-                            buffer.len() as u64,
-                            BufferUsage {
-                                storage_buffer: true,
-                                ..BufferUsage::none()
-                            },
-                            true,
-                        )?;
+impl<Interpretation: Clone> Frame<Interpretation, CpuStorage> {
+    fn to_immutable_buffer(&self) -> (Frame<Interpretation, GpuBuffer>, impl GpuFuture) {
+        let queue = VulkanContext::get().queues.iter().next().unwrap().clone();
+        let (buffer, fut) = ImmutableBuffer::from_iter(self.storage.clone().into_iter(), BufferUsage {
+            storage_buffer: true,
+            storage_texel_buffer: true,
+            ..BufferUsage::none()
+        }, queue).unwrap();
 
-                    uninitialized.write().unwrap().clone_from_slice(&**buffer);
-                    uninitialized
-                })?)
-            }
-        })
-    }
-    pub fn from_cpu_accessible_buffer(
-        cpu_accessible_buffer: Arc<CpuAccessibleBuffer<T>>,
-    ) -> Result<Self> {
-        Ok(CpuAccessibleBufferReadView(OwningHandle::try_new::<_, ReadLockError>(
-            cpu_accessible_buffer,
-            |cpu_accessible_buffer| unsafe { (*cpu_accessible_buffer).read() },
-        )?))
-    }
-    pub fn as_cpu_accessible_buffer(
-        &self,
-    ) -> Arc<CpuAccessibleBuffer<T, PotentialDedicatedAllocation<StdMemoryPoolAlloc>>> {
-        self.0.as_owner().clone()
+        (Frame {
+            interp: self.interp.clone(),
+            storage: buffer
+        }, fut)
     }
 }
-impl<T: ?Sized> Deref for CpuAccessibleBufferReadView<T> {
-    type Target = T;
 
-    fn deref(&self) -> &Self::Target { self.0.deref() }
+
+
+pub fn ensure_gpu_buffer<Interpretation: Clone + Send + Sync + 'static>(payload: &mut Payload) -> anyhow::Result<(Arc<Frame<Interpretation, GpuBuffer>>, impl GpuFuture)> {
+    if let Ok(frame) = payload.downcast::<Frame<Interpretation, CpuStorage>>() {
+        let (buf, fut) = frame.to_immutable_buffer();
+        Ok((Arc::new(buf), fut.boxed()))
+    } else if let Ok(frame) = payload.downcast::<Frame<Interpretation, GpuBuffer>>() {
+        Ok((frame, vulkano::sync::now(VulkanContext::get().device.clone()).boxed()))
+    } else {
+        Err(anyhow!("wanted a frame as interpretation {}, but the payload was of type {}", std::any::type_name::<Interpretation>(), payload.type_name))
+    }
 }

@@ -28,7 +28,6 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
                         return Some(Ok(()));
                     }
                     Err(e) => {
-                        println!("an error occured {}", e);
                         return Some(Err(e));
                     }
                 }
