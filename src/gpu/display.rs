@@ -167,7 +167,7 @@ impl Parameterizable for Display {
 
             let vertex_buffer = CpuAccessibleBuffer::<[Vertex]>::from_iter(
                 device.clone(),
-                BufferUsage::all(),
+                BufferUsage::vertex_buffer(),
                 false,
                 [
                     Vertex { position: [-1., -1.] },
@@ -228,7 +228,11 @@ impl Parameterizable for Display {
             let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
             let mut source_buffer = CpuAccessibleBuffer::from_iter(
                 VulkanContext::get().device,
-                BufferUsage::all(),
+                BufferUsage {
+                    storage_texel_buffer: true,
+                    storage_buffer: true,
+                    ..BufferUsage::none()
+                },
                 true,
                 0..1,
             )

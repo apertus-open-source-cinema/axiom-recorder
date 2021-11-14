@@ -73,7 +73,11 @@ impl ProcessingNode for Debayer {
             CpuAccessibleBuffer::uninitialized_array(
                 self.device.clone(),
                 source_buffer.len() * 3,
-                BufferUsage::all(),
+                BufferUsage {
+                    storage_buffer: true,
+                    storage_texel_buffer: true,
+                    ..BufferUsage::none()
+                },
                 true,
             )?
         };
