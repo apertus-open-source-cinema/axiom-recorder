@@ -1,5 +1,7 @@
 use crate::pipeline_processing::{
+    buffers::CpuBuffer,
     execute::ProcessingStageLockWaiter,
+    frame::Raw,
     parametrizable::{
         ParameterType::{FloatRange, StringParameter},
         ParameterTypeDescriptor::Mandatory,
@@ -7,18 +9,15 @@ use crate::pipeline_processing::{
         Parameters,
         ParametersDescriptor,
     },
+    payload::Payload,
+    processing_context::ProcessingContext,
     processing_node::ProcessingNode,
 };
 use anyhow::{Context, Result};
-
-use crate::{frame::raw_frame::RawFrame, pipeline_processing::payload::Payload};
-use std::{
-    fs::create_dir,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::fs::create_dir;
 use tiff_encoder::{
-    ifd::{tags, Ifd},
-    write::ByteBlock,
+    ifd::{tags, values::Offsets, Ifd},
+    write::{Datablock, EndianFile},
     TiffFile,
     ASCII,
     BYTE,
@@ -27,12 +26,13 @@ use tiff_encoder::{
     SHORT,
     SRATIONAL,
 };
+use vulkano::buffer::TypedBufferAccess;
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
     dir_path: String,
     fps: f64,
-    frame_number: AtomicU64,
+    context: ProcessingContext,
 }
 
 impl Parameterizable for CinemaDngWriter {
@@ -42,17 +42,13 @@ impl Parameterizable for CinemaDngWriter {
             .with("fps", Mandatory(FloatRange(0., f64::MAX)))
     }
 
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
         let filename = parameters.get("path")?;
         create_dir(&filename).context("Error while creating target directory")?;
-        Ok(Self {
-            dir_path: filename,
-            fps: parameters.get("fps")?,
-            frame_number: AtomicU64::new(0),
-        })
+        Ok(Self { dir_path: filename, fps: parameters.get("fps")?, context })
     }
 }
 
@@ -62,10 +58,10 @@ impl ProcessingNode for CinemaDngWriter {
         input: &mut Payload,
         frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RawFrame>().context("Wrong input format")?;
+        let frame = self.context.ensure_cpu_buffer::<Raw>(input).context("Wrong input format")?;
         let current_frame_number = frame_lock.frame();
 
-        let cfa_pattern = match (frame.cfa.first_is_red_x, frame.cfa.first_is_red_y) {
+        let cfa_pattern = match (frame.interp.cfa.first_is_red_x, frame.interp.cfa.first_is_red_y) {
             (true, true) => BYTE![0, 1, 1, 2],
             (true, false) => BYTE![1, 0, 2, 1],
             (false, true) => BYTE![1, 2, 0, 1],
@@ -103,15 +99,24 @@ impl ProcessingNode for CinemaDngWriter {
 
                 .with_entry(51044, SRATIONAL![((self.fps * 10000.0) as i32, 10000)])// FrameRate
 
-                .with_entry(tags::ImageLength, LONG![frame.height as u32])
-                .with_entry(tags::ImageWidth, LONG![frame.width as u32])
-                .with_entry(tags::RowsPerStrip, LONG![frame.height as u32])
-                .with_entry(tags::StripByteCounts, LONG![frame.buffer.len() as u32])
-                .with_entry(tags::BitsPerSample, SHORT![frame.bit_depth as u16])
-                .with_entry(tags::StripOffsets, ByteBlock::single(frame.buffer.to_vec()))
+                .with_entry(tags::ImageLength, LONG![frame.interp.height as u32])
+                .with_entry(tags::ImageWidth, LONG![frame.interp.width as u32])
+                .with_entry(tags::RowsPerStrip, LONG![frame.interp.height as u32])
+                .with_entry(tags::StripByteCounts, LONG![frame.storage.len() as u32])
+                .with_entry(tags::BitsPerSample, SHORT![frame.interp.bit_depth as u16])
+                .with_entry(tags::StripOffsets, Offsets::single(frame.storage.clone()))
                 .single(),
         )
         .write_to(format!("{}/{:06}.dng", &self.dir_path, current_frame_number))?;
         Ok(Some(Payload::empty()))
+    }
+}
+
+
+impl Datablock for CpuBuffer {
+    fn size(&self) -> u32 { self.cpu_accessible_buffer().len() as u32 }
+
+    fn write_to(self, file: &mut EndianFile) -> std::io::Result<()> {
+        self.as_slice(|slice| file.write_all_u8(slice))
     }
 }

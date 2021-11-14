@@ -32,10 +32,7 @@ impl Payload {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        frame::raw_frame::{CfaDescriptor, RawFrame},
-        pipeline_processing::payload::Payload,
-    };
+    use crate::pipeline_processing::payload::Payload;
 
 
     #[test]
@@ -43,14 +40,5 @@ mod tests {
         let payload: Payload = Payload::from(0u32);
         let value = payload.downcast::<u32>().unwrap();
         assert_eq!(*value, 0u32);
-    }
-
-    #[test]
-    fn test_payload_raw_frame() {
-        let payload = Payload::from(
-            RawFrame::from_bytes(vec![1u8], 1, 1, 8, CfaDescriptor::from_first_red(true, true))
-                .unwrap(),
-        );
-        let _value = payload.downcast::<RawFrame>().unwrap();
     }
 }

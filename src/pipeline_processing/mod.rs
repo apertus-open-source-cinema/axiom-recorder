@@ -1,26 +1,32 @@
 use crate::{
-    frame::bit_depth_converter::BitDepthConverter,
-    gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer, display::Display},
-    pipeline_processing::parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
-    video_io::{
+    nodes_cpu::bitdepth_convert::BitDepthConverter,
+    nodes_gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer, display::Display},
+    nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
-        reader_usb3::Usb3Reader,
+        reader_tcp::TcpReader,
         writer_cinema_dng::CinemaDngWriter,
         writer_ffmpeg::FfmpegWriter,
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
+    },
+    pipeline_processing::{
+        parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
+        processing_context::ProcessingContext,
     },
 };
 use anyhow::{anyhow, Result};
 use processing_node::ProcessingNode;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::video_io::reader_tcp::TcpReader;
 #[cfg(feature = "gst")]
-use crate::video_io::writer_gstreamer::GstWriter;
+use crate::nodes_io::writer_gstreamer::GstWriter;
 
+pub mod buffers;
 pub mod execute;
+pub mod frame;
+pub mod gpu_util;
 pub mod parametrizable;
 pub mod payload;
+pub mod processing_context;
 pub mod processing_node;
 
 macro_rules! generate_dynamic_node_creation_functions {
@@ -33,10 +39,10 @@ macro_rules! generate_dynamic_node_creation_functions {
             to_return
         }
 
-        pub fn create_node_from_name(name: &str, parameters: &Parameters) -> Result<Arc<dyn ProcessingNode>> {
+        pub fn create_node_from_name(name: &str, parameters: &Parameters, context: ProcessingContext) -> Result<Arc<dyn ProcessingNode>> {
             $(
                 if name == <$x>::get_name() {
-                    return Ok(Arc::new(<$x>::from_parameters(parameters)?))
+                    return Ok(Arc::new(<$x>::from_parameters(parameters, context)?))
                 };
             )+
 
@@ -49,7 +55,7 @@ macro_rules! generate_dynamic_node_creation_functions {
 // TODO(robin): this is stupid
 #[cfg(feature = "gst")]
 generate_dynamic_node_creation_functions![
-    Usb3Reader,
+    //Usb3Reader,
     RawBlobReader,
     RawDirectoryReader,
     BitDepthConverter,
@@ -64,9 +70,10 @@ generate_dynamic_node_creation_functions![
     GpuBitDepthConverter,
 ];
 
+
 #[cfg(not(feature = "gst"))]
 generate_dynamic_node_creation_functions![
-    Usb3Reader,
+    //Usb3Reader,
     RawBlobReader,
     RawDirectoryReader,
     BitDepthConverter,
