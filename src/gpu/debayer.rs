@@ -110,7 +110,7 @@ impl ProcessingNode for Debayer {
         )?;
         let command_buffer = builder.build()?;
 
-        let future = sync::now(self.device.clone())
+        let future = fut
             .then_execute(self.queue.clone(), command_buffer)?
             .then_signal_fence_and_flush()?;
 

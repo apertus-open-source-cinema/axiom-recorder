@@ -28,11 +28,12 @@ impl ProcessingNode for BitDepthConverter {
         _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         let frame = input.downcast::<Frame<Raw, CpuStorage>>().context("Wrong input format")?;
+        let mut new_buffer = vec![0u8; (frame.interp.width * frame.interp.height) as usize];
 
-        let new_frame = if frame.interp.bit_depth == 8 {
-            frame
+
+        if frame.interp.bit_depth == 8 {
+            return Ok(Some(input.clone()))
         } else if frame.interp.bit_depth == 12 {
-            let mut new_buffer = vec![0u8; (frame.interp.width * frame.interp.height) as usize];
             new_buffer.chunks_mut(20000).zip(frame.storage.chunks(30000)).for_each(
                 |(macro_output_chunk, macro_input_chunk)| {
                     macro_output_chunk.chunks_mut(2).zip(macro_input_chunk.chunks(3)).for_each(
@@ -49,15 +50,7 @@ impl ProcessingNode for BitDepthConverter {
                     );
                 },
             );
-
-            Arc::new(Frame::from_bytes(new_buffer, Raw {
-                bit_depth: 8,
-                ..frame.interp
-            })?)
         } else {
-            let mut new_buffer =
-                Vec::with_capacity(frame.interp.width as usize * frame.interp.height as usize);
-
             let mut rest_value: u32 = 0;
             let mut rest_bits: u32 = 0;
             for value in frame.storage.iter() {
@@ -84,11 +77,12 @@ impl ProcessingNode for BitDepthConverter {
                     rest_value = (rest_value << 8) | *value as u32;
                 };
             }
-            Arc::new(Frame::from_bytes(new_buffer, Raw {
-                bit_depth: 8,
-                ..frame.interp
-            })?)
-        };
+        }
+
+        let new_frame =Arc::new(Frame::from_bytes(new_buffer, Raw {
+            bit_depth: 8,
+            ..frame.interp
+        })?);
 
         Ok(Some(Payload::from_arc(new_frame)))
     }
