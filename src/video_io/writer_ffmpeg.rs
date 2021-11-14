@@ -99,7 +99,7 @@ impl ProcessingNode for FfmpegWriter {
                 .stdin
                 .as_mut()
                 .unwrap()
-                .write_all(&frame.buffer.clone())?;
+                .write_all(&frame.buffer)?;
         }
 
         Ok(Some(Payload::empty()))
