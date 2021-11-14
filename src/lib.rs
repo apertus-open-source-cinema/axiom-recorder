@@ -1,5 +1,5 @@
 pub mod common;
-pub mod frame;
-pub mod gpu;
+pub mod nodes_cpu;
+pub mod nodes_gpu;
+pub mod nodes_io;
 pub mod pipeline_processing;
-pub mod video_io;

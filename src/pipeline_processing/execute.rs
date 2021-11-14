@@ -1,5 +1,6 @@
 use crate::pipeline_processing::{payload::Payload, processing_node::ProcessingNode};
 use anyhow::Result;
+use itertools::Itertools;
 use rayon::prelude::*;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
@@ -28,7 +29,10 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
                         return Some(Ok(()));
                     }
                     Err(e) => {
-                        println!("an error occured {}", e);
+                        eprintln!(
+                            "An error occured: \n{}",
+                            e.chain().map(|e| format!("{}", e)).join("\n")
+                        );
                         return Some(Err(e));
                     }
                 }
@@ -69,7 +73,7 @@ impl<'a> ProcessingStageLockWaiter<'a> {
 impl ProcessingStageLock {
     pub fn new() -> Self { ProcessingStageLock { condvar: Condvar::new(), val: Mutex::new(0) } }
     pub fn waiter_for<'a>(&'a self, val: u64) -> ProcessingStageLockWaiter<'a> {
-        ProcessingStageLockWaiter { lock: &self, frame: val }
+        ProcessingStageLockWaiter { lock: self, frame: val }
     }
     pub fn process(&self, val: u64) {
         let mut locked = self.val.lock().unwrap();

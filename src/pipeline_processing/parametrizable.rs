@@ -2,8 +2,11 @@ use self::ParameterTypeDescriptor::{Mandatory, Optional};
 use anyhow::{anyhow, Error, Result};
 use std::{any::type_name, convert::TryInto};
 
-use std::{collections::HashMap, sync::Arc};
-use vulkano::device::{Device, Queue};
+use crate::pipeline_processing::{
+    frame::{CfaDescriptor, Raw},
+    processing_context::ProcessingContext,
+};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum ParameterValue {
@@ -11,10 +14,7 @@ pub enum ParameterValue {
     IntRange(i64),
     StringParameter(String),
     BoolParameter(bool),
-    VulkanContext(Arc<Device>, Vec<Arc<Queue>>),
 }
-
-pub struct VulkanContext(pub Arc<Device>, pub Vec<Arc<Queue>>);
 
 impl ToString for ParameterValue {
     fn to_string(&self) -> String {
@@ -23,7 +23,6 @@ impl ToString for ParameterValue {
             Self::IntRange(v) => v.to_string(),
             Self::StringParameter(v) => v.to_string(),
             Self::BoolParameter(v) => v.to_string(),
-            Self::VulkanContext(..) => "<VulkanContext>".to_string(),
         }
     }
 }
@@ -77,16 +76,6 @@ impl TryInto<bool> for ParameterValue {
         }
     }
 }
-impl TryInto<VulkanContext> for ParameterValue {
-    type Error = anyhow::Error;
-
-    fn try_into(self) -> Result<VulkanContext, Self::Error> {
-        match self {
-            Self::VulkanContext(d, q) => Ok(VulkanContext(d, q)),
-            _ => Err(anyhow!("cant convert a non FloatRange ParameterValue to f64")),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct Parameters(pub HashMap<String, ParameterValue>);
@@ -101,6 +90,14 @@ impl Parameters {
             .ok_or_else(|| anyhow!("key {} not present in parameter storage", key))?;
         parameter_value.clone().try_into()
     }
+
+    pub fn get_raw_interpretation(&self) -> Result<Raw> {
+        let width = self.get("width")?;
+        let height = self.get("height")?;
+        let bit_depth = self.get("bit-depth")?;
+        let cfa = CfaDescriptor::from_first_red(self.get("first-red-x")?, self.get("first-red-y")?);
+        Ok(Raw { bit_depth, width, height, cfa })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -109,7 +106,6 @@ pub enum ParameterType {
     IntRange(i64, i64),
     StringParameter,
     BoolParameter,
-    VulkanContext,
 }
 impl ParameterType {
     pub fn value_is_of_type(&self, value: ParameterValue) -> Result<ParameterValue> {
@@ -120,14 +116,14 @@ impl ParameterType {
                 if (v >= min) && (v <= max) {
                     Ok(value)
                 } else {
-                    Err(anyhow!("value {} is not {} <= value <= {}", v, min, v))
+                    Err(anyhow!("value {} is not {} <= value <= {}", v, min, max))
                 }
             }
             (Self::IntRange(min, max), ParameterValue::IntRange(v)) => {
                 if (v >= min) && (v <= max) {
                     Ok(value)
                 } else {
-                    Err(anyhow!("value {} is not {} <= value <= {}", v, min, v))
+                    Err(anyhow!("value {} is not {} <= value <= {}", v, min, max))
                 }
             }
             _ => Err(anyhow!("value {:?} has to be of type {:?}", value, self)),
@@ -142,7 +138,6 @@ impl ParameterType {
             Self::FloatRange(..) => {
                 self.value_is_of_type(ParameterValue::FloatRange(string.parse()?))
             }
-            Self::VulkanContext => Err(anyhow!("tried to parse vulkan context from string")),
         }
     }
 }
@@ -167,8 +162,6 @@ impl ParameterTypeDescriptor {
     }
 }
 
-pub const VULKAN_CONTEXT: &str = "vulkan_context";
-
 #[derive(Debug, Clone)]
 pub struct ParametersDescriptor(pub HashMap<String, ParameterTypeDescriptor>);
 impl Default for ParametersDescriptor {
@@ -176,17 +169,22 @@ impl Default for ParametersDescriptor {
 }
 impl ParametersDescriptor {
     pub fn new() -> Self { ParametersDescriptor(HashMap::new()) }
-    pub fn using_vulkan() -> Self {
-        let mut map = HashMap::new();
-        map.insert(
-            VULKAN_CONTEXT.to_string(),
-            ParameterTypeDescriptor::Mandatory(ParameterType::VulkanContext),
-        );
-        ParametersDescriptor(map)
-    }
     pub fn with(mut self, name: &str, descriptor: ParameterTypeDescriptor) -> ParametersDescriptor {
         self.0.insert(name.to_string(), descriptor);
         ParametersDescriptor(self.0)
+    }
+    pub fn with_raw_interpretation(self) -> ParametersDescriptor {
+        self.with("bit-depth", Mandatory(ParameterType::IntRange(8, 16)))
+            .with("width", Mandatory(ParameterType::IntRange(0, i64::max_value())))
+            .with("height", Mandatory(ParameterType::IntRange(0, i64::max_value())))
+            .with(
+                "first-red-x",
+                Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+            )
+            .with(
+                "first-red-y",
+                Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+            )
     }
 }
 
@@ -202,7 +200,7 @@ pub trait Parameterizable {
     const DESCRIPTION: Option<&'static str> = None;
 
     fn describe_parameters() -> ParametersDescriptor;
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized;
 

@@ -1,45 +1,44 @@
-use crate::{
-    frame::rgb_frame::RgbFrame,
-    pipeline_processing::{
-        parametrizable::{
-            ParameterType::StringParameter,
-            ParameterTypeDescriptor::Mandatory,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-        },
-        payload::Payload,
-        processing_node::ProcessingNode,
+use crate::pipeline_processing::{
+    execute::ProcessingStageLockWaiter,
+    frame::Rgb,
+    parametrizable::{
+        ParameterType::StringParameter,
+        ParameterTypeDescriptor::Mandatory,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
     },
+    payload::Payload,
+    processing_context::ProcessingContext,
+    processing_node::ProcessingNode,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use gstreamer::{prelude::*, Buffer, Format, Fraction, ParseContext, Pipeline};
 use gstreamer_app::AppSrc;
 use gstreamer_video::{VideoFormat, VideoInfo};
-use std::{
-    sync::{Arc, MutexGuard},
-    thread::{spawn, JoinHandle},
-};
+use std::thread::{spawn, JoinHandle};
+
 
 pub struct GstWriter {
     appsrc: AppSrc,
     thread_handle: Option<JoinHandle<()>>,
+    context: ProcessingContext,
 }
 impl Parameterizable for GstWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new().with("pipeline", Mandatory(StringParameter))
     }
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
         gstreamer::init()?;
-        let mut context = ParseContext::new();
+        let mut parse_context = ParseContext::new();
         let pipeline_string =
             format!("appsrc max-bytes=20000000 ! {}", parameters.get::<String>("pipeline")?);
         let pipeline = gstreamer::parse_launch_full(
             &pipeline_string,
-            Some(&mut context),
+            Some(&mut parse_context),
             gstreamer::ParseFlags::empty(),
         )?
         .dynamic_cast::<Pipeline>()
@@ -52,41 +51,31 @@ impl Parameterizable for GstWriter {
             main_loop(pipeline).unwrap();
         }));
 
-        Ok(Self { appsrc, thread_handle })
+        Ok(Self { appsrc, thread_handle, context })
     }
-}
-
-struct ArcAsRef<T: ?Sized> {
-    inner: Arc<T>,
-}
-
-impl<T: ?Sized> ArcAsRef<T> {
-    fn new(t: Arc<T>) -> Self { ArcAsRef { inner: t } }
-}
-
-impl<G: ?Sized, T: ?Sized> AsRef<G> for ArcAsRef<T>
-where
-    T: AsRef<G>,
-{
-    fn as_ref(&self) -> &G { (&*self.inner).as_ref() }
 }
 
 impl ProcessingNode for GstWriter {
     fn process(
         &self,
         input: &mut Payload,
-        _frame_lock: MutexGuard<u64>,
+        _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
-        let frame = input.downcast::<RgbFrame>()?;
+        let frame = self.context.ensure_cpu_buffer::<Rgb>(input).context("Wrong input format")?;
 
-        let video_info =
-            VideoInfo::builder(VideoFormat::Rgb, frame.width as u32, frame.height as u32)
-                .fps(Fraction::new(2, 1))
-                .build()
-                .expect("Failed to create video info");
+        let video_info = VideoInfo::builder(
+            VideoFormat::Rgb,
+            frame.interp.width as u32,
+            frame.interp.height as u32,
+        )
+        .fps(Fraction::new(2, 1))
+        .build()
+        .expect("Failed to create video info");
         self.appsrc.set_caps(Some(&video_info.to_caps().unwrap()));
         self.appsrc.set_property("format", Format::Time)?;
-        let buffer = Buffer::from_slice(ArcAsRef::new(frame));
+        // TODO: save the copy
+        let vec = frame.storage.as_slice(|s| s.to_vec());
+        let buffer = Buffer::from_slice(vec);
         self.appsrc.push_buffer(buffer)?;
 
         Ok(Some(Payload::empty()))

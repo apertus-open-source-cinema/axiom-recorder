@@ -1,21 +1,15 @@
-use crate::{
-    frame::rgb_frame::RgbFrame,
-    gpu::gpu_util::CpuAccessibleBufferReadView,
-    pipeline_processing::{
-        execute::ProcessingStageLockWaiter,
-        parametrizable::{
-            ParameterType::BoolParameter,
-            ParameterTypeDescriptor::Optional,
-            ParameterValue,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-            VulkanContext,
-            VULKAN_CONTEXT,
-        },
-        payload::Payload,
-        processing_node::ProcessingNode,
+use crate::pipeline_processing::{
+    execute::ProcessingStageLockWaiter,
+    parametrizable::{
+        ParameterType::BoolParameter,
+        ParameterTypeDescriptor::Optional,
+        ParameterValue,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
     },
+    payload::Payload,
+    processing_node::ProcessingNode,
 };
 use anyhow::{Context, Result};
 use std::{
@@ -32,7 +26,7 @@ use std::{
     thread::JoinHandle,
 };
 use vulkano::{
-    buffer::{BufferUsage, BufferView, CpuAccessibleBuffer},
+    buffer::BufferView,
     command_buffer::{
         AutoCommandBufferBuilder,
         CommandBufferUsage::OneTimeSubmit,
@@ -47,6 +41,12 @@ use vulkano::{
     swapchain::{AcquireError, PresentMode, Swapchain, SwapchainCreationError},
     sync,
     sync::{FlushError, GpuFuture},
+};
+
+use crate::pipeline_processing::{
+    frame::Rgb,
+    gpu_util::ensure_gpu_buffer,
+    processing_context::ProcessingContext,
 };
 use vulkano_win::VkSurfaceBuild;
 use winit::{
@@ -115,24 +115,24 @@ mod fragment_shader {
 
 
 pub struct Display {
-    tx: Mutex<SyncSender<Option<Arc<RgbFrame>>>>,
+    tx: Mutex<SyncSender<Option<Payload>>>,
     join_handle: Option<JoinHandle<()>>,
     blocking: bool,
 }
 impl Parameterizable for Display {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::using_vulkan()
+        ParametersDescriptor::default()
             .with("mailbox", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
             .with("blocking", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
     }
 
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
-        let (tx, rx) = sync_channel(10);
+        let (tx, rx) = sync_channel::<Option<Payload>>(10);
         let mailbox = parameters.get("mailbox").unwrap();
-        let VulkanContext(device, queues) = parameters.get(VULKAN_CONTEXT).unwrap();
+        let (device, queues) = context.require_vulkan()?;
 
         let join_handle = thread::Builder::new().name("display".to_string()).spawn(move || {
             let mut event_loop: EventLoop<()> = EventLoopExtUnix::new_any_thread();
@@ -202,9 +202,8 @@ impl Parameterizable for Display {
                 window_size_dependent_setup(&images, render_pass.clone());
             let mut recreate_swapchain = false;
             let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
-            let mut source_buffer =
-                CpuAccessibleBuffer::from_iter(device.clone(), BufferUsage::all(), true, 0..1)
-                    .unwrap();
+            let mut source_buffer = None;
+            let mut source_future = None;
             let mut frame_width = 1u32;
             let mut frame_height = 1u32;
             event_loop.run_return(move |event, _, control_flow| match event {
@@ -233,6 +232,25 @@ impl Parameterizable for Display {
                         recreate_swapchain = false;
                     }
 
+                    let mut frame = rx.try_recv();
+                    match frame {
+                        Err(_) => {}
+                        Ok(None) => *control_flow = ControlFlow::Exit,
+                        Ok(Some(ref mut frame)) => {
+                            let (frame, fut) = ensure_gpu_buffer::<Rgb>(frame, queue.clone())
+                                .context("Wrong input format")
+                                .unwrap();
+                            frame_width = frame.interp.width as _;
+                            frame_height = frame.interp.height as _;
+                            source_buffer = Some(frame);
+                            source_future = Some(fut);
+                        }
+                    }
+                    if source_buffer.is_none() {
+                        *control_flow = ControlFlow::Poll;
+                        return;
+                    }
+
                     let (image_num, suboptimal, acquire_future) =
                         match swapchain::acquire_next_image(swapchain.clone(), None) {
                             Ok(r) => r,
@@ -247,27 +265,15 @@ impl Parameterizable for Display {
                         recreate_swapchain = true;
                     }
 
-                    let frame: core::result::Result<Option<Arc<RgbFrame>>, _> = rx.try_recv();
-                    match frame {
-                        Err(_) => {}
-                        Ok(None) => *control_flow = ControlFlow::Exit,
-                        Ok(Some(frame)) => {
-                            source_buffer = CpuAccessibleBufferReadView::<u8>::from_buffer(
-                                device.clone(),
-                                frame.buffer.clone(),
-                            )
-                            .unwrap()
-                            .as_cpu_accessible_buffer();
-                            frame_width = frame.width as u32;
-                            frame_height = frame.height as u32;
-                        }
-                    }
-
                     let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
                     let set = Arc::new({
                         let mut set = PersistentDescriptorSet::start(layout);
                         set.add_buffer_view(Arc::new(
-                            BufferView::new(source_buffer.clone(), R8_UNORM).unwrap(),
+                            BufferView::new(
+                                source_buffer.as_ref().unwrap().storage.typed(),
+                                R8_UNORM,
+                            )
+                            .unwrap(),
                         ))
                         .unwrap();
                         set.build().unwrap()
@@ -307,10 +313,14 @@ impl Parameterizable for Display {
                         .unwrap();
                     let command_buffer = builder.build().unwrap();
 
-                    let future = previous_frame_end
-                        .take()
-                        .unwrap()
-                        .join(acquire_future)
+                    let mut future =
+                        previous_frame_end.take().unwrap().join(acquire_future).boxed();
+                    if let Some(fut) = source_future.take() {
+                        future = future.join(fut).boxed();
+                    }
+
+
+                    let future = future
                         .then_execute(queue.clone(), command_buffer)
                         .unwrap()
                         .then_swapchain_present(queue.clone(), swapchain.clone(), image_num)
@@ -348,9 +358,9 @@ impl ProcessingNode for Display {
         frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         frame_lock.wait();
-        let frame = input.downcast::<RgbFrame>().context("Wrong input format")?;
+
         if self.blocking {
-            match self.tx.lock().unwrap().send(Some(frame)) {
+            match self.tx.lock().unwrap().send(Some(input.clone())) {
                 Ok(_) => Ok(Some(Payload::empty())),
                 Err(_) => Ok(None),
             }
@@ -358,7 +368,7 @@ impl ProcessingNode for Display {
             self.tx
                 .lock()
                 .unwrap()
-                .try_send(Some(frame))
+                .try_send(Some(input.clone()))
                 .map(|_| Ok(Some(Payload::empty())))
                 .unwrap_or_else(|e| match e {
                     Full(_) => Ok(Some(Payload::empty())),

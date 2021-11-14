@@ -1,22 +1,6 @@
-use crate::{
-    frame::{
-        raw_frame::{CfaDescriptor, RawFrame},
-        typing_hacks::SubBuffer,
-    },
-    pipeline_processing::{
-        execute::ProcessingStageLockWaiter,
-        parametrizable::{
-            ParameterType::{BoolParameter, IntRange},
-            ParameterTypeDescriptor::{Mandatory, Optional},
-            ParameterValue,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-        },
-        payload::Payload,
-        processing_node::ProcessingNode,
-    },
-};
+// TODO: this is broken and should probably be rewritten trading a single coppy versus much
+// simplified code ;).
+
 use anyhow::{Context, Result};
 use ft60x::ft60x::{FT60x, DEFAULT_PID, DEFAULT_VID};
 use num::integer::div_ceil;
@@ -27,40 +11,33 @@ use std::{
     },
     thread,
 };
+use crate::pipeline_processing::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing::frame::{Frame, FrameInterpretation, Raw};
+use crate::pipeline_processing::parametrizable::{Parameterizable, Parameters, ParametersDescriptor};
+use crate::pipeline_processing::payload::Payload;
+use crate::pipeline_processing::processing_context::ProcessingContext;
+use crate::pipeline_processing::processing_node::ProcessingNode;
 
-const MIN_READ_LEN: u64 = 2048 * 4;
+const MIN_READ_LEN: usize = 2048 * 4;
 
 pub struct Usb3Reader {
     data_rx: Mutex<Receiver<std::result::Result<Vec<u8>, ft60x::Error>>>,
     request_tx: Mutex<Sender<u64>>,
-    width: u64,
-    height: u64,
-    bit_depth: u64,
-    cfa: CfaDescriptor,
+    interp: Raw,
+    context: ProcessingContext,
 }
 
 impl Parameterizable for Usb3Reader {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("width", Mandatory(IntRange(0, i64::max_value())))
-            .with("height", Mandatory(IntRange(0, i64::max_value())))
-            .with("bit-depth", Mandatory(IntRange(8, 16)))
-            .with("first-red-x", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
-            .with("first-red-y", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
+            .with_raw_interpretation()
     }
 
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
-        let width = parameters.get::<u64>("width")?;
-        let height = parameters.get::<u64>("height")?;
-        let bit_depth = parameters.get::<u64>("bit-depth")?;
-        let cfa = CfaDescriptor::from_first_red(
-            parameters.get("first-red-x")?,
-            parameters.get("first-red-y")?,
-        );
-
+        let interp = parameters.get_raw_interpretation()?;
         let ft60x = FT60x::new(DEFAULT_VID, DEFAULT_PID)
             .context("cant open ft60x. maybe try running with sudo?")?;
         let (empty_buffers_tx, full_buffers_rx, _) = ft60x.data_stream_mpsc(5);
@@ -68,7 +45,7 @@ impl Parameterizable for Usb3Reader {
         let (request_tx, request_rx) = channel();
         thread::Builder::new().name("usb3-allocate".to_string()).spawn(move || {
             let blanking = MIN_READ_LEN; // we need this to align the datastream to frames
-            let frame_len = width * height * bit_depth / 8;
+            let frame_len = interp.required_bytes();
             let aligned_len = div_ceil(frame_len + blanking, MIN_READ_LEN) * MIN_READ_LEN;
 
             loop {
@@ -87,10 +64,8 @@ impl Parameterizable for Usb3Reader {
         Ok(Self {
             data_rx: Mutex::new(full_buffers_rx),
             request_tx: Mutex::new(request_tx),
-            width,
-            height,
-            bit_depth,
-            cfa,
+            interp: Raw { bit_depth, width, height, cfa },
+            context
         })
     }
 }
@@ -138,12 +113,6 @@ impl ProcessingNode for Usb3Reader {
             }
         };
 
-        Ok(Some(Payload::from(RawFrame::from_bytes(
-            buf,
-            self.width,
-            self.height,
-            self.bit_depth,
-            self.cfa,
-        )?)))
+        Ok(Some(Payload::from(Frame { storage: buffer, interp: self.interp })))
     }
 }

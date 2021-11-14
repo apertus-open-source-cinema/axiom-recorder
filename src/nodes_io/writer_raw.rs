@@ -17,25 +17,29 @@ use crate::pipeline_processing::{
 };
 use anyhow::{anyhow, Result};
 
-use crate::{
-    frame::{raw_frame::RawFrame, rgb_frame::RgbFrame},
-    pipeline_processing::payload::Payload,
+use crate::pipeline_processing::{
+    frame::{Raw, Rgb},
+    payload::Payload,
+    processing_context::ProcessingContext,
 };
-use std::sync::atomic::{AtomicU64, Ordering};
 
 
 pub struct RawBlobWriter {
     file: Arc<Mutex<File>>,
+    context: ProcessingContext,
 }
 impl Parameterizable for RawBlobWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new().with("path", Mandatory(StringParameter))
     }
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
-        Ok(Self { file: Arc::new(Mutex::new(File::create(parameters.get::<String>("path")?)?)) })
+        Ok(Self {
+            file: Arc::new(Mutex::new(File::create(parameters.get::<String>("path")?)?)),
+            context,
+        })
     }
 }
 impl ProcessingNode for RawBlobWriter {
@@ -44,10 +48,10 @@ impl ProcessingNode for RawBlobWriter {
         input: &mut Payload,
         _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
-        if let Ok(frame) = input.downcast::<RawFrame>() {
-            self.file.lock().unwrap().write_all(&frame.buffer)?;
-        } else if let Ok(frame) = input.downcast::<RgbFrame>() {
-            self.file.lock().unwrap().write_all(&frame.buffer)?;
+        if let Ok(frame) = self.context.ensure_cpu_buffer::<Rgb>(input) {
+            frame.storage.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
+        } else if let Ok(frame) = self.context.ensure_cpu_buffer::<Raw>(input) {
+            frame.storage.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
         } else {
             return Err(anyhow!("unknown input format {}", input.type_name));
         }
@@ -57,20 +61,20 @@ impl ProcessingNode for RawBlobWriter {
 
 pub struct RawDirectoryWriter {
     dir_path: String,
-    frame_number: AtomicU64,
+    context: ProcessingContext,
 }
 impl Parameterizable for RawDirectoryWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new().with("path", Mandatory(StringParameter))
     }
 
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
         let filename = parameters.get("path")?;
         create_dir(&filename)?;
-        Ok(Self { dir_path: filename, frame_number: AtomicU64::new(0) })
+        Ok(Self { dir_path: filename, context })
     }
 }
 impl ProcessingNode for RawDirectoryWriter {
@@ -82,10 +86,10 @@ impl ProcessingNode for RawDirectoryWriter {
         let current_frame_number = frame_lock.frame();
         let mut file =
             File::create(format!("{}/{:06}.data", &self.dir_path, current_frame_number))?;
-        if let Ok(frame) = input.downcast::<RawFrame>() {
-            file.write_all(&frame.buffer)?;
-        } else if let Ok(frame) = input.downcast::<RgbFrame>() {
-            file.write_all(&frame.buffer)?;
+        if let Ok(frame) = self.context.ensure_cpu_buffer::<Rgb>(input) {
+            frame.storage.as_slice(|slice| file.write_all(slice))?;
+        } else if let Ok(frame) = self.context.ensure_cpu_buffer::<Raw>(input) {
+            frame.storage.as_slice(|slice| file.write_all(slice))?;
         } else {
             return Err(anyhow!("unknown input format {}", input.type_name));
         }

@@ -1,20 +1,19 @@
-use crate::{
-    frame::rgb_frame::RgbFrame,
-    pipeline_processing::{
-        execute::ProcessingStageLockWaiter,
-        parametrizable::{
-            ParameterType::{FloatRange, StringParameter},
-            ParameterTypeDescriptor::{Mandatory, Optional},
-            ParameterValue,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-        },
-        payload::Payload,
-        processing_node::ProcessingNode,
+use crate::pipeline_processing::{
+    execute::ProcessingStageLockWaiter,
+    frame::Rgb,
+    parametrizable::{
+        ParameterType::{FloatRange, StringParameter},
+        ParameterTypeDescriptor::{Mandatory, Optional},
+        ParameterValue,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
     },
+    payload::Payload,
+    processing_context::ProcessingContext,
+    processing_node::ProcessingNode,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use std::{
     io::Write,
     process::{Child, Command, Stdio},
@@ -27,6 +26,7 @@ pub struct FfmpegWriter {
     fps: f64,
     resolution: Arc<Mutex<Option<[u64; 2]>>>,
     child: Arc<Mutex<Option<Child>>>,
+    context: ProcessingContext,
 }
 impl Parameterizable for FfmpegWriter {
     fn describe_parameters() -> ParametersDescriptor {
@@ -38,7 +38,7 @@ impl Parameterizable for FfmpegWriter {
                 Optional(StringParameter, ParameterValue::StringParameter("".to_string())),
             )
     }
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
@@ -48,6 +48,7 @@ impl Parameterizable for FfmpegWriter {
             output: parameters.get("output")?,
             input_options: parameters.get("input-options")?,
             fps: parameters.get("fps")?,
+            context,
         })
     }
 }
@@ -58,7 +59,7 @@ impl ProcessingNode for FfmpegWriter {
         frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         frame_lock.wait();
-        let frame = input.downcast::<RgbFrame>()?;
+        let frame = self.context.ensure_cpu_buffer::<Rgb>(input).context("Wrong input format")?;
 
         {
             let mut resolution = self.resolution.lock().unwrap();
@@ -69,19 +70,19 @@ impl ProcessingNode for FfmpegWriter {
                         "{} -f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb24 -i - {}",
                         self.input_options,
                         self.fps,
-                        frame.width,
-                        frame.height,
-                        self.output.to_string()
+                        frame.interp.width,
+                        frame.interp.height,
+                        self.output
                     ))
                         .unwrap(),
                     )
                     .stdin(Stdio::piped())
                     .spawn()?;
                 *self.child.lock().unwrap() = Some(child);
-                *resolution = Some([frame.width, frame.height])
+                *resolution = Some([frame.interp.width, frame.interp.height])
             } else if resolution.is_some() {
                 let [width, height] = resolution.unwrap();
-                if width != frame.width || height != frame.height {
+                if width != frame.interp.width || height != frame.interp.height {
                     return Err(anyhow!(
                         "the resolution MAY NOT change during an ffmpeg encoding session"
                     ));
@@ -89,7 +90,7 @@ impl ProcessingNode for FfmpegWriter {
             }
         }
 
-        {
+        frame.storage.as_slice(|slice| {
             self.child
                 .clone()
                 .lock()
@@ -99,8 +100,8 @@ impl ProcessingNode for FfmpegWriter {
                 .stdin
                 .as_mut()
                 .unwrap()
-                .write_all(&frame.buffer)?;
-        }
+                .write_all(slice)
+        })?;
 
         Ok(Some(Payload::empty()))
     }
