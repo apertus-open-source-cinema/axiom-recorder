@@ -21,7 +21,7 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
             let frame = frame.fetch_add(1, Ordering::SeqCst);
             let mut payload = Payload::empty();
             for (node_num, node) in nodes.iter().enumerate() {
-                // emits a waiter for the previous frame
+                // emits a waiter for the previous nodes_cpu
 
                 match node.process(&mut payload, progress[node_num].waiter_for(frame - 1)) {
                     Ok(Some(new_payload)) => payload = new_payload,
@@ -48,7 +48,7 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
 
 pub struct ProcessingStageLock {
     condvar: Condvar,
-    // hold the frame currently done
+    // hold the nodes_cpu currently done
     val: Mutex<u64>,
 }
 
