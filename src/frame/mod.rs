@@ -1,6 +1,7 @@
-use vulkano::buffer::{DeviceLocalBuffer, ImmutableBuffer, TypedBufferAccess};
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, DeviceLocalBuffer, ImmutableBuffer, TypedBufferAccess};
 use std::sync::Arc;
 use std::ops::Deref;
+use crate::gpu::gpu_util::VulkanContext;
 
 pub mod bit_depth_converter;
 pub mod typing_hacks;
@@ -16,9 +17,43 @@ pub struct Frame<Interpretation, Storage> {
     pub storage: Storage
 }
 
-pub type CpuStorage = Vec<u8>;
+pub struct CpuStorage {
+    buf: Arc<CpuAccessibleBuffer<[u8]>>
+}
+
+impl CpuStorage {
+    pub fn len(&self) -> usize {
+        self.buf.len() as _
+    }
+
+    pub fn buffer(&self) -> Arc<CpuAccessibleBuffer<[u8]>> {
+        self.buf.clone()
+    }
+
+    pub fn as_slice<FN: FnOnce(&[u8]) -> R, R>(&self, func: FN) -> R {
+        func(&*self.buf.read().unwrap())
+    }
+
+    pub fn as_mut_slice<FN: FnOnce(&mut [u8]) -> R, R>(&mut self, func: FN) -> R {
+        func(&mut *self.buf.write().unwrap())
+    }
+
+    pub unsafe fn uninit(len: usize) -> Self {
+        Self {
+            buf: CpuAccessibleBuffer::uninitialized_array(VulkanContext::get().device.clone(), len as _, BufferUsage {
+                storage_buffer: true,
+                storage_texel_buffer: true,
+                transfer_source: true,
+                ..BufferUsage::none()
+            }, true).unwrap()
+        }
+    }
+}
+
+// pub type CpuStorage = Vec<u8>;
 pub type GpuBuffer = Arc<dyn TypedBufferAccess<Content = [u8]> + Send + Sync>;
 
+/*
 impl<Interpretation: FrameInterpretation> Frame<Interpretation, CpuStorage> {
     pub fn from_bytes(
         bytes: impl Deref<Target = [u8]>,
@@ -39,6 +74,7 @@ impl<Interpretation: FrameInterpretation> Frame<Interpretation, CpuStorage> {
 impl<Interpretation> AsRef<[u8]> for Frame<Interpretation, CpuStorage> {
     fn as_ref(&self) -> &[u8] { &self.storage[..] }
 }
+ */
 
 #[derive(Debug, Copy, Clone)]
 pub struct CfaDescriptor {

@@ -36,5 +36,6 @@ num = "0.3.1"
 
 
 [profile.release]
+lto = "fat"
 debug = true
 panic = "abort"

@@ -24,7 +24,7 @@ use std::{
     time::Duration,
     vec::IntoIter,
 };
-use crate::frame::{CfaDescriptor, Frame, FrameInterpretation, Raw};
+use crate::frame::{CfaDescriptor, CpuStorage, Frame, FrameInterpretation, Raw};
 
 pub struct RawBlobReader {
     file: Mutex<File>,
@@ -79,15 +79,19 @@ impl ProcessingNode for RawBlobReader {
         _frame_lock: ProcessingStageLockWaiter,
     ) -> Result<Option<Payload>> {
         sleep(Duration::from_secs_f64(self.sleep));
-        let mut bytes = vec![0u8; self.interp.required_bytes()];
-        let read_count = self.file.lock().unwrap().read(&mut bytes)?;
+
+        let mut buffer = unsafe { CpuStorage::uninit(self.interp.required_bytes()) };
+        let read_count = buffer.as_mut_slice(|buffer| {
+            self.file.lock().unwrap().read(buffer).unwrap()
+        });
+
         if read_count == 0 {
             Ok(None)
-        } else if read_count == bytes.len() {
-            Ok(Some(Payload::from(Frame::from_bytes(
-                bytes,
-                self.interp
-            )?)))
+        } else if read_count == buffer.len() {
+            Ok(Some(Payload::from(Frame {
+                storage: buffer,
+                interp: self.interp
+            })))
         } else {
             Err(anyhow!("File could not be fully consumed. is the resolution set right?"))
         }
@@ -164,18 +168,20 @@ impl ProcessingNode for RawDirectoryReader {
                 if self.do_loop || frame_number <= self.frame_count {
                     let path = &self.files[(frame_number - 1) as usize % self.frame_count];
                     let mut file = File::open(path)?;
-                    let mut bytes =
-                        vec![0u8; (self.width * self.height * self.bit_depth / 8) as usize];
-                    file.read_exact(&mut bytes)?;
-                    let payload = Payload::from(Frame::from_bytes(
-                        bytes,
-                        Raw {
+
+                    let mut buffer = unsafe { CpuStorage::uninit((self.width * self.height * self.bit_depth / 8) as usize) };
+                    buffer.as_mut_slice(|buffer| {
+                        file.read_exact(buffer).unwrap();
+                    });
+                    let payload = Payload::from(Frame {
+                        storage: buffer,
+                        interp: Raw {
                             width: self.width,
                             height: self.height,
                             bit_depth: self.bit_depth,
                             cfa: self.cfa,
                         }
-                    )?);
+                    });
 
                     if self.do_loop {
                         *none = Some(payload.clone());

@@ -1,5 +1,6 @@
 use crate::pipeline_processing::{payload::Payload, processing_node::ProcessingNode};
 use anyhow::Result;
+use itertools::Itertools;
 use rayon::prelude::*;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
@@ -28,6 +29,7 @@ pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
                         return Some(Ok(()));
                     }
                     Err(e) => {
+                        eprintln!("An error occured: \n{}", e.chain().map(|e| format!("{}", e)).join("\n"));
                         return Some(Err(e));
                     }
                 }
