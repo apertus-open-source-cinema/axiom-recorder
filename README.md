@@ -34,8 +34,7 @@ NODES:
     * RawDirectoryWriter --path <path>
     * BitDepthConverter
     * FfmpegWriter [OPTIONS] --fps <fps> --output <output>
-    * RawDirectoryReader [OPTIONS] --bit-depth <bit-depth> --file-pattern <file-pattern> --height <height> --width --first-red-x <true/false> --first-red-y <true/false>
-<width>
+    * RawDirectoryReader [OPTIONS] --bit-depth <bit-depth> --file-pattern <file-pattern> --height <height> --width <width> --first-red-x <true/false> --first-red-y <true/false>
     * Usb3Reader [OPTIONS] --bit-depth <bit-depth> --height <height> --width <width>
     * Debayer
     * RawBlobWriter --path <path>
