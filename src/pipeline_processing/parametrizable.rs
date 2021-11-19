@@ -2,7 +2,8 @@ use self::ParameterTypeDescriptor::{Mandatory, Optional};
 use anyhow::{anyhow, Error, Result};
 use std::{any::type_name, convert::TryInto};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
+use vulkano::device::{Device, Queue};
 
 #[derive(Debug, Clone)]
 pub enum ParameterValue {
@@ -10,7 +11,11 @@ pub enum ParameterValue {
     IntRange(i64),
     StringParameter(String),
     BoolParameter(bool),
+    VulkanContext(Arc<Device>, Vec<Arc<Queue>>),
 }
+
+pub struct VulkanContext(pub Arc<Device>, pub Vec<Arc<Queue>>);
+
 impl ToString for ParameterValue {
     fn to_string(&self) -> String {
         match self {
@@ -18,6 +23,7 @@ impl ToString for ParameterValue {
             Self::IntRange(v) => v.to_string(),
             Self::StringParameter(v) => v.to_string(),
             Self::BoolParameter(v) => v.to_string(),
+            Self::VulkanContext(..) => "<VulkanContext>".to_string(),
         }
     }
 }
@@ -71,13 +77,23 @@ impl TryInto<bool> for ParameterValue {
         }
     }
 }
+impl TryInto<VulkanContext> for ParameterValue {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<VulkanContext, Self::Error> {
+        match self {
+            Self::VulkanContext(d, q) => Ok(VulkanContext(d, q)),
+            _ => Err(anyhow!("cant convert a non FloatRange ParameterValue to f64")),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Parameters(pub HashMap<String, ParameterValue>);
 impl Parameters {
     pub fn get<T>(&self, key: &str) -> Result<T>
     where
-        ParameterValue: TryInto<T, Error = Error>,
+        ParameterValue: TryInto<T, Error = anyhow::Error>,
     {
         let parameter_value = self
             .0
@@ -93,6 +109,7 @@ pub enum ParameterType {
     IntRange(i64, i64),
     StringParameter,
     BoolParameter,
+    VulkanContext,
 }
 impl ParameterType {
     pub fn value_is_of_type(&self, value: ParameterValue) -> Result<ParameterValue> {
@@ -125,6 +142,7 @@ impl ParameterType {
             Self::FloatRange(..) => {
                 self.value_is_of_type(ParameterValue::FloatRange(string.parse()?))
             }
+            Self::VulkanContext => Err(anyhow!("tried to parse vulkan context from string")),
         }
     }
 }
@@ -149,6 +167,8 @@ impl ParameterTypeDescriptor {
     }
 }
 
+pub const VULKAN_CONTEXT: &str = "vulkan_context";
+
 #[derive(Debug, Clone)]
 pub struct ParametersDescriptor(pub HashMap<String, ParameterTypeDescriptor>);
 impl Default for ParametersDescriptor {
@@ -156,6 +176,14 @@ impl Default for ParametersDescriptor {
 }
 impl ParametersDescriptor {
     pub fn new() -> Self { ParametersDescriptor(HashMap::new()) }
+    pub fn using_vulkan() -> Self {
+        let mut map = HashMap::new();
+        map.insert(
+            VULKAN_CONTEXT.to_string(),
+            ParameterTypeDescriptor::Mandatory(ParameterType::VulkanContext),
+        );
+        ParametersDescriptor(map)
+    }
     pub fn with(mut self, name: &str, descriptor: ParameterTypeDescriptor) -> ParametersDescriptor {
         self.0.insert(name.to_string(), descriptor);
         ParametersDescriptor(self.0)

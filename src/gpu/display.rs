@@ -1,6 +1,6 @@
 use crate::{
     frame::rgb_frame::RgbFrame,
-    gpu::gpu_util::{CpuAccessibleBufferReadView, VulkanContext},
+    gpu::gpu_util::CpuAccessibleBufferReadView,
     pipeline_processing::{
         parametrizable::{
             ParameterType::BoolParameter,
@@ -9,6 +9,8 @@ use crate::{
             Parameterizable,
             Parameters,
             ParametersDescriptor,
+            VulkanContext,
+            VULKAN_CONTEXT,
         },
         payload::Payload,
         processing_node::ProcessingNode,
@@ -34,13 +36,12 @@ use vulkano::{
     command_buffer::{
         AutoCommandBufferBuilder,
         CommandBufferUsage::OneTimeSubmit,
-        DynamicState,
         SubpassContents,
     },
     descriptor_set::PersistentDescriptorSet,
-    format::Format::R8Unorm,
+    format::Format::R8_UNORM,
     image::{view::ImageView, ImageAccess, ImageUsage, SwapchainImage},
-    pipeline::{viewport::Viewport, GraphicsPipeline, GraphicsPipelineAbstract},
+    pipeline::{viewport::Viewport, GraphicsPipeline, PipelineBindPoint},
     render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass},
     swapchain,
     swapchain::{AcquireError, PresentMode, Swapchain, SwapchainCreationError},
@@ -61,11 +62,13 @@ mod vertex_shader {
         ty: "vertex",
         src: "
             #version 450
-            layout(location = 0) in vec2 position;
             layout(location = 0) out vec2 tex_coords;
             void main() {
-                gl_Position = vec4(position, 0.0, 1.0);
-                tex_coords = (position + vec2(1.)) / vec2(2.);
+                int idx = gl_VertexIndex;
+                int top = idx & 1;
+                int left = (idx & 2) / 2;
+                gl_Position = vec4(2 * top - 1, 2 * left - 1, 0.0, 1.0);
+                tex_coords = vec2(top, left);
             }
         "
     }
@@ -85,7 +88,7 @@ mod fragment_shader {
             layout(location = 0) in vec2 tex_coords;
             layout(location = 0) out vec4 f_color;
 
-            layout( set = 0, binding = 0, r8 ) uniform readonly imageBuffer buf;
+            layout(set = 0, binding = 0, r8) uniform readonly imageBuffer buf;
 
             vec3 get_px(int x, int y) {
                 return vec3(
@@ -112,7 +115,7 @@ pub struct Display {
 }
 impl Parameterizable for Display {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
+        ParametersDescriptor::using_vulkan()
             .with("mailbox", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
             .with("blocking", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
     }
@@ -123,16 +126,15 @@ impl Parameterizable for Display {
     {
         let (tx, rx) = sync_channel(10);
         let mailbox = parameters.get("mailbox").unwrap();
+        let VulkanContext(device, queues) = parameters.get(VULKAN_CONTEXT).unwrap();
 
         let join_handle = thread::Builder::new().name("display".to_string()).spawn(move || {
             let mut event_loop: EventLoop<()> = EventLoopExtUnix::new_any_thread();
-            let device = VulkanContext::get().device;
             let surface = WindowBuilder::new()
                 .with_title("axiom converter vulkan output")
                 .build_vk_surface(&event_loop, device.instance().clone())
                 .unwrap();
-            let queue = VulkanContext::get()
-                .queues
+            let queue = queues
                 .iter()
                 .find(|&q| {
                     q.family().supports_graphics()
@@ -145,7 +147,6 @@ impl Parameterizable for Display {
             let (mut swapchain, images) = {
                 let alpha = caps.supported_composite_alpha.iter().next().unwrap();
                 let format = caps.supported_formats[0].0;
-                dbg!(format);
                 let dimensions = surface.window().inner_size().into();
                 let present_mode = if mailbox { PresentMode::Mailbox } else { PresentMode::Fifo };
                 Swapchain::start(device.clone(), surface.clone())
@@ -158,27 +159,6 @@ impl Parameterizable for Display {
                     .build()
                     .expect("cant create swapchain")
             };
-
-            #[derive(Default, Debug, Clone)]
-            struct Vertex {
-                position: [f32; 2],
-            }
-            vulkano::impl_vertex!(Vertex, position);
-
-            let vertex_buffer = CpuAccessibleBuffer::<[Vertex]>::from_iter(
-                device.clone(),
-                BufferUsage::all(),
-                false,
-                [
-                    Vertex { position: [-1., -1.] },
-                    Vertex { position: [-1., 1.] },
-                    Vertex { position: [1., -1.] },
-                    Vertex { position: [1., 1.] },
-                ]
-                .iter()
-                .cloned(),
-            )
-            .unwrap();
 
             let vs = vertex_shader::Shader::load(device.clone()).unwrap();
             let fs = fragment_shader::Shader::load(device.clone()).unwrap();
@@ -203,36 +183,22 @@ impl Parameterizable for Display {
 
             let pipeline = Arc::new(
                 GraphicsPipeline::start()
-                    .vertex_input_single_buffer::<Vertex>()
                     .vertex_shader(vs.main_entry_point(), ())
                     .triangle_strip()
                     .viewports_dynamic_scissors_irrelevant(1)
                     .fragment_shader(fs.main_entry_point(), ())
-                    .blend_alpha_blending()
                     .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
                     .build(device.clone())
                     .unwrap(),
             );
 
-            let mut dynamic_state = DynamicState {
-                line_width: None,
-                viewports: None,
-                scissors: None,
-                compare_mask: None,
-                write_mask: None,
-                reference: None,
-            };
-            let mut framebuffers =
-                window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
+            let (mut framebuffers, mut viewport) =
+                window_size_dependent_setup(&images, render_pass.clone());
             let mut recreate_swapchain = false;
             let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
-            let mut source_buffer = CpuAccessibleBuffer::from_iter(
-                VulkanContext::get().device,
-                BufferUsage::all(),
-                true,
-                0..1,
-            )
-            .unwrap();
+            let mut source_buffer =
+                CpuAccessibleBuffer::from_iter(device.clone(), BufferUsage::all(), true, 0..1)
+                    .unwrap();
             let mut frame_width = 1u32;
             let mut frame_height = 1u32;
             event_loop.run_return(move |event, _, control_flow| match event {
@@ -254,11 +220,10 @@ impl Parameterizable for Display {
                             };
 
                         swapchain = new_swapchain;
-                        framebuffers = window_size_dependent_setup(
-                            &new_images,
-                            render_pass.clone(),
-                            &mut dynamic_state,
-                        );
+                        let (new_framebuffers, new_viewport) =
+                            window_size_dependent_setup(&new_images, render_pass.clone());
+                        framebuffers = new_framebuffers;
+                        viewport = new_viewport;
                         recreate_swapchain = false;
                     }
 
@@ -282,6 +247,7 @@ impl Parameterizable for Display {
                         Ok(None) => *control_flow = ControlFlow::Exit,
                         Ok(Some(frame)) => {
                             source_buffer = CpuAccessibleBufferReadView::<u8>::from_buffer(
+                                device.clone(),
                                 frame.buffer.clone(),
                             )
                             .unwrap()
@@ -292,15 +258,15 @@ impl Parameterizable for Display {
                     }
 
                     let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
-                    let set = Arc::new(
-                        PersistentDescriptorSet::start(layout)
-                            .add_buffer_view(
-                                BufferView::new(source_buffer.clone(), R8Unorm).unwrap(),
-                            )
-                            .unwrap()
-                            .build()
-                            .unwrap(),
-                    );
+                    println!("{:?}", layout);
+                    let set = Arc::new({
+                        let mut set = PersistentDescriptorSet::start(layout);
+                        set.add_buffer_view(Arc::new(
+                            BufferView::new(source_buffer.clone(), R8_UNORM).unwrap(),
+                        ))
+                        .unwrap();
+                        set.build().unwrap()
+                    });
 
                     let push_constants = fragment_shader::ty::PushConstantData {
                         width: frame_width,
@@ -321,13 +287,15 @@ impl Parameterizable for Display {
                             clear_values,
                         )
                         .unwrap()
-                        .draw(
-                            pipeline.clone(),
-                            &dynamic_state,
-                            vertex_buffer.clone(),
+                        .set_viewport(0, viewport.clone())
+                        .bind_descriptor_sets(
+                            PipelineBindPoint::Graphics,
+                            pipeline.layout().clone(),
+                            0,
                             set,
-                            push_constants,
                         )
+                        .push_constants(pipeline.layout().clone(), 0, push_constants)
+                        .draw(4, 1, 0, 0)
                         .unwrap()
                         .end_render_pass()
                         .unwrap();
@@ -404,8 +372,7 @@ impl Drop for Display {
 fn window_size_dependent_setup(
     images: &[Arc<SwapchainImage<Window>>],
     render_pass: Arc<RenderPass>,
-    dynamic_state: &mut DynamicState,
-) -> Vec<Arc<dyn FramebufferAbstract + Send + Sync>> {
+) -> (Vec<Arc<dyn FramebufferAbstract + Send + Sync>>, Vec<Viewport>) {
     let dimensions = images[0].dimensions();
 
     let viewport = Viewport {
@@ -413,14 +380,18 @@ fn window_size_dependent_setup(
         dimensions: [dimensions.width() as f32, dimensions.height() as f32],
         depth_range: 0.0..1.0,
     };
-    dynamic_state.viewports = Some(vec![viewport]);
+    let viewport = vec![viewport];
 
-    images
-        .iter()
-        .map(|image| {
-            let view = ImageView::new(image.clone()).unwrap();
-            Arc::new(Framebuffer::start(render_pass.clone()).add(view).unwrap().build().unwrap())
-                as Arc<dyn FramebufferAbstract + Send + Sync>
-        })
-        .collect::<Vec<_>>()
+    (
+        images
+            .iter()
+            .map(|image| {
+                let view = ImageView::new(image.clone()).unwrap();
+                Arc::new(
+                    Framebuffer::start(render_pass.clone()).add(view).unwrap().build().unwrap(),
+                ) as Arc<dyn FramebufferAbstract + Send + Sync>
+            })
+            .collect::<Vec<_>>(),
+        viewport,
+    )
 }
