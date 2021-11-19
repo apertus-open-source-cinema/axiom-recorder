@@ -20,9 +20,12 @@ rayon = "1.5.0"
 anyhow = "1.0.34"
 itertools = "0.9.0"
 bytemuck = "1.4.1"
-vulkano = "0.25.0"
-vulkano-shaders = "0.25.0"
-vulkano-win = "0.25.0"
+# vulkano = "0.25.0"
+# vulkano-shaders = "0.25.0"
+# vulkano-win = "0.25.0"
+vulkano = { path = "../vulkano/vulkano" }
+vulkano-shaders = { path = "../vulkano/vulkano-shaders" }
+vulkano-win = { path = "../vulkano/vulkano-win" }
 owning_ref = "0.4.1"
 shlex = "0.1.1"
 gstreamer = { version = "0.16.5", optional = true }
@@ -33,7 +36,9 @@ winit = "0.25.0"
 lazy_static = "1.4.0"
 ft60x = { git = "https://github.com/apertus-open-source-cinema/ft60x-rs" }
 num = "0.3.1"
-narui = { git = "https://github.com/apertus-open-source-cinema/narui" }
+# narui = { git = "https://github.com/apertus-open-source-cinema/narui" }
+narui = { path = "../narui" }
+env_logger = "0.9.0"
 
 [profile.release]
 debug = true

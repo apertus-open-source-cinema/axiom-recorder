@@ -9,3 +9,5 @@ flamegraph*.svg
 perf.data*
 test
 tmp
+
+vulkan_gst_buffer_sharing/

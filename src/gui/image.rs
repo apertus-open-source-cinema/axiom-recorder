@@ -1,11 +1,17 @@
 use crate::{frame::rgb_frame::RgbFrame, gpu::gpu_util::CpuAccessibleBufferReadView};
-use narui::{style::Style, *};
+use narui::{layout::Maximal, *};
 use std::sync::Arc;
 use vulkano::{
-    buffer::{BufferUsage, BufferView, CpuAccessibleBuffer},
+    buffer::BufferView,
+    command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage},
     descriptor_set::PersistentDescriptorSet,
-    format::Format::R8Unorm,
-    pipeline::{vertex::BuffersDefinition, GraphicsPipeline, GraphicsPipelineAbstract},
+    device::DeviceOwned,
+    format::Format::R8_UNORM,
+    pipeline::{
+        blend::{AttachmentBlend, BlendFactor, BlendOp},
+        GraphicsPipeline,
+        PipelineBindPoint,
+    },
     render_pass::{RenderPass, Subpass},
 };
 
@@ -14,12 +20,25 @@ mod vertex_shader {
         ty: "vertex",
         src: "
             #version 450
-            layout(location = 0) in vec2 position;
-            layout(location = 1) in vec2 tex;
+            layout(push_constant) uniform PushConstantData {
+                uint width;
+                uint height;
+                float z_index;
+                vec2 origin;
+                vec2 size;
+            } params;
+
             layout(location = 0) out vec2 tex_coords;
+
             void main() {
-                gl_Position = vec4(position, 0.0, 1.0);
-                tex_coords = tex;
+                int idx = gl_VertexIndex;
+                int top = idx & 1;
+                int left = (idx & 2) / 2;
+
+                tex_coords = vec2(0) + vec2(top, left);
+
+                vec2 pos = params.origin + vec2(top, left) * params.size;
+                gl_Position = vec4(pos, params.z_index, 1.0);
             }
         "
     }
@@ -33,12 +52,15 @@ mod fragment_shader {
             layout(push_constant) uniform PushConstantData {
                 uint width;
                 uint height;
+                float z_index;
+                vec2 origin;
+                vec2 size;
             } params;
 
             layout(location = 0) in vec2 tex_coords;
             layout(location = 0) out vec4 f_color;
 
-            layout( set = 0, binding = 0, r8 ) uniform readonly imageBuffer buf;
+            layout(set = 0, binding = 0, r8) uniform readonly imageBuffer buf;
 
             vec3 get_px(int x, int y) {
                 return vec3(
@@ -56,89 +78,115 @@ mod fragment_shader {
         "
     }
 }
-#[derive(Default, Debug, Clone)]
-struct Vertex {
-    position: [f32; 2],
-    tex: [f32; 2],
-}
-vulkano::impl_vertex!(Vertex, position, tex);
 
-fn vertex_buffer(rect: Rect, res: Vec2) -> Arc<CpuAccessibleBuffer<[Vertex]>> {
-    let top_left = rect.pos / res * 2. - 1.;
-    let bottom_right = (rect.pos + rect.size) / res * 2. - 1.;
-    let device = VulkanContext::get().device;
-    CpuAccessibleBuffer::<[Vertex]>::from_iter(
-        device.clone(),
-        BufferUsage::all(),
-        false,
-        [
-            Vertex { position: [top_left.x, top_left.y], tex: [0., 0.] },
-            Vertex { position: [top_left.x, bottom_right.y], tex: [0., 1.] },
-            Vertex { position: [bottom_right.x, top_left.y], tex: [1., 0.] },
-            Vertex { position: [bottom_right.x, bottom_right.y], tex: [1., 1.] },
-        ]
-        .iter()
-        .cloned(),
-    )
-    .unwrap()
-}
-
-fn initialize(render_pass: Arc<RenderPass>) -> Arc<GraphicsPipeline<BuffersDefinition>> {
-    let device = VulkanContext::get().device;
+fn initialize(render_pass: Arc<RenderPass>) -> Arc<GraphicsPipeline> {
+    let device = render_pass.device();
 
     let vs = vertex_shader::Shader::load(device.clone()).unwrap();
     let fs = fragment_shader::Shader::load(device.clone()).unwrap();
 
     Arc::new(
         GraphicsPipeline::start()
-            .vertex_input_single_buffer::<Vertex>()
             .vertex_shader(vs.main_entry_point(), ())
             .triangle_strip()
             .viewports_dynamic_scissors_irrelevant(1)
             .fragment_shader(fs.main_entry_point(), ())
-            .blend_alpha_blending()
-            .render_pass(Subpass::from(render_pass, 0).unwrap())
-            .build(device)
+            .blend_collective(AttachmentBlend {
+                enabled: true,
+                color_op: BlendOp::Add,
+                color_source: BlendFactor::SrcAlpha,
+                color_destination: BlendFactor::OneMinusSrcAlpha,
+                alpha_op: BlendOp::Max,
+                alpha_source: BlendFactor::One,
+                alpha_destination: BlendFactor::One,
+                mask_red: true,
+                mask_green: true,
+                mask_blue: true,
+                mask_alpha: true,
+            })
+            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+            .build(device.clone())
             .unwrap(),
     )
 }
 
-#[widget(style = Default::default())]
-pub fn image(image: Arc<RgbFrame>, style: Style, context: Context) -> FragmentInner {
+#[widget]
+pub fn image(image: Arc<RgbFrame>, context: &mut WidgetContext) -> FragmentInner {
     let cloned_image = image.clone();
-    let render_fn: Arc<RenderFnInner> =
-        Arc::new(move |render_pass, command_buffer_builder, dynamic_state, rect, res| {
-            let pipeline = initialize(render_pass);
-            let vertex_buffer = vertex_buffer(rect, res);
+    let device = context.vulkan_context.device.clone();
 
-            let source_buffer =
-                CpuAccessibleBufferReadView::<u8>::from_buffer(cloned_image.buffer.clone())
-                    .unwrap()
-                    .as_cpu_accessible_buffer();
-
+    let pipeline_descriptor_set = context.effect(
+        |context| {
+            let pipeline = initialize(context.vulkan_context.render_pass.clone());
+            let source_buffer = CpuAccessibleBufferReadView::<u8>::from_buffer(
+                device.clone(),
+                cloned_image.buffer.clone(),
+            )
+            .unwrap()
+            .as_cpu_accessible_buffer();
             let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
-            let set = Arc::new(
-                PersistentDescriptorSet::start(layout)
-                    .add_buffer_view(BufferView::new(source_buffer, R8Unorm).unwrap())
-                    .unwrap()
-                    .build()
-                    .unwrap(),
-            );
+            let set = Arc::new({
+                let mut set = PersistentDescriptorSet::start(layout);
+                set.add_buffer_view(Arc::new(BufferView::new(source_buffer, R8_UNORM).unwrap()))
+                    .unwrap();
+                set.build().unwrap()
+            });
 
-            let push_constants = fragment_shader::ty::PushConstantData {
-                width: image.width as u32,
-                height: image.height as u32,
-            };
-            command_buffer_builder
-                .draw(pipeline, dynamic_state, vertex_buffer, set, push_constants)
-                .expect("image draw failed");
-        });
-    FragmentInner {
-        children: vec![],
-        layout_object: Some(LayoutObject {
-            style,
-            measure_function: None,
-            render_objects: vec![(KeyPart::RenderObject(0), RenderObject::Raw { render_fn })],
-        }),
+            (pipeline, set)
+        },
+        image.clone(),
+    );
+    let pipeline_descriptor_set = pipeline_descriptor_set.read();
+    let pipeline = pipeline_descriptor_set.0.clone();
+    let descriptor_set = pipeline_descriptor_set.1.clone();
+
+    let queue = context
+        .vulkan_context
+        .queues
+        .iter()
+        .find(|&q| q.family().supports_graphics())
+        .unwrap()
+        .clone();
+
+    let render_fn: Arc<RenderFnInner> = Arc::new(move |viewport, z_index, rect, res| {
+        let origin = rect.pos / res * 2. - 1.;
+        let size = rect.size / res * 2.;
+
+        let push_constants = fragment_shader::ty::PushConstantData {
+            origin: origin.into(),
+            size: size.into(),
+            z_index,
+            width: image.width as u32,
+            height: image.height as u32,
+            _dummy0: Default::default(),
+        };
+
+        let mut builder = AutoCommandBufferBuilder::secondary_graphics(
+            device.clone(),
+            queue.family(),
+            CommandBufferUsage::MultipleSubmit,
+            pipeline.subpass().clone(),
+        )
+        .unwrap();
+
+        builder
+            .bind_descriptor_sets(
+                PipelineBindPoint::Graphics,
+                pipeline.layout().clone(),
+                0,
+                descriptor_set.clone(),
+            )
+            .bind_pipeline_graphics(pipeline.clone())
+            .push_constants(pipeline.layout().clone(), 0, push_constants)
+            .set_viewport(0, std::iter::once(viewport.clone()))
+            .draw(4, 1, 0, 0)
+            .unwrap();
+
+        builder.build().unwrap()
+    });
+
+    FragmentInner::Leaf {
+        render_object: RenderObject::Raw { render_fn },
+        layout: Box::new(Maximal),
     }
 }
