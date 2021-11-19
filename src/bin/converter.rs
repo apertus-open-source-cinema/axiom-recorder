@@ -8,8 +8,10 @@ use recorder::pipeline_processing::{
     list_available_nodes,
     parametrizable::{
         ParameterTypeDescriptor::{Mandatory, Optional},
+        ParameterValue,
         ParameterizableDescriptor,
         Parameters,
+        VULKAN_CONTEXT,
     },
     payload::Payload,
     processing_node::ProcessingNode,
@@ -26,8 +28,14 @@ use std::{
     },
     time::SystemTime,
 };
+use vulkano::{
+    device::{physical::PhysicalDevice, Device, DeviceExtensions},
+    instance::Instance,
+    Version,
+};
 
 fn main() {
+    env_logger::init();
     let res = work();
     match res {
         Ok(_) => eprintln!("\nconversion successfully finished :)"),
@@ -48,9 +56,27 @@ fn work() -> Result<()> {
         .after_help(format!("NODES:\n{}", nodes_usages_string()).as_str())
         .get_matches_from(&arg_blocks[0]);
 
+    let vk_context = {
+        let required_extensions = vulkano_win::required_extensions();
+        let instance = Instance::new(None, Version::V1_2, &required_extensions, None)?;
+        let physical = PhysicalDevice::enumerate(&instance)
+            .next()
+            .ok_or_else(|| anyhow!("No physical device found"))?;
+        let queue_family = physical.queue_families().map(|qf| (qf, 0.5)); // All queues have the same priority
+        let device_ext = DeviceExtensions {
+            khr_swapchain: true,
+            khr_storage_buffer_storage_class: true,
+            khr_8bit_storage: true,
+            ..DeviceExtensions::none()
+        };
+        let (device, queues) =
+            Device::new(physical, physical.supported_features(), &device_ext, queue_family)?;
+        ParameterValue::VulkanContext(device, queues.collect())
+    };
+
     let mut nodes = arg_blocks[1..]
         .iter()
-        .map(|arg_block| processing_node_from_commandline(arg_block))
+        .map(|arg_block| processing_node_from_commandline(vk_context.clone(), arg_block))
         .collect::<Result<Vec<_>>>()?;
     nodes.push(Arc::new(ProgressNode::new(nodes[0].size_hint())));
 
@@ -125,6 +151,9 @@ fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
     }
     let parameters_description = node_descriptor.parameters_descriptor;
     for (key, parameter_type) in Box::leak(Box::new(parameters_description.0)).iter() {
+        if key == VULKAN_CONTEXT {
+            continue;
+        }
         let parameter_type_for_closure = parameter_type.clone();
         app = app.arg(match parameter_type {
             Mandatory(_) => Arg::with_name(key)
@@ -171,7 +200,10 @@ fn nodes_usages_string() -> String {
         })
         .join("\n")
 }
-fn processing_node_from_commandline(commandline: &[&String]) -> Result<Arc<dyn ProcessingNode>> {
+fn processing_node_from_commandline(
+    vk_context: ParameterValue,
+    commandline: &[&String],
+) -> Result<Arc<dyn ProcessingNode>> {
     let name = commandline[0];
 
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
@@ -190,14 +222,17 @@ fn processing_node_from_commandline(commandline: &[&String]) -> Result<Arc<dyn P
     let results = app
         .get_matches_from_safe(commandline)
         .with_context(|| format!("Wrong Parameters for Node {}", name))?;
-    let parameters: Result<HashMap<_, _>> = parameters_description
+    let mut parameters: HashMap<_, _> = parameters_description
         .0
         .iter()
+        .filter(|(key, _)| key != &VULKAN_CONTEXT)
         .map(|(key, parameter_type)| {
             Ok((key.to_string(), parameter_type.parse(results.value_of(key))?))
         })
-        .collect();
+        .collect::<Result<_, anyhow::Error>>()?;
 
-    create_node_from_name(name, &Parameters(parameters?))
+    parameters.insert(VULKAN_CONTEXT.to_string(), vk_context);
+
+    create_node_from_name(name, &Parameters(parameters))
         .with_context(|| format!("Error while creating Node {}", name))
 }

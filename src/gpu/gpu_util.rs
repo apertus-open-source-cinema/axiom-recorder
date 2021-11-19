@@ -9,19 +9,21 @@ use vulkano::{
         BufferUsage,
         CpuAccessibleBuffer,
     },
+    device::Device,
     memory::{
         pool::{PotentialDedicatedAllocation, StdMemoryPoolAlloc},
         Content,
     },
 };
 
-pub use narui::VulkanContext;
-
 pub struct CpuAccessibleBufferReadView<T: 'static + ?Sized>(
     OwningHandle<Arc<CpuAccessibleBuffer<T>>, ReadLock<'static, T>>,
 );
 impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
-    pub fn from_buffer(buffer: Arc<dyn Buffer>) -> Result<Arc<CpuAccessibleBufferReadView<[u8]>>> {
+    pub fn from_buffer(
+        device: Arc<Device>,
+        buffer: Arc<dyn Buffer>,
+    ) -> Result<Arc<CpuAccessibleBufferReadView<[u8]>>> {
         let any_buffer = buffer.clone().into_any();
         Ok(match any_buffer.downcast::<CpuAccessibleBufferReadView<[u8]>>() {
             Ok(cpu_accessible_buffer) => cpu_accessible_buffer,
@@ -30,7 +32,7 @@ impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
                 Arc::new(CpuAccessibleBufferReadView::from_cpu_accessible_buffer(unsafe {
                     let uninitialized: Arc<CpuAccessibleBuffer<[u8]>> =
                         CpuAccessibleBuffer::uninitialized_array(
-                            VulkanContext::get().device,
+                            device,
                             buffer.len() as u64,
                             BufferUsage::all(),
                             true,
