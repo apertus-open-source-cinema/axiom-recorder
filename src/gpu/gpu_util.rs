@@ -1,6 +1,5 @@
 use crate::frame::typing_hacks::Buffer;
-use anyhow::{anyhow, Result};
-use lazy_static::lazy_static;
+use anyhow::Result;
 use owning_ref::OwningHandle;
 use std::{ops::Deref, sync::Arc};
 use vulkano::{
@@ -9,49 +8,21 @@ use vulkano::{
         BufferUsage,
         CpuAccessibleBuffer,
     },
-    device::{physical::PhysicalDevice, Device, DeviceExtensions, Queue},
-    instance::Instance,
+    device::Device,
     memory::{
         pool::{PotentialDedicatedAllocation, StdMemoryPoolAlloc},
         Content,
     },
-    Version,
 };
-
-#[derive(Clone)]
-pub struct VulkanContext {
-    pub device: Arc<Device>,
-    pub queues: Vec<Arc<Queue>>,
-}
-lazy_static! {
-    pub static ref VULKAN_CONTEXT: VulkanContext = VulkanContext::create().unwrap();
-}
-impl VulkanContext {
-    pub fn create() -> Result<Self> {
-        let required_extensions = vulkano_win::required_extensions();
-        let instance = Instance::new(None, Version::V1_2, &required_extensions, None)?;
-        let physical = PhysicalDevice::enumerate(&instance)
-            .next()
-            .ok_or_else(|| anyhow!("No physical device found"))?;
-        let queue_family = physical.queue_families().map(|qf| (qf, 0.5)); // All queues have the same priority
-        let device_ext = DeviceExtensions {
-            khr_swapchain: true,
-            khr_storage_buffer_storage_class: true,
-            khr_8bit_storage: true,
-            ..DeviceExtensions::none()
-        };
-        let (device, queues) =
-            Device::new(physical, physical.supported_features(), &device_ext, queue_family)?;
-        Ok(Self { device, queues: queues.collect() })
-    }
-    pub fn get() -> Self { VULKAN_CONTEXT.clone() }
-}
 
 pub struct CpuAccessibleBufferReadView<T: 'static + ?Sized>(
     OwningHandle<Arc<CpuAccessibleBuffer<T>>, ReadLock<'static, T>>,
 );
 impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
-    pub fn from_buffer(buffer: Arc<dyn Buffer>) -> Result<Arc<CpuAccessibleBufferReadView<[u8]>>> {
+    pub fn from_buffer(
+        device: Arc<Device>,
+        buffer: Arc<dyn Buffer>,
+    ) -> Result<Arc<CpuAccessibleBufferReadView<[u8]>>> {
         let any_buffer = buffer.clone().into_any();
         Ok(match any_buffer.downcast::<CpuAccessibleBufferReadView<[u8]>>() {
             Ok(cpu_accessible_buffer) => cpu_accessible_buffer,
@@ -60,7 +31,7 @@ impl<T: ?Sized + Content> CpuAccessibleBufferReadView<T> {
                 Arc::new(CpuAccessibleBufferReadView::from_cpu_accessible_buffer(unsafe {
                     let uninitialized: Arc<CpuAccessibleBuffer<[u8]>> =
                         CpuAccessibleBuffer::uninitialized_array(
-                            VulkanContext::get().device,
+                            device,
                             buffer.len() as u64,
                             BufferUsage::all(),
                             true,
