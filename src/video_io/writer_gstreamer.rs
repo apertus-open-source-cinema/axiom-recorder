@@ -13,13 +13,10 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Result};
-use core::mem;
-use gstreamer::{prelude::*, Buffer, BufferMap, Format, Fraction, Memory, ParseContext, Pipeline};
+use gstreamer::{prelude::*, Buffer, Format, Fraction, ParseContext, Pipeline};
 use gstreamer_app::AppSrc;
-use gstreamer_video::{VideoFormat, VideoFrameRef, VideoInfo};
+use gstreamer_video::{VideoFormat, VideoInfo};
 use std::{
-    any::Any,
-    io::Write,
     sync::{Arc, MutexGuard},
     thread::{spawn, JoinHandle},
 };
@@ -49,7 +46,7 @@ impl Parameterizable for GstWriter {
         .unwrap();
 
         let appsrc =
-            pipeline.get_children().into_iter().last().unwrap().dynamic_cast::<AppSrc>().unwrap();
+            pipeline.children().into_iter().last().unwrap().dynamic_cast::<AppSrc>().unwrap();
 
         let thread_handle = Some(spawn(move || {
             main_loop(pipeline).unwrap();
@@ -88,7 +85,7 @@ impl ProcessingNode for GstWriter {
                 .build()
                 .expect("Failed to create video info");
         self.appsrc.set_caps(Some(&video_info.to_caps().unwrap()));
-        self.appsrc.set_property_format(Format::Time);
+        self.appsrc.set_property("format", Format::Time)?;
         let buffer = Buffer::from_slice(ArcAsRef::new(frame));
         self.appsrc.push_buffer(buffer)?;
 
@@ -106,9 +103,9 @@ impl Drop for GstWriter {
 fn main_loop(pipeline: gstreamer::Pipeline) -> Result<()> {
     pipeline.set_state(gstreamer::State::Playing)?;
 
-    let bus = pipeline.get_bus().expect("Pipeline without bus. Shouldn't happen!");
+    let bus = pipeline.bus().expect("Pipeline without bus. Shouldn't happen!");
 
-    for msg in bus.iter_timed(gstreamer::CLOCK_TIME_NONE) {
+    for msg in bus.iter_timed(None) {
         use gstreamer::MessageView;
 
         match msg.view() {
@@ -117,12 +114,12 @@ fn main_loop(pipeline: gstreamer::Pipeline) -> Result<()> {
                 pipeline.set_state(gstreamer::State::Null)?;
                 return Err(anyhow!(
                     "{:?}{:?}{:?}{:?}",
-                    msg.get_src()
-                        .map(|s| String::from(s.get_path_string()))
+                    msg.src()
+                        .map(|s| String::from(s.path_string()))
                         .unwrap_or_else(|| String::from("None")),
-                    err.get_error().to_string(),
-                    err.get_debug(),
-                    err.get_error()
+                    err.error().to_string(),
+                    err.debug(),
+                    err.error()
                 ));
             }
             _ => (),
