@@ -61,7 +61,9 @@ impl ProcessingNode for Debayer {
             ensure_gpu_buffer::<Raw>(input, self.queue.clone()).context("Wrong input format")?;
 
         if frame.interp.bit_depth != 8 {
-            return Err(anyhow!("A frame with bit_depth=8 is required. Convert the bit depth of the frame!"));
+            return Err(anyhow!(
+                "A frame with bit_depth=8 is required. Convert the bit depth of the frame!"
+            ));
         }
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
@@ -114,7 +116,11 @@ impl ProcessingNode for Debayer {
 
         future.wait(None).unwrap();
         Ok(Some(Payload::from(Frame {
-            interp: Rgb { width: frame.interp.width, height: frame.interp.height },
+            interp: Rgb {
+                width: frame.interp.width,
+                height: frame.interp.height,
+                fps: frame.interp.fps,
+            },
             storage: GpuBuffer::from(sink_buffer),
         })))
     }

@@ -27,6 +27,7 @@ pub struct Raw {
     pub height: u64,
     pub bit_depth: u64,
     pub cfa: CfaDescriptor,
+    pub fps: f64,
 }
 
 impl FrameInterpretation for Raw {
@@ -39,18 +40,20 @@ impl FrameInterpretation for Raw {
 pub struct Rgb {
     pub width: u64,
     pub height: u64,
+    pub fps: f64,
 }
 
 impl FrameInterpretation for Rgb {
-    fn required_bytes(&self) -> usize { self.width as usize * self.height as usize }
+    fn required_bytes(&self) -> usize { self.width as usize * self.height as usize * 3 }
 }
 
 #[derive(Clone, Copy)]
 pub struct Rgba {
     pub width: u64,
     pub height: u64,
+    pub fps: f64,
 }
 
 impl FrameInterpretation for Rgba {
-    fn required_bytes(&self) -> usize { self.width as usize * self.height as usize }
+    fn required_bytes(&self) -> usize { self.width as usize * self.height as usize * 3 }
 }

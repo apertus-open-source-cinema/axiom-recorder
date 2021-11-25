@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     execute::ProcessingStageLockWaiter,
     frame::Rgb,
     parametrizable::{
-        ParameterType::{FloatRange, StringParameter},
+        ParameterType::StringParameter,
         ParameterTypeDescriptor::{Mandatory, Optional},
         ParameterValue,
         Parameterizable,
@@ -23,20 +23,16 @@ use std::{
 pub struct FfmpegWriter {
     output: String,
     input_options: String,
-    fps: f64,
-    resolution: Arc<Mutex<Option<[u64; 2]>>>,
+    interp: Arc<Mutex<Option<Rgb>>>,
     child: Arc<Mutex<Option<Child>>>,
     context: ProcessingContext,
 }
 impl Parameterizable for FfmpegWriter {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with("fps", Mandatory(FloatRange(0., f64::MAX)))
-            .with("output", Mandatory(StringParameter))
-            .with(
-                "input-options",
-                Optional(StringParameter, ParameterValue::StringParameter("".to_string())),
-            )
+        ParametersDescriptor::new().with("output", Mandatory(StringParameter)).with(
+            "input-options",
+            Optional(StringParameter, ParameterValue::StringParameter("".to_string())),
+        )
     }
     fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
     where
@@ -44,10 +40,9 @@ impl Parameterizable for FfmpegWriter {
     {
         Ok(Self {
             child: Arc::new(Mutex::new(None)),
-            resolution: Arc::new(Mutex::new(None)),
+            interp: Arc::new(Mutex::new(None)),
             output: parameters.get("output")?,
             input_options: parameters.get("input-options")?,
-            fps: parameters.get("fps")?,
             context,
         })
     }
@@ -62,14 +57,14 @@ impl ProcessingNode for FfmpegWriter {
         let frame = self.context.ensure_cpu_buffer::<Rgb>(input).context("Wrong input format")?;
 
         {
-            let mut resolution = self.resolution.lock().unwrap();
-            if resolution.is_none() {
+            let mut interp = self.interp.lock().unwrap();
+            if interp.is_none() {
                 let child = Command::new("ffmpeg")
                     .args(
                         shlex::split(&format!(
                         "{} -f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb24 -i - {}",
                         self.input_options,
-                        self.fps,
+                        frame.interp.fps,
                         frame.interp.width,
                         frame.interp.height,
                         self.output
@@ -79,12 +74,15 @@ impl ProcessingNode for FfmpegWriter {
                     .stdin(Stdio::piped())
                     .spawn()?;
                 *self.child.lock().unwrap() = Some(child);
-                *resolution = Some([frame.interp.width, frame.interp.height])
-            } else if resolution.is_some() {
-                let [width, height] = resolution.unwrap();
-                if width != frame.interp.width || height != frame.interp.height {
+                *interp = Some(frame.interp)
+            } else if interp.is_some() {
+                let Rgb { width, height, fps } = interp.unwrap();
+                if width != frame.interp.width
+                    || height != frame.interp.height
+                    || fps != frame.interp.fps
+                {
                     return Err(anyhow!(
-                        "the resolution MAY NOT change during an ffmpeg encoding session"
+                        "the resolution or the framerate MAY NOT change during an ffmpeg encoding session"
                     ));
                 }
             }

@@ -24,6 +24,7 @@ use std::{
     },
     thread,
     thread::JoinHandle,
+    time::{Duration, Instant},
 };
 use vulkano::{
     buffer::BufferView,
@@ -138,6 +139,7 @@ impl Parameterizable for Display {
         ParametersDescriptor::default()
             .with("mailbox", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
             .with("blocking", Optional(BoolParameter, ParameterValue::BoolParameter(true)))
+            .with("live", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
 
     fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
@@ -146,6 +148,7 @@ impl Parameterizable for Display {
     {
         let (tx, rx) = sync_channel::<Option<Payload>>(10);
         let mailbox = parameters.get("mailbox").unwrap();
+        let live = parameters.get("live").unwrap() || mailbox;
         let (device, queues) = context.require_vulkan()?;
 
         let join_handle = thread::Builder::new().name("display".to_string()).spawn(move || {
@@ -217,6 +220,7 @@ impl Parameterizable for Display {
                 window_size_dependent_setup(&images, render_pass.clone());
             let mut recreate_swapchain = false;
             let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
+            let mut next_frame_time = Instant::now();
             let mut source_buffer = None;
             let mut source_future = None;
             let mut frame_width = 1u32;
@@ -247,18 +251,24 @@ impl Parameterizable for Display {
                         recreate_swapchain = false;
                     }
 
-                    let mut frame = rx.try_recv();
-                    match frame {
-                        Err(_) => {}
-                        Ok(None) => *control_flow = ControlFlow::Exit,
-                        Ok(Some(ref mut frame)) => {
-                            let (frame, fut) = ensure_gpu_buffer::<Rgb>(frame, queue.clone())
-                                .context("Wrong input format")
-                                .unwrap();
-                            frame_width = frame.interp.width as _;
-                            frame_height = frame.interp.height as _;
-                            source_buffer = Some(frame);
-                            source_future = Some(fut);
+                    let now = Instant::now();
+                    let needs_new_frame = live || if now > next_frame_time { true } else { false };
+
+                    if needs_new_frame {
+                        match rx.try_recv() {
+                            Err(_) => {}
+                            Ok(None) => *control_flow = ControlFlow::Exit,
+                            Ok(Some(ref mut frame)) => {
+                                let (frame, fut) = ensure_gpu_buffer::<Rgb>(frame, queue.clone())
+                                    .context("Wrong input format")
+                                    .unwrap();
+                                frame_width = frame.interp.width as _;
+                                frame_height = frame.interp.height as _;
+
+                                next_frame_time += Duration::from_secs_f64(1.0 / frame.interp.fps);
+                                source_buffer = Some(frame);
+                                source_future = Some(fut);
+                            }
                         }
                     }
                     if source_buffer.is_none() {

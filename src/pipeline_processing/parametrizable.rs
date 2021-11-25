@@ -96,7 +96,8 @@ impl Parameters {
         let height = self.get("height")?;
         let bit_depth = self.get("bit-depth")?;
         let cfa = CfaDescriptor::from_first_red(self.get("first-red-x")?, self.get("first-red-y")?);
-        Ok(Raw { bit_depth, width, height, cfa })
+        let fps = self.get("fps")?;
+        Ok(Raw { bit_depth, width, height, cfa, fps })
     }
 }
 
@@ -184,6 +185,13 @@ impl ParametersDescriptor {
             .with(
                 "first-red-y",
                 Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+            )
+            .with(
+                "fps",
+                Optional(
+                    ParameterType::FloatRange(0.0, f64::MAX),
+                    ParameterValue::FloatRange(24.0),
+                ),
             )
     }
 }
