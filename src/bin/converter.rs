@@ -56,20 +56,24 @@ fn work() -> Result<()> {
         .get_matches_from(&arg_blocks[0]);
 
     let vk_context = {
-        let required_extensions = vulkano_win::required_extensions();
-        let instance = Instance::new(None, Version::V1_2, &required_extensions, None)?;
-        let physical = PhysicalDevice::enumerate(&instance)
-            .next()
+        let extensions = vulkano_win::required_extensions();
+        let instance = Instance::new(None, Version::V1_2, &extensions, None)?;
+        let (device, queues) = PhysicalDevice::enumerate(&instance)
+            .find_map(|physical| {
+                let queue_family = physical.queue_families().map(|qf| (qf, 0.5)); // All queues have the same priority
+                let device_ext = DeviceExtensions {
+                    khr_swapchain: true,
+                    khr_storage_buffer_storage_class: true,
+                    khr_8bit_storage: true,
+                    khr_shader_non_semantic_info: true,
+                    ..(*physical.required_extensions())
+                };
+                Device::new(physical, physical.supported_features(), &device_ext, queue_family).ok()
+            })
             .ok_or_else(|| anyhow!("No physical device found"))?;
-        let queue_family = physical.queue_families().map(|qf| (qf, 0.5)); // All queues have the same priority
-        let device_ext = DeviceExtensions {
-            khr_swapchain: true,
-            khr_storage_buffer_storage_class: true,
-            khr_8bit_storage: true,
-            ..DeviceExtensions::none()
-        };
-        let (device, queues) =
-            Device::new(physical, physical.supported_features(), &device_ext, queue_family)?;
+
+        println!("using gpu: {}", device.physical_device().properties().device_name);
+
         ParameterValue::VulkanContext(device, queues.collect())
     };
 
