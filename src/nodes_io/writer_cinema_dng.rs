@@ -3,7 +3,7 @@ use crate::pipeline_processing::{
     execute::ProcessingStageLockWaiter,
     frame::Raw,
     parametrizable::{
-        ParameterType::{FloatRange, StringParameter},
+        ParameterType::StringParameter,
         ParameterTypeDescriptor::Mandatory,
         Parameterizable,
         Parameters,
@@ -31,15 +31,12 @@ use vulkano::buffer::TypedBufferAccess;
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
     dir_path: String,
-    fps: f64,
     context: ProcessingContext,
 }
 
 impl Parameterizable for CinemaDngWriter {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with("path", Mandatory(StringParameter))
-            .with("fps", Mandatory(FloatRange(0., f64::MAX)))
+        ParametersDescriptor::new().with("path", Mandatory(StringParameter))
     }
 
     fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
@@ -48,7 +45,7 @@ impl Parameterizable for CinemaDngWriter {
     {
         let filename = parameters.get("path")?;
         create_dir(&filename).context("Error while creating target directory")?;
-        Ok(Self { dir_path: filename, fps: parameters.get("fps")?, context })
+        Ok(Self { dir_path: filename, context })
     }
 }
 
@@ -97,7 +94,7 @@ impl ProcessingNode for CinemaDngWriter {
                         (1283, 10000), (3550, 10000), (5967, 10000)
                ])
 
-                .with_entry(51044, SRATIONAL![((self.fps * 10000.0) as i32, 10000)])// FrameRate
+                .with_entry(51044, SRATIONAL![((frame.interp.fps * 10000.0) as i32, 10000)])// FrameRate
 
                 .with_entry(tags::ImageLength, LONG![frame.interp.height as u32])
                 .with_entry(tags::ImageWidth, LONG![frame.interp.width as u32])
