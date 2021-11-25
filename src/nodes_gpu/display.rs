@@ -66,14 +66,26 @@ mod vertex_shader {
             layout(push_constant) uniform PushConstantData {
                 uint width;
                 uint height;
+                uint window_width;
+                uint window_height;
             } params;
 
             layout(location = 0) out vec2 tex_coords;
+
             void main() {
+                float wanted_aspect = float(params.width) / float(params.height);
+                float is_aspect = float(params.window_width) / float(params.window_height);
+                float aspect = is_aspect / wanted_aspect;
+
                 int idx = gl_VertexIndex;
                 int top = idx & 1;
                 int left = (idx & 2) / 2;
-                gl_Position = vec4(2 * top - 1, 2 * left - 1, 0.0, 1.0);
+                gl_Position = vec4(
+                    (2 * top - 1) / (aspect > 1 ? aspect : 1),
+                    (2 * left - 1) * (aspect < 1 ? aspect : 1),
+                    0.0,
+                    1.0
+                );
                 tex_coords = vec2(top, left);
             }
         "
@@ -89,6 +101,8 @@ mod fragment_shader {
             layout(push_constant) uniform PushConstantData {
                 uint width;
                 uint height;
+                uint window_width;
+                uint window_height;
             } params;
 
             layout(location = 0) in vec2 tex_coords;
@@ -150,10 +164,11 @@ impl Parameterizable for Display {
                 .clone();
 
             let caps = surface.capabilities(device.physical_device()).unwrap();
+            let mut dimensions;
             let (mut swapchain, images) = {
                 let alpha = caps.supported_composite_alpha.iter().next().unwrap();
                 let format = caps.supported_formats[0].0;
-                let dimensions = surface.window().inner_size().into();
+                dimensions = surface.window().inner_size().into();
                 let present_mode = if mailbox { PresentMode::Mailbox } else { PresentMode::Fifo };
                 Swapchain::start(device.clone(), surface.clone())
                     .usage(ImageUsage::color_attachment())
@@ -216,7 +231,7 @@ impl Parameterizable for Display {
                 Event::RedrawEventsCleared => {
                     previous_frame_end.as_mut().unwrap().cleanup_finished();
                     if recreate_swapchain {
-                        let dimensions: [u32; 2] = surface.window().inner_size().into();
+                        dimensions = surface.window().inner_size().into();
                         let (new_swapchain, new_images) =
                             match swapchain.recreate().dimensions(dimensions).build() {
                                 Ok(r) => r,
@@ -282,6 +297,8 @@ impl Parameterizable for Display {
                     let push_constants = fragment_shader::ty::PushConstantData {
                         width: frame_width,
                         height: frame_height,
+                        window_width: dimensions[0],
+                        window_height: dimensions[1],
                     };
 
                     let clear_values = vec![[0.0, 0.0, 0.0, 1.0].into()];
