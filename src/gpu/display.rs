@@ -62,6 +62,12 @@ mod vertex_shader {
         ty: "vertex",
         src: "
             #version 450
+
+            layout(push_constant) uniform PushConstantData {
+                uint width;
+                uint height;
+            } params;
+
             layout(location = 0) out vec2 tex_coords;
             void main() {
                 int idx = gl_VertexIndex;
@@ -258,7 +264,6 @@ impl Parameterizable for Display {
                     }
 
                     let layout = pipeline.layout().descriptor_set_layouts()[0].clone();
-                    println!("{:?}", layout);
                     let set = Arc::new({
                         let mut set = PersistentDescriptorSet::start(layout);
                         set.add_buffer_view(Arc::new(
@@ -281,6 +286,7 @@ impl Parameterizable for Display {
                     )
                     .unwrap();
                     builder
+                        .bind_pipeline_graphics(pipeline.clone())
                         .begin_render_pass(
                             framebuffers[image_num].clone(),
                             SubpassContents::Inline,
