@@ -1,19 +1,19 @@
 use crate::pipeline_processing::{
-    execute::ProcessingStageLockWaiter,
     frame::{Frame, FrameInterpretation, Raw},
     parametrizable::{
-        ParameterType::StringParameter,
-        ParameterTypeDescriptor::Mandatory,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        ParameterType::StringParameter,
+        ParameterTypeDescriptor::Mandatory,
     },
     payload::Payload,
     processing_context::ProcessingContext,
-    processing_node::ProcessingNode,
 };
 use anyhow::Result;
 use std::{io::Read, net::TcpStream, sync::Mutex};
+use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 pub struct TcpReader {
     pub tcp_connection: Mutex<TcpStream>,

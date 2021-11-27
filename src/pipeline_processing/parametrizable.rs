@@ -7,15 +7,18 @@ use crate::pipeline_processing::{
     processing_context::ProcessingContext,
 };
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter, Write};
+use std::sync::Arc;
+use crate::pipeline_processing::node::ProcessingNode;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ParameterValue {
     FloatRange(f64),
     IntRange(i64),
     StringParameter(String),
     BoolParameter(bool),
+    NodeInput(Arc<dyn ProcessingNode>)
 }
-
 impl ToString for ParameterValue {
     fn to_string(&self) -> String {
         match self {
@@ -23,7 +26,13 @@ impl ToString for ParameterValue {
             Self::IntRange(v) => v.to_string(),
             Self::StringParameter(v) => v.to_string(),
             Self::BoolParameter(v) => v.to_string(),
+            Self::NodeInput(_) => "<NodeInput>".to_string(),
         }
+    }
+}
+impl Debug for ParameterValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("ParameterValue({})", self.to_string()))
     }
 }
 impl TryInto<f64> for ParameterValue {
@@ -107,6 +116,7 @@ pub enum ParameterType {
     IntRange(i64, i64),
     StringParameter,
     BoolParameter,
+    NodeInput,
 }
 impl ParameterType {
     pub fn value_is_of_type(&self, value: ParameterValue) -> Result<ParameterValue> {
@@ -138,7 +148,8 @@ impl ParameterType {
             Self::IntRange(..) => self.value_is_of_type(ParameterValue::IntRange(string.parse()?)),
             Self::FloatRange(..) => {
                 self.value_is_of_type(ParameterValue::FloatRange(string.parse()?))
-            }
+            },
+            Self::NodeInput => Err(anyhow!("cant parse node input from string"))
         }
     }
 }

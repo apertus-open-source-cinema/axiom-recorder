@@ -1,22 +1,23 @@
 use crate::pipeline_processing::{
-    execute::ProcessingStageLockWaiter,
     frame::{Frame, FrameInterpretation, Raw},
     parametrizable::{
-        ParameterType::{BoolParameter, FloatRange, StringParameter},
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        ParameterType::{BoolParameter, FloatRange, StringParameter},
+        ParameterTypeDescriptor::{Mandatory, Optional},
+        ParameterValue,
     },
     payload::Payload,
     processing_context::ProcessingContext,
-    processing_node::ProcessingNode,
 };
 use anyhow::{anyhow, Result};
 use glob::glob;
 use std::{fs::File, io::Read, path::PathBuf, sync::Mutex, thread::sleep, time::Duration};
+use crate::pipeline_processing::node::{Caps, ProcessingNode};
+use async_trait::async_trait;
 
+/*
 pub struct RawBlobReader {
     file: Mutex<File>,
     interp: Raw,
@@ -75,12 +76,12 @@ impl ProcessingNode for RawBlobReader {
     }
     fn size_hint(&self) -> Option<u64> { Some(self.frame_count) }
 }
+ */
 
 pub struct RawDirectoryReader {
     files: Vec<PathBuf>,
     payload_vec: Mutex<Vec<Option<Payload>>>,
     do_loop: bool,
-    sleep: f64,
     interp: Raw,
     context: ProcessingContext,
 }
@@ -90,10 +91,9 @@ impl Parameterizable for RawDirectoryReader {
 
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("file-pattern", Mandatory(StringParameter))
             .with_raw_interpretation()
+            .with("file-pattern", Mandatory(StringParameter))
             .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
-            .with("sleep", Optional(FloatRange(0., f64::MAX), ParameterValue::FloatRange(0.0)))
     }
     fn from_parameters(options: &Parameters, context: ProcessingContext) -> anyhow::Result<Self>
     where
@@ -107,30 +107,24 @@ impl Parameterizable for RawDirectoryReader {
             interp: options.get_raw_interpretation()?,
             do_loop: options.get("loop")?,
             payload_vec: Mutex::new((0..frame_count).map(|_| None).collect()),
-            sleep: options.get("sleep")?,
             context,
         })
     }
 }
-impl ProcessingNode for RawDirectoryReader {
-    fn process(
-        &self,
-        _input: &mut Payload,
-        frame_lock: ProcessingStageLockWaiter,
-    ) -> Result<Option<Payload>> {
-        let frame_number = frame_lock.frame() as usize;
-        sleep(Duration::from_secs_f64(self.sleep));
 
+#[async_trait]
+impl ProcessingNode for RawDirectoryReader {
+    async fn pull(&self, frame_number: u64) -> Result<Payload> {
         Ok(match self.payload_vec.lock().unwrap()[(frame_number - 1) as usize % self.files.len()] {
             Some(ref payload) => {
-                if self.do_loop || frame_number <= self.files.len() {
-                    Some(payload.clone())
+                if self.do_loop || frame_number <= self.files.len() as u64 {
+                    payload.clone()
                 } else {
-                    None
+                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))
                 }
             }
             ref mut none => {
-                if self.do_loop || frame_number <= self.files.len() {
+                if self.do_loop || frame_number <= self.files.len() as u64 {
                     let path = &self.files[(frame_number - 1) as usize % self.files.len()];
                     let mut file = File::open(path)?;
 
@@ -144,19 +138,18 @@ impl ProcessingNode for RawDirectoryReader {
                     if self.do_loop {
                         *none = Some(payload.clone());
                     }
-                    Some(payload)
+                    payload
                 } else {
-                    None
+                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))
                 }
             }
         })
     }
 
-    fn size_hint(&self) -> Option<u64> {
-        if self.do_loop {
-            None
-        } else {
-            Some(self.files.len() as _)
+    fn get_caps(&self) -> Caps {
+        Caps {
+            frame_count: if self.do_loop { None } else { Some(self.files.len() as u64) },
+            is_live: false
         }
     }
 }

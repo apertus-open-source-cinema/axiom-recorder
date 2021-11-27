@@ -1,6 +1,5 @@
 use crate::pipeline_processing::{
     buffers::CpuBuffer,
-    execute::ProcessingStageLockWaiter,
     frame::Raw,
     parametrizable::{
         ParameterType::StringParameter,
@@ -8,30 +7,36 @@ use crate::pipeline_processing::{
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        ParameterType::{FloatRange, StringParameter},
+        ParameterTypeDescriptor::Mandatory,
     },
     payload::Payload,
     processing_context::ProcessingContext,
-    processing_node::ProcessingNode,
 };
 use anyhow::{Context, Result};
 use std::fs::create_dir;
+use std::sync::Arc;
+use futures::join;
 use tiff_encoder::{
-    ifd::{tags, values::Offsets, Ifd},
-    write::{Datablock, EndianFile},
-    TiffFile,
     ASCII,
     BYTE,
+    ifd::{Ifd, tags, values::Offsets},
     LONG,
     RATIONAL,
     SHORT,
     SRATIONAL,
+    TiffFile,
+    write::{Datablock, EndianFile},
 };
 use vulkano::buffer::TypedBufferAccess;
+use crate::pipeline_processing::node::{Caps, ProcessingNode, ProcessingSink};
+use crate::pipeline_processing::parametrizable::ParameterType::NodeInput;
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
     dir_path: String,
     context: ProcessingContext,
+    input: Arc<dyn ProcessingNode>
 }
 
 impl Parameterizable for CinemaDngWriter {
@@ -49,12 +54,9 @@ impl Parameterizable for CinemaDngWriter {
     }
 }
 
-impl ProcessingNode for CinemaDngWriter {
-    fn process(
-        &self,
-        input: &mut Payload,
-        frame_lock: ProcessingStageLockWaiter,
-    ) -> Result<Option<Payload>> {
+impl ProcessingSink for CinemaDngWriter {
+    async fn run(&self) {
+
         let frame = self.context.ensure_cpu_buffer::<Raw>(input).context("Wrong input format")?;
         let current_frame_number = frame_lock.frame();
 
@@ -104,7 +106,7 @@ impl ProcessingNode for CinemaDngWriter {
                 .with_entry(tags::StripOffsets, Offsets::single(frame.storage.clone()))
                 .single(),
         )
-        .write_to(format!("{}/{:06}.dng", &self.dir_path, current_frame_number))?;
+            .write_to(format!("{}/{:06}.dng", &self.dir_path, current_frame_number))?;
         Ok(Some(Payload::empty()))
     }
 }
