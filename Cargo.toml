@@ -33,6 +33,8 @@ winit = "0.25.0"
 lazy_static = "1.4.0"
 ft60x = { git = "https://github.com/apertus-open-source-cinema/ft60x-rs" }
 num = "0.4.0"
+async-trait = "0.1.51"
+futures = "0.3.18"
 
 
 [profile.release]

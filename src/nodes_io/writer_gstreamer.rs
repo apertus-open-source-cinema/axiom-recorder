@@ -1,22 +1,22 @@
 use crate::pipeline_processing::{
-    execute::ProcessingStageLockWaiter,
     frame::Rgb,
     parametrizable::{
-        ParameterType::StringParameter,
-        ParameterTypeDescriptor::Mandatory,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        ParameterType::StringParameter,
+        ParameterTypeDescriptor::Mandatory,
     },
     payload::Payload,
     processing_context::ProcessingContext,
-    processing_node::ProcessingNode,
 };
 use anyhow::{anyhow, Context, Result};
-use gstreamer::{prelude::*, Buffer, Format, Fraction, ParseContext, Pipeline};
+use gstreamer::{Buffer, Format, Fraction, ParseContext, Pipeline, prelude::*};
 use gstreamer_app::AppSrc;
 use gstreamer_video::{VideoFormat, VideoInfo};
-use std::thread::{spawn, JoinHandle};
+use std::thread::{JoinHandle, spawn};
+use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 
 pub struct GstWriter {

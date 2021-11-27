@@ -1,17 +1,15 @@
 use crate::pipeline_processing::{
-    execute::ProcessingStageLockWaiter,
     frame::Rgb,
     parametrizable::{
-        ParameterType::{FloatRange, StringParameter},
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        ParameterType::{FloatRange, StringParameter},
+        ParameterTypeDescriptor::{Mandatory, Optional},
+        ParameterValue,
     },
     payload::Payload,
     processing_context::ProcessingContext,
-    processing_node::ProcessingNode,
 };
 use anyhow::{anyhow, Context, Result};
 use std::{
@@ -19,6 +17,8 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
 };
+use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 pub struct FfmpegWriter {
     output: String,

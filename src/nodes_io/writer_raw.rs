@@ -5,15 +5,13 @@ use std::{
 };
 
 use crate::pipeline_processing::{
-    execute::ProcessingStageLockWaiter,
     parametrizable::{
-        ParameterType::StringParameter,
-        ParameterTypeDescriptor::Mandatory,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        ParameterType::StringParameter,
+        ParameterTypeDescriptor::Mandatory,
     },
-    processing_node::ProcessingNode,
 };
 use anyhow::{anyhow, Result};
 
@@ -22,6 +20,8 @@ use crate::pipeline_processing::{
     payload::Payload,
     processing_context::ProcessingContext,
 };
+use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 
 pub struct RawBlobWriter {

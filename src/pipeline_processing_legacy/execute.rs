@@ -1,13 +1,14 @@
-use crate::pipeline_processing::{payload::Payload, processing_node::ProcessingNode};
+use crate::pipeline_processing::payload::Payload;
 use anyhow::Result;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc,
+    atomic::{AtomicU64, Ordering},
     Condvar,
     Mutex,
 };
+use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 pub fn execute_pipeline(nodes: Vec<Arc<dyn ProcessingNode>>) -> Result<()> {
     let nodes = Arc::new(nodes);

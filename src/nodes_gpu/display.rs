@@ -1,25 +1,23 @@
 use crate::pipeline_processing::{
-    execute::ProcessingStageLockWaiter,
     parametrizable::{
-        ParameterType::BoolParameter,
-        ParameterTypeDescriptor::Optional,
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        ParameterType::BoolParameter,
+        ParameterTypeDescriptor::Optional,
+        ParameterValue,
     },
     payload::Payload,
-    processing_node::ProcessingNode,
 };
 use anyhow::{Context, Result};
 use std::{
     sync::{
+        Arc,
         mpsc::{
             sync_channel,
             SyncSender,
             TrySendError::{Disconnected, Full},
         },
-        Arc,
         Mutex,
     },
     thread,
@@ -35,8 +33,8 @@ use vulkano::{
     },
     descriptor_set::PersistentDescriptorSet,
     format::Format::R8_UNORM,
-    image::{view::ImageView, ImageAccess, ImageUsage, SwapchainImage},
-    pipeline::{viewport::Viewport, GraphicsPipeline, PipelineBindPoint},
+    image::{ImageAccess, ImageUsage, SwapchainImage, view::ImageView},
+    pipeline::{GraphicsPipeline, PipelineBindPoint, viewport::Viewport},
     render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass},
     swapchain,
     swapchain::{AcquireError, PresentMode, Swapchain, SwapchainCreationError},
@@ -56,6 +54,8 @@ use winit::{
     platform::{run_return::EventLoopExtRunReturn, unix::EventLoopExtUnix},
     window::{Window, WindowBuilder},
 };
+use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 
 mod vertex_shader {

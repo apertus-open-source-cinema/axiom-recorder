@@ -4,28 +4,28 @@ use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use recorder::pipeline_processing::{
     create_node_from_name,
-    execute::{execute_pipeline, ProcessingStageLockWaiter},
     list_available_nodes,
     parametrizable::{
-        ParameterTypeDescriptor::{Mandatory, Optional},
         ParameterizableDescriptor,
         Parameters,
+        ParameterTypeDescriptor::{Mandatory, Optional},
     },
     payload::Payload,
     processing_context::ProcessingContext,
-    processing_node::ProcessingNode,
 };
 use std::{
     collections::HashMap,
     env,
-    iter::{once, FromIterator},
+    iter::{FromIterator, once},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
         RwLock,
     },
     time::SystemTime,
 };
+use recorder::pipeline_processing_legacy::execute::{execute_pipeline, ProcessingStageLockWaiter};
+use recorder::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 fn main() {
     let res = work();

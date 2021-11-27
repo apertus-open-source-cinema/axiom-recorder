@@ -1,9 +1,7 @@
 use crate::pipeline_processing::{
     buffers::CpuBuffer,
-    execute::ProcessingStageLockWaiter,
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
-    processing_node::ProcessingNode,
 };
 use anyhow::{Context, Result};
 
@@ -11,6 +9,8 @@ use crate::pipeline_processing::{
     frame::{Frame, Raw},
     processing_context::ProcessingContext,
 };
+use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 pub struct BitDepthConverter {
     context: ProcessingContext,
