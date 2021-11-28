@@ -6,8 +6,8 @@ Software to record and convert moving images from Apertus° AXIOM cameras via US
 ## Get It!
 ```shell script
 sudo apt install cmake
-git clone https://github.com/axiom-micro/recorder
-cd recorder
+git clone https://github.com/apertus-open-source-cinema/axiom-recorder
+cd axiom-recorder
 cargo build --release --all
 ```
 
