@@ -41,23 +41,12 @@ impl ProcessingNode for BitDepthConverter {
         } else if frame.interp.bit_depth == 12 {
             new_buffer.as_mut_slice(|new_buffer| {
                 frame.storage.as_slice(|frame_storage| {
-                    new_buffer.chunks_mut(200000).zip(frame_storage.chunks(300000)).for_each(
-                        |(macro_output_chunk, macro_input_chunk)| {
-                            macro_output_chunk
-                                .chunks_mut(2)
-                                .zip(macro_input_chunk.chunks(3))
-                                .for_each(|(output_chunk, input_chunk)| {
-                                    output_chunk[0] = ((((input_chunk[0] as u16) << 4) & 0xff0)
-                                        | (((input_chunk[1] as u16) >> 4) & 0xf))
-                                        .wrapping_shr(4)
-                                        as u8;
-                                    output_chunk[1] = ((((input_chunk[1] as u16) << 8) & 0xf00)
-                                        | ((input_chunk[2] as u16) & 0xff))
-                                        .wrapping_shr(4)
-                                        as u8;
-                                });
-                        },
-                    );
+                    for (input, output) in
+                        frame_storage.chunks_exact(3).zip(new_buffer.chunks_exact_mut(2))
+                    {
+                        output[0] = input[0];
+                        output[1] = (input[1] << 4) | (input[2] >> 4);
+                    }
                 })
             });
         } else {
