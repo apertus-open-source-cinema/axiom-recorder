@@ -7,8 +7,6 @@ use crate::pipeline_processing::{
         Parameterizable,
         Parameters,
         ParametersDescriptor,
-        ParameterType::{FloatRange, StringParameter},
-        ParameterTypeDescriptor::Mandatory,
     },
     payload::Payload,
     processing_context::ProcessingContext,
@@ -31,6 +29,7 @@ use tiff_encoder::{
 use vulkano::buffer::TypedBufferAccess;
 use crate::pipeline_processing::node::{Caps, ProcessingNode, ProcessingSink};
 use crate::pipeline_processing::parametrizable::ParameterType::NodeInput;
+use async_trait::async_trait;
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
@@ -41,7 +40,9 @@ pub struct CinemaDngWriter {
 
 impl Parameterizable for CinemaDngWriter {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new().with("path", Mandatory(StringParameter))
+        ParametersDescriptor::new()
+            .with("path", Mandatory(StringParameter))
+            .with("input", Mandatory(NodeInput))
     }
 
     fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
@@ -50,13 +51,14 @@ impl Parameterizable for CinemaDngWriter {
     {
         let filename = parameters.get("path")?;
         create_dir(&filename).context("Error while creating target directory")?;
-        Ok(Self { dir_path: filename, context })
+        Ok(Self { dir_path: filename, context, input: parameters.get("input")? })
     }
 }
 
+#[async_trait]
 impl ProcessingSink for CinemaDngWriter {
     async fn run(&self) {
-
+/*
         let frame = self.context.ensure_cpu_buffer::<Raw>(input).context("Wrong input format")?;
         let current_frame_number = frame_lock.frame();
 
@@ -108,6 +110,7 @@ impl ProcessingSink for CinemaDngWriter {
         )
             .write_to(format!("{}/{:06}.dng", &self.dir_path, current_frame_number))?;
         Ok(Some(Payload::empty()))
+ */
     }
 }
 

@@ -23,6 +23,7 @@ pub mod parametrizable;
 pub mod payload;
 pub mod processing_context;
 pub mod node;
+pub mod executor;
 
 macro_rules! generate_dynamic_node_creation_functions {
     ($($x:ty),+ $(,)?) => {

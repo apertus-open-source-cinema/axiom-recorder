@@ -120,7 +120,7 @@ impl ProcessingNode for RawDirectoryReader {
                 if self.do_loop || frame_number <= self.files.len() as u64 {
                     payload.clone()
                 } else {
-                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))
+                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))?
                 }
             }
             ref mut none => {
@@ -140,7 +140,7 @@ impl ProcessingNode for RawDirectoryReader {
                     }
                     payload
                 } else {
-                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))
+                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))?
                 }
             }
         })
