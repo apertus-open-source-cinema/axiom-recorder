@@ -51,7 +51,7 @@ impl TryInto<i64> for ParameterValue {
     fn try_into(self) -> Result<i64, Self::Error> {
         match self {
             Self::IntRange(v) => Ok(v),
-            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to string")),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to i64")),
         }
     }
 }
@@ -61,7 +61,7 @@ impl TryInto<u64> for ParameterValue {
     fn try_into(self) -> Result<u64, Self::Error> {
         match self {
             Self::IntRange(v) => Ok(v as u64),
-            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to string")),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to u64")),
         }
     }
 }
@@ -81,7 +81,17 @@ impl TryInto<bool> for ParameterValue {
     fn try_into(self) -> Result<bool, Self::Error> {
         match self {
             Self::BoolParameter(v) => Ok(v),
-            _ => Err(anyhow!("cant convert a non BoolParameter ParameterValue to string")),
+            _ => Err(anyhow!("cant convert a non BoolParameter ParameterValue to bool")),
+        }
+    }
+}
+impl TryInto<Arc<dyn ProcessingNode>> for ParameterValue {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Arc<dyn ProcessingNode>, Self::Error> {
+        match self {
+            Self::NodeInput(v) => Ok(unimplemented!()),
+            _ => Err(anyhow!("cant convert a non NodeInput ParameterValue to string")),
         }
     }
 }
