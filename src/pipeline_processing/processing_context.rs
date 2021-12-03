@@ -12,6 +12,9 @@ use vulkano::{
     instance::Instance,
     Version,
 };
+use crate::pipeline_processing::prioritized_executor::PrioritizedReactor;
+use std::future::Future;
+
 
 #[derive(Clone)]
 struct VulkanContext {
@@ -19,9 +22,36 @@ struct VulkanContext {
     queues: Vec<Arc<Queue>>,
 }
 
+// [u8 output priority, u56 frame number]
+#[derive(Default, Copy, Clone, Ord, Eq, PartialEq, PartialOrd)]
+pub struct Priority(u64);
+
+impl Priority {
+    const MASK: u64 = 0x0fff_ffff_ffff_ffff;
+
+    pub fn new(output_priority: u8, frame_number: u64) -> Self {
+        Self(((output_priority as u64) << 56) | (frame_number & Self::MASK))
+    }
+
+    pub fn for_frame(self, frame_number: u64) -> Self {
+        Self((self.0 & !Self::MASK) | (frame_number & Self::MASK))
+    }
+}
+
+impl std::fmt::Display for Priority {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let output_priority = self.0 >> 56;
+        let frame_number = self.0 & Self::MASK;
+        write!(f, "Priority(output = {}, frame = {})", output_priority, frame_number)
+    }
+}
+
 #[derive(Clone)]
 pub struct ProcessingContext {
     vulkan_device: Option<VulkanContext>,
+
+    priority: Priority,
+    prioritized_reactor: PrioritizedReactor<Priority>,
 }
 impl Default for ProcessingContext {
     fn default() -> Self {
@@ -50,16 +80,27 @@ impl Default for ProcessingContext {
         match vk_device {
             None => {
                 println!("using cpu only processing");
-                Self { vulkan_device: None }
+                Self { vulkan_device: None,  priority: Default::default(), prioritized_reactor: PrioritizedReactor::start(4) }
             }
             Some((device, queues)) => {
                 println!("using gpu: {}", device.physical_device().properties().device_name);
-                Self { vulkan_device: Some(VulkanContext { device, queues: queues.collect() }) }
+                Self { vulkan_device: Some(VulkanContext { device, queues: queues.collect() }),  priority: Default::default(), prioritized_reactor: PrioritizedReactor::start(4) }
             }
         }
     }
 }
 impl ProcessingContext {
+    pub fn for_priority(&self, priority: Priority) -> Self {
+        Self {
+            vulkan_device: self.vulkan_device.clone(),
+            priority,
+            prioritized_reactor: self.prioritized_reactor.clone(),
+        }
+    }
+    pub fn for_frame(&self, frame: u64) -> Self {
+        self.for_priority(self.priority.for_frame(frame))
+    }
+
     pub unsafe fn get_uninit_cpu_buffer(&self, len: usize) -> CpuBuffer {
         if let Some(vulkan_context) = &self.vulkan_device {
             CpuAccessibleBuffer::uninitialized_array(
@@ -129,5 +170,9 @@ impl ProcessingContext {
         } else {
             Err(anyhow!("gpu required but not present"))
         }
+    }
+
+    pub fn spawn<O: Send + Sync + 'static>(&self, fut: impl Future<Output = O> + Send + Sync + 'static) -> impl Future<Output = O> {
+        self.prioritized_reactor.spawn_with_priority(fut, self.priority)
     }
 }

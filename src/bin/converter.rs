@@ -24,7 +24,7 @@ use std::{
     },
     time::SystemTime,
 };
-use recorder::pipeline_processing_legacy::execute::{execute_pipeline, ProcessingStageLockWaiter};
+use recorder::pipeline_processing_legacy::prioritized_reactor::{execute_pipeline, ProcessingStageLockWaiter};
 use recorder::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 fn main() {

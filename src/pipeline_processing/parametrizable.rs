@@ -17,7 +17,7 @@ pub enum ParameterValue {
     IntRange(i64),
     StringParameter(String),
     BoolParameter(bool),
-    NodeInput(Arc<dyn ProcessingNode>)
+    NodeInput(Arc<dyn ProcessingNode + Send + Sync>)
 }
 impl ToString for ParameterValue {
     fn to_string(&self) -> String {
@@ -85,13 +85,13 @@ impl TryInto<bool> for ParameterValue {
         }
     }
 }
-impl TryInto<Arc<dyn ProcessingNode>> for ParameterValue {
+impl TryInto<Arc<dyn ProcessingNode + Send + Sync>> for ParameterValue {
     type Error = Error;
 
-    fn try_into(self) -> Result<Arc<dyn ProcessingNode>, Self::Error> {
+    fn try_into(self) -> Result<Arc<dyn ProcessingNode + Send + Sync>, Self::Error> {
         match self {
-            Self::NodeInput(v) => Ok(unimplemented!()),
-            _ => Err(anyhow!("cant convert a non NodeInput ParameterValue to string")),
+            Self::NodeInput(v) => Ok(v),
+            _ => Err(anyhow!("cant convert a non NodeInput ParameterValue to ProcessingNode")),
         }
     }
 }
@@ -229,7 +229,7 @@ pub trait Parameterizable {
     const DESCRIPTION: Option<&'static str> = None;
 
     fn describe_parameters() -> ParametersDescriptor;
-    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
+    fn from_parameters(parameters: &Parameters) -> Result<Self>
     where
         Self: Sized;
 

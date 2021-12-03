@@ -54,7 +54,7 @@ use winit::{
     platform::{run_return::EventLoopExtRunReturn, unix::EventLoopExtUnix},
     window::{Window, WindowBuilder},
 };
-use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::prioritized_reactor::ProcessingStageLockWaiter;
 use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 
