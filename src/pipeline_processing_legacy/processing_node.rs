@@ -1,6 +1,6 @@
 use crate::pipeline_processing::payload::Payload;
 
-use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::prioritized_reactor::ProcessingStageLockWaiter;
 
 pub trait ProcessingNode: Send + Sync {
     fn process(

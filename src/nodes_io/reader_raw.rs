@@ -83,7 +83,6 @@ pub struct RawDirectoryReader {
     payload_vec: Mutex<Vec<Option<Payload>>>,
     do_loop: bool,
     interp: Raw,
-    context: ProcessingContext,
 }
 impl Parameterizable for RawDirectoryReader {
     const DESCRIPTION: Option<&'static str> =
@@ -95,7 +94,7 @@ impl Parameterizable for RawDirectoryReader {
             .with("file-pattern", Mandatory(StringParameter))
             .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
-    fn from_parameters(options: &Parameters, context: ProcessingContext) -> anyhow::Result<Self>
+    fn from_parameters(options: &Parameters) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
@@ -107,29 +106,28 @@ impl Parameterizable for RawDirectoryReader {
             interp: options.get_raw_interpretation()?,
             do_loop: options.get("loop")?,
             payload_vec: Mutex::new((0..frame_count).map(|_| None).collect()),
-            context,
         })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for RawDirectoryReader {
-    async fn pull(&self, frame_number: u64) -> Result<Payload> {
-        Ok(match self.payload_vec.lock().unwrap()[(frame_number - 1) as usize % self.files.len()] {
+    async fn pull(&self, frame_number: u64, context: ProcessingContext) -> Result<Payload> {
+        Ok(match self.payload_vec.lock().unwrap()[(frame_number) as usize % self.files.len()] {
             Some(ref payload) => {
-                if self.do_loop || frame_number <= self.files.len() as u64 {
+                if self.do_loop || frame_number < self.files.len() as u64 {
                     payload.clone()
                 } else {
                     Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))?
                 }
             }
             ref mut none => {
-                if self.do_loop || frame_number <= self.files.len() as u64 {
-                    let path = &self.files[(frame_number - 1) as usize % self.files.len()];
+                if self.do_loop || frame_number < self.files.len() as u64 {
+                    let path = &self.files[frame_number as usize % self.files.len()];
                     let mut file = File::open(path)?;
 
                     let mut buffer =
-                        unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+                        unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
                     buffer.as_mut_slice(|buffer| {
                         file.read_exact(buffer).unwrap();
                     });

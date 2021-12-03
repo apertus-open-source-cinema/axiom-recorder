@@ -9,20 +9,18 @@ use crate::pipeline_processing::{
     frame::{Frame, Raw},
     processing_context::ProcessingContext,
 };
-use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
+use crate::pipeline_processing_legacy::prioritized_reactor::ProcessingStageLockWaiter;
 use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
-pub struct BitDepthConverter {
-    context: ProcessingContext,
-}
+pub struct BitDepthConverter {}
 impl Parameterizable for BitDepthConverter {
     fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::new() }
 
-    fn from_parameters(_parameters: &Parameters, context: ProcessingContext) -> Result<Self>
+    fn from_parameters(_parameters: &Parameters) -> Result<Self>
     where
         Self: Sized,
     {
-        Ok(Self { context })
+        Ok(Self { })
     }
 }
 impl ProcessingNode for BitDepthConverter {

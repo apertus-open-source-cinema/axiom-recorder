@@ -61,6 +61,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-task"
+version = "4.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e91831deabf0d6d7ec49552e489aed63b7456a7a3c46cff62adad428110b0af0"
+
+[[package]]
 name = "async-trait"
 version = "0.1.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1357,6 +1363,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
 
 [[package]]
+name = "pollster"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb20dcc30536a1508e75d47dd0e399bb2fe7354dcf35cda9127f2bf1ed92e30e"
+
+[[package]]
 name = "pretty-hex"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1462,9 +1474,11 @@ name = "recorder"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-task",
  "async-trait",
  "bytemuck",
  "clap",
+ "derivative",
  "ft60x",
  "futures",
  "glob",
@@ -1477,6 +1491,7 @@ dependencies = [
  "lazy_static",
  "num",
  "owning_ref",
+ "pollster",
  "rayon",
  "shlex",
  "tiff-encoder",
