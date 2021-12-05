@@ -1,13 +1,10 @@
 use crate::{
+    nodes_gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer},
     nodes_io::{reader_raw::RawDirectoryReader, writer_cinema_dng::CinemaDngWriter},
     pipeline_processing::{
-        node::{
-            Node,
-            ProcessingNodeIntoNode,
-            SinkNodeIntoNode,
-        },
-        processing_context::ProcessingContext,
+        node::{Node, ProcessingNodeIntoNode, SinkNodeIntoNode},
         parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
+        processing_context::ProcessingContext,
     },
 };
 use anyhow::{anyhow, Result};
@@ -39,4 +36,9 @@ macro_rules! generate_dynamic_node_creation_functions {
     };
 }
 
-generate_dynamic_node_creation_functions![RawDirectoryReader, CinemaDngWriter,];
+generate_dynamic_node_creation_functions![
+    RawDirectoryReader,
+    CinemaDngWriter,
+    GpuBitDepthConverter,
+    Debayer,
+];
