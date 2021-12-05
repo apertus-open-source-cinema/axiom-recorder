@@ -49,15 +49,11 @@ pub trait ProcessingNodeIntoNode {
     fn into_processing_element(self) -> Node;
 }
 impl<T: ProcessingNode + Send + Sync + 'static> ProcessingNodeIntoNode for T {
-    fn into_processing_element(self) -> Node {
-        Node::Node(Arc::new(self))
-    }
+    fn into_processing_element(self) -> Node { Node::Node(Arc::new(self)) }
 }
 pub trait SinkNodeIntoNode {
     fn into_processing_element(self) -> Node;
 }
 impl<T: SinkNode + Send + Sync + 'static> SinkNodeIntoNode for T {
-    fn into_processing_element(self) -> Node {
-        Node::Sink(Arc::new(self))
-    }
+    fn into_processing_element(self) -> Node { Node::Sink(Arc::new(self)) }
 }
