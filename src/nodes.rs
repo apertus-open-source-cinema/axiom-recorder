@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Result};
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 // #[cfg(feature = "gst")]
 // use crate::nodes_io::writer_gstreamer::GstWriter;

@@ -15,6 +15,7 @@ use crate::pipeline_processing::{
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 
+use crate::pipeline_processing::node::ProgressUpdate;
 use std::{fs::create_dir, sync::Arc};
 use tiff_encoder::{
     ifd::{tags, values::Offsets, Ifd},
@@ -54,21 +55,29 @@ impl Parameterizable for CinemaDngWriter {
 
 #[async_trait]
 impl ProcessingSink for CinemaDngWriter {
-    async fn run(&self, context: ProcessingContext) -> Result<()> {
-        pull_unordered(&context, self.input.clone(), |mut input, frame_number| {
-            let frame =
-                context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
+    async fn run(
+        &self,
+        context: ProcessingContext,
+        progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
+    ) -> Result<()> {
+        pull_unordered(
+            &context,
+            progress_callback,
+            self.input.clone(),
+            |mut input, frame_number| {
+                let frame =
+                    context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
 
-            let cfa_pattern =
-                match (frame.interp.cfa.first_is_red_x, frame.interp.cfa.first_is_red_y) {
-                    (true, true) => BYTE![0, 1, 1, 2],
-                    (true, false) => BYTE![1, 0, 2, 1],
-                    (false, true) => BYTE![1, 2, 0, 1],
-                    (false, false) => BYTE![2, 1, 1, 0],
-                };
+                let cfa_pattern =
+                    match (frame.interp.cfa.first_is_red_x, frame.interp.cfa.first_is_red_y) {
+                        (true, true) => BYTE![0, 1, 1, 2],
+                        (true, false) => BYTE![1, 0, 2, 1],
+                        (false, true) => BYTE![1, 2, 0, 1],
+                        (false, false) => BYTE![2, 1, 1, 0],
+                    };
 
-            TiffFile::new(
-                Ifd::new()
+                TiffFile::new(
+                    Ifd::new()
                     .with_entry(50706, BYTE![1, 4, 0, 0])  // DNG version
                     .with_entry(tags::Compression, SHORT![1]) // No compression
                     .with_entry(tags::SamplesPerPixel, SHORT![1])
@@ -105,10 +114,11 @@ impl ProcessingSink for CinemaDngWriter {
                     .with_entry(tags::BitsPerSample, SHORT![frame.interp.bit_depth as u16])
                     .with_entry(tags::StripOffsets, Offsets::single(frame.storage.clone()))
                     .single(),
-            )
-            .write_to(format!("{}/{:06}.dng", &self.dir_path, frame_number))?;
-            Ok::<(), anyhow::Error>(())
-        })
+                )
+                .write_to(format!("{}/{:06}.dng", &self.dir_path, frame_number))?;
+                Ok::<(), anyhow::Error>(())
+            },
+        )
         .await
     }
 }

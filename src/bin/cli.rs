@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg};
 
+use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use recorder::{
     nodes::{create_node_from_name, list_available_nodes},
@@ -19,8 +20,9 @@ use recorder::{
 };
 use std::{
     collections::HashMap,
-    iter::{once},
+    iter::once,
     mem,
+    sync::{Arc, Mutex},
 };
 
 fn main() {
@@ -28,7 +30,7 @@ fn main() {
     match res {
         Ok(_) => eprintln!("\ncli successfully finished :)"),
         Err(error) => {
-            eprintln!("An error occured: \n{:?}", error)
+            eprintln!("\n\n{:?}", error)
         }
     }
 }
@@ -61,11 +63,31 @@ fn work() -> Result<()> {
             processing_node_from_commandline(node_cmd, processing_context.clone(), last_taken)?;
         last_element = Some(node);
     }
-    if let ProcessingElement::Sink(sink) = last_element.unwrap() {
-        pollster::block_on(sink.run(processing_context))?;
+
+    let sink = if let ProcessingElement::Sink(sink) = last_element.unwrap() {
+        sink
     } else {
         return Err(anyhow!("the last processing element needs to be a sink!"));
-    }
+    };
+
+    let progressbar: Arc<Mutex<Option<ProgressBar>>> = Default::default();
+
+    pollster::block_on(sink.run(processing_context, Arc::new(move |progress| {
+        let mut lock = progressbar.lock().unwrap();
+        if lock.is_none() {
+            let progressbar = if let Some(total_frames) = progress.total_frames {
+                let bar = ProgressBar::new(total_frames);
+                bar.set_style(ProgressStyle::default_bar()
+                    .template("{wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} | {msg} ")
+                    .progress_chars("#>-"));
+                bar
+            } else {
+                ProgressBar::new_spinner()
+            };
+            *lock = Some(progressbar)
+        }
+        lock.as_ref().unwrap().set_position(progress.latest_frame);
+    })))?;
 
     Ok(())
 }

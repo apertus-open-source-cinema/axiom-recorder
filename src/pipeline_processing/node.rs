@@ -20,8 +20,18 @@ pub trait ProcessingNode {
 
 #[async_trait]
 pub trait ProcessingSink {
-    async fn run(&self, context: ProcessingContext) -> Result<()>;
+    async fn run(
+        &self,
+        context: ProcessingContext,
+        progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
+    ) -> Result<()>;
 }
+#[derive(Copy, Clone, Debug)]
+pub struct ProgressUpdate {
+    pub latest_frame: u64,
+    pub total_frames: Option<u64>,
+}
+
 
 pub enum ProcessingElement {
     Node(Arc<dyn ProcessingNode + Send + Sync + 'static>),
