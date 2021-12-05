@@ -54,7 +54,7 @@ pub fn to_immutable_buffer<Interpretation: Clone + Send + Sync + 'static>(
 }
 
 pub fn ensure_gpu_buffer<Interpretation: Clone + Send + Sync + 'static>(
-    payload: &mut Payload,
+    payload: &Payload,
     queue: Arc<Queue>,
 ) -> anyhow::Result<(Arc<Frame<Interpretation, GpuBuffer>>, impl GpuFuture)> {
     if let Ok(frame) = payload.downcast::<Frame<Interpretation, CpuBuffer>>() {

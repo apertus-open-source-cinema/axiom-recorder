@@ -43,7 +43,7 @@ impl Parameterizable for CinemaDngWriter {
             .with("input", Mandatory(NodeInput))
     }
 
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
@@ -57,7 +57,7 @@ impl Parameterizable for CinemaDngWriter {
 impl SinkNode for CinemaDngWriter {
     async fn run(
         &self,
-        context: ProcessingContext,
+        context: &ProcessingContext,
         progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
         pull_unordered(
