@@ -1,7 +1,7 @@
 use async_task::Runnable;
 use std::{
-    cmp::{Reverse},
-    collections::{BinaryHeap},
+    cmp::Reverse,
+    collections::BinaryHeap,
     future::Future,
     sync::{Arc, Condvar, Mutex},
     thread,

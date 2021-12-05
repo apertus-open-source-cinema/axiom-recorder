@@ -122,7 +122,7 @@ impl ProcessingNode for RawDirectoryReader {
                         "frame {} was requested but this stream only has a length of {}",
                         frame_number,
                         self.files.len()
-                    ))
+                    ));
                 }
             }
             ref mut none => {
@@ -146,7 +146,7 @@ impl ProcessingNode for RawDirectoryReader {
                         "frame {} was requested but this stream only has a length of {}",
                         frame_number,
                         self.files.len()
-                    ))
+                    ));
                 }
             }
         })
