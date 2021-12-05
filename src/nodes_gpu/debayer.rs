@@ -2,11 +2,19 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, Raw, Rgb},
     gpu_util::ensure_gpu_buffer,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
+    node::{Caps, ProcessingNode},
+    parametrizable::{
+        ParameterType,
+        ParameterTypeDescriptor,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
+    },
     payload::Payload,
     processing_context::ProcessingContext,
 };
 use anyhow::{anyhow, Context, Result};
+use async_trait::async_trait;
 use std::sync::Arc;
 use vulkano::{
     buffer::{BufferUsage, DeviceLocalBuffer},
@@ -16,8 +24,6 @@ use vulkano::{
     pipeline::{ComputePipeline, PipelineBindPoint},
     sync::GpuFuture,
 };
-use crate::pipeline_processing_legacy::prioritized_reactor::ProcessingStageLockWaiter;
-use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 mod compute_shader {
     vulkano_shaders::shader! {
@@ -30,11 +36,15 @@ pub struct Debayer {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
+    input: Arc<dyn ProcessingNode + Send + Sync>,
 }
 
 impl Parameterizable for Debayer {
-    fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::default() }
-    fn from_parameters(_parameters: &Parameters, context: ProcessingContext) -> Result<Self>
+    fn describe_parameters() -> ParametersDescriptor {
+        ParametersDescriptor::default()
+            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+    }
+    fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
@@ -47,18 +57,17 @@ impl Parameterizable for Debayer {
                 .unwrap()
         });
 
-        Ok(Debayer { device, pipeline, queue })
+        Ok(Debayer { device, pipeline, queue, input: parameters.get("input")? })
     }
 }
 
+#[async_trait]
 impl ProcessingNode for Debayer {
-    fn process(
-        &self,
-        input: &mut Payload,
-        _frame_lock: ProcessingStageLockWaiter,
-    ) -> Result<Option<Payload>> {
+    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+        let input = self.input.pull(frame_number, context).await?;
+
         let (frame, fut) =
-            ensure_gpu_buffer::<Raw>(input, self.queue.clone()).context("Wrong input format")?;
+            ensure_gpu_buffer::<Raw>(&input, self.queue.clone()).context("Wrong input format")?;
 
         if frame.interp.bit_depth != 8 {
             return Err(anyhow!(
@@ -115,13 +124,15 @@ impl ProcessingNode for Debayer {
             fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        Ok(Some(Payload::from(Frame {
+        Ok(Payload::from(Frame {
             interp: Rgb {
                 width: frame.interp.width,
                 height: frame.interp.height,
                 fps: frame.interp.fps,
             },
             storage: GpuBuffer::from(sink_buffer),
-        })))
+        }))
     }
+
+    fn get_caps(&self) -> Caps { todo!() }
 }

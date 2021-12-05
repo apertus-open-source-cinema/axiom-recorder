@@ -2,11 +2,19 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, Raw},
     gpu_util::ensure_gpu_buffer,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
+    node::{Caps, ProcessingNode},
+    parametrizable::{
+        ParameterType,
+        ParameterTypeDescriptor,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
+    },
     payload::Payload,
     processing_context::ProcessingContext,
 };
 use anyhow::{anyhow, Context, Result};
+use async_trait::async_trait;
 use std::sync::Arc;
 use vulkano::{
     buffer::{BufferUsage, DeviceLocalBuffer},
@@ -16,8 +24,7 @@ use vulkano::{
     pipeline::{ComputePipeline, PipelineBindPoint},
     sync::GpuFuture,
 };
-use crate::pipeline_processing_legacy::prioritized_reactor::ProcessingStageLockWaiter;
-use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
+
 
 mod compute_shader {
     vulkano_shaders::shader! {
@@ -30,11 +37,15 @@ pub struct GpuBitDepthConverter {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
+    input: Arc<dyn ProcessingNode + Send + Sync>,
 }
 
 impl Parameterizable for GpuBitDepthConverter {
-    fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::new() }
-    fn from_parameters(_parameters: &Parameters) -> Result<Self>
+    fn describe_parameters() -> ParametersDescriptor {
+        ParametersDescriptor::new()
+            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+    }
+    fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
@@ -47,18 +58,17 @@ impl Parameterizable for GpuBitDepthConverter {
                 .unwrap()
         });
 
-        Ok(GpuBitDepthConverter { device, pipeline, queue })
+        Ok(GpuBitDepthConverter { device, pipeline, queue, input: parameters.get("input")? })
     }
 }
 
+#[async_trait]
 impl ProcessingNode for GpuBitDepthConverter {
-    fn process(
-        &self,
-        input: &mut Payload,
-        _frame_lock: ProcessingStageLockWaiter,
-    ) -> Result<Option<Payload>> {
-        let (frame, fut) =
-            ensure_gpu_buffer::<Raw>(input, self.queue.clone()).context("Wrong input format")?;
+    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+        let mut input = self.input.pull(frame_number, &context).await?;
+
+        let (frame, fut) = ensure_gpu_buffer::<Raw>(&mut input, self.queue.clone())
+            .context("Wrong input format")?;
 
         if frame.interp.bit_depth != 12 {
             return Err(anyhow!(
@@ -106,9 +116,11 @@ impl ProcessingNode for GpuBitDepthConverter {
             fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        Ok(Some(Payload::from(Frame {
+        Ok(Payload::from(Frame {
             interp: Raw { bit_depth: 8, ..frame.interp },
             storage: GpuBuffer::from(sink_buffer),
-        })))
+        }))
     }
+
+    fn get_caps(&self) -> Caps { self.input.get_caps() }
 }
