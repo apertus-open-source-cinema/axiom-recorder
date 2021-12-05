@@ -11,6 +11,7 @@ use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
 };
+use crate::pipeline_processing::processing_context::ProcessingContext;
 
 #[derive(Clone)]
 pub enum ParameterValue {
@@ -230,7 +231,7 @@ pub trait Parameterizable {
     const DESCRIPTION: Option<&'static str> = None;
 
     fn describe_parameters() -> ParametersDescriptor;
-    fn from_parameters(parameters: &Parameters) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
     where
         Self: Sized;
 

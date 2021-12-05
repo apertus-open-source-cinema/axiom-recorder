@@ -29,7 +29,7 @@ pub async fn pull_unordered(
         let latest_frame = latest_frame.clone();
         let progress_callback = progress_callback.clone();
         async move {
-            let input = input.clone().pull(frame_number, context.for_frame(frame_number)).await?;
+            let input = input.clone().pull(frame_number, &context.for_frame(frame_number)).await?;
             on_payload(input, frame_number)?;
 
             let latest_frame = latest_frame.fetch_max(frame_number, Ordering::Relaxed);

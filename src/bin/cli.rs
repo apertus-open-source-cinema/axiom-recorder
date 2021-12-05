@@ -60,7 +60,7 @@ fn work() -> Result<()> {
     for node_cmd in node_commandlines {
         let last_taken = mem::take(&mut last_element);
         let node =
-            processing_node_from_commandline(node_cmd, processing_context.clone(), last_taken)?;
+            processing_node_from_commandline(node_cmd, &processing_context, last_taken)?;
         last_element = Some(node);
     }
 
@@ -72,7 +72,7 @@ fn work() -> Result<()> {
 
     let progressbar: Arc<Mutex<Option<ProgressBar>>> = Default::default();
 
-    pollster::block_on(sink.run(processing_context, Arc::new(move |progress| {
+    pollster::block_on(sink.run(&processing_context, Arc::new(move |progress| {
         let mut lock = progressbar.lock().unwrap();
         if lock.is_none() {
             let progressbar = if let Some(total_frames) = progress.total_frames {
@@ -111,7 +111,7 @@ fn nodes_usages_string() -> String {
 }
 fn processing_node_from_commandline(
     commandline: &[String],
-    _context: ProcessingContext,
+    context: &ProcessingContext,
     last_node: Option<Node>,
 ) -> Result<Node> {
     let name = &commandline[0];
@@ -160,7 +160,7 @@ fn processing_node_from_commandline(
         }
     }
 
-    create_node_from_name(name, &Parameters(parameters))
+    create_node_from_name(name, &Parameters(parameters), context)
         .with_context(|| format!("Error while creating Node {}", name))
 }
 

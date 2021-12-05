@@ -94,7 +94,7 @@ impl Parameterizable for RawDirectoryReader {
             .with("file-pattern", Mandatory(StringParameter))
             .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
-    fn from_parameters(options: &Parameters) -> anyhow::Result<Self>
+    fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
@@ -112,7 +112,7 @@ impl Parameterizable for RawDirectoryReader {
 
 #[async_trait]
 impl ProcessingNode for RawDirectoryReader {
-    async fn pull(&self, frame_number: u64, context: ProcessingContext) -> Result<Payload> {
+    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
         Ok(match self.payload_vec.lock().unwrap()[(frame_number) as usize % self.files.len()] {
             Some(ref payload) => {
                 if self.do_loop || frame_number < self.files.len() as u64 {

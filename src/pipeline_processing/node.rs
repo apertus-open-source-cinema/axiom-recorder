@@ -14,7 +14,7 @@ pub struct Caps {
 
 #[async_trait]
 pub trait ProcessingNode {
-    async fn pull(&self, frame_number: u64, context: ProcessingContext) -> Result<Payload>;
+    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload>;
     fn get_caps(&self) -> Caps;
 }
 
@@ -22,7 +22,7 @@ pub trait ProcessingNode {
 pub trait SinkNode {
     async fn run(
         &self,
-        context: ProcessingContext,
+        context: &ProcessingContext,
         progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()>;
 }

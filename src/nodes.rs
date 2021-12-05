@@ -6,6 +6,7 @@ use crate::{
             ProcessingNodeIntoNode,
             SinkNodeIntoNode,
         },
+        processing_context::ProcessingContext,
         parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
     },
 };
@@ -26,10 +27,10 @@ macro_rules! generate_dynamic_node_creation_functions {
             to_return
         }
 
-        pub fn create_node_from_name(name: &str, parameters: &Parameters) -> Result<Node> {
+        pub fn create_node_from_name(name: &str, parameters: &Parameters, context: &ProcessingContext) -> Result<Node> {
             $(
                 if name == <$x>::get_name() {
-                    return Ok(<$x>::from_parameters(parameters)?.into_processing_element())
+                    return Ok(<$x>::from_parameters(parameters, &context)?.into_processing_element())
                 };
             )+
 
