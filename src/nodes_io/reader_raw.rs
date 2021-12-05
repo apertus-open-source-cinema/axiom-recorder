@@ -1,21 +1,21 @@
 use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, Raw},
+    node::{Caps, ProcessingNode},
     parametrizable::{
+        ParameterType::{BoolParameter, StringParameter},
+        ParameterTypeDescriptor::{Mandatory, Optional},
+        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
-        ParameterType::{BoolParameter, FloatRange, StringParameter},
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
     },
     payload::Payload,
     processing_context::ProcessingContext,
 };
 use anyhow::{anyhow, Result};
-use glob::glob;
-use std::{fs::File, io::Read, path::PathBuf, sync::Mutex, thread::sleep, time::Duration};
-use crate::pipeline_processing::node::{Caps, ProcessingNode};
 use async_trait::async_trait;
+use glob::glob;
+use std::{fs::File, io::Read, path::PathBuf, sync::Mutex};
 
 /*
 pub struct RawBlobReader {
@@ -118,7 +118,11 @@ impl ProcessingNode for RawDirectoryReader {
                 if self.do_loop || frame_number < self.files.len() as u64 {
                     payload.clone()
                 } else {
-                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))?
+                    return Err(anyhow!(
+                        "frame {} was requested but this stream only has a length of {}",
+                        frame_number,
+                        self.files.len()
+                    ))
                 }
             }
             ref mut none => {
@@ -138,7 +142,11 @@ impl ProcessingNode for RawDirectoryReader {
                     }
                     payload
                 } else {
-                    Err(anyhow!("frame {} was requested but this stream only has a length of {}", frame_number, self.files.len()))?
+                    return Err(anyhow!(
+                        "frame {} was requested but this stream only has a length of {}",
+                        frame_number,
+                        self.files.len()
+                    ))
                 }
             }
         })
@@ -147,7 +155,7 @@ impl ProcessingNode for RawDirectoryReader {
     fn get_caps(&self) -> Caps {
         Caps {
             frame_count: if self.do_loop { None } else { Some(self.files.len() as u64) },
-            is_live: false
+            is_live: false,
         }
     }
 }

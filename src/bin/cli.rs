@@ -1,24 +1,27 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg};
-use indicatif::{ProgressBar, ProgressStyle};
+
 use itertools::Itertools;
-use recorder::pipeline_processing::{
-    parametrizable::{
-        ParameterizableDescriptor,
-        Parameters,
-        ParameterTypeDescriptor::{Mandatory, Optional},
+use recorder::{
+    nodes::{create_node_from_name, list_available_nodes},
+    pipeline_processing::{
+        node::ProcessingElement,
+        parametrizable::{
+            ParameterType,
+            ParameterTypeDescriptor,
+            ParameterTypeDescriptor::{Mandatory, Optional},
+            ParameterValue,
+            ParameterizableDescriptor,
+            Parameters,
+        },
+        processing_context::ProcessingContext,
     },
-    payload::Payload,
-    processing_context::ProcessingContext,
 };
-use recorder::nodes::{create_node_from_name, list_available_nodes};
-use std::{collections::HashMap, env, iter::{FromIterator, once}, mem, sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-    RwLock,
-}, time::SystemTime};
-use recorder::pipeline_processing::node::ProcessingElement;
-use recorder::pipeline_processing::parametrizable::{ParameterType, ParameterTypeDescriptor, ParameterValue};
+use std::{
+    collections::HashMap,
+    iter::{once},
+    mem,
+};
 
 fn main() {
     let res = work();
@@ -39,13 +42,14 @@ fn work() -> Result<()> {
             Arg::with_name("pipeline")
                 .required(true)
                 .multiple(true)
-                .help("example: <Node1> --source-arg ! <Node2> --sink-arg")
+                .help("example: <Node1> --source-arg ! <Node2> --sink-arg"),
         )
         .after_help(format!("NODES:\n{}", nodes_usages_string()).as_str())
         .get_matches();
 
     let pipeline_raw = main_app_arguments.values_of_lossy("pipeline").unwrap();
-    let pipeline_split = if pipeline_raw.len() == 1 { shellwords::split(&pipeline_raw[0])? } else { pipeline_raw };
+    let pipeline_split =
+        if pipeline_raw.len() == 1 { shellwords::split(&pipeline_raw[0])? } else { pipeline_raw };
     let node_commandlines = pipeline_split.split(|element| element == "!").collect::<Vec<_>>();
 
     let processing_context = ProcessingContext::default();
@@ -53,13 +57,14 @@ fn work() -> Result<()> {
     let mut last_element = None;
     for node_cmd in node_commandlines {
         let last_taken = mem::take(&mut last_element);
-        let node = processing_node_from_commandline(node_cmd, processing_context.clone(), last_taken)?;
+        let node =
+            processing_node_from_commandline(node_cmd, processing_context.clone(), last_taken)?;
         last_element = Some(node);
     }
     if let ProcessingElement::Sink(sink) = last_element.unwrap() {
-        pollster::block_on(sink.run(processing_context.clone()))?;
+        pollster::block_on(sink.run(processing_context))?;
     } else {
-        Err(anyhow!("the last processing element needs to be a sink!"))?;
+        return Err(anyhow!("the last processing element needs to be a sink!"));
     }
 
     Ok(())
@@ -84,7 +89,7 @@ fn nodes_usages_string() -> String {
 }
 fn processing_node_from_commandline(
     commandline: &[String],
-    context: ProcessingContext,
+    _context: ProcessingContext,
     last_node: Option<ProcessingElement>,
 ) -> Result<ProcessingElement> {
     let name = &commandline[0];
@@ -108,9 +113,20 @@ fn processing_node_from_commandline(
     let mut parameters: HashMap<_, _> = parameters_description
         .0
         .iter()
-        .filter(|(_, descriptor)| !matches!(descriptor, ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput) | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _)))
+        .filter(|(_, descriptor)| {
+            !matches!(
+                descriptor,
+                ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput)
+                    | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _)
+            )
+        })
         .map(|(key, parameter_type)| {
-            Ok((key.to_string(), parameter_type.parse(results.value_of(key)).context(format!("parameter is {}", key))?))
+            Ok((
+                key.to_string(),
+                parameter_type
+                    .parse(results.value_of(key))
+                    .context(format!("parameter is {}", key))?,
+            ))
         })
         .collect::<Result<_, anyhow::Error>>()?;
 
@@ -118,7 +134,7 @@ fn processing_node_from_commandline(
         if let ProcessingElement::Node(last_node) = last_node {
             parameters.insert("input".to_string(), ParameterValue::NodeInput(last_node));
         } else {
-            Err(anyhow!("cant use sink as non last element!"))?;
+            return Err(anyhow!("cant use sink as non last element!"));
         }
     }
 
@@ -145,8 +161,10 @@ fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
     }
     let parameters_description = node_descriptor.parameters_descriptor;
     for (key, parameter_type) in Box::leak(Box::new(parameters_description.0)).iter() {
-        if let ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput) | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _) = parameter_type {
-            continue
+        if let ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput)
+        | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _) = parameter_type
+        {
+            continue;
         };
         let parameter_type_for_closure = parameter_type.clone();
         app = app.arg(match parameter_type {

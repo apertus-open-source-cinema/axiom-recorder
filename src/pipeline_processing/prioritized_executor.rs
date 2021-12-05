@@ -1,14 +1,11 @@
 use async_task::Runnable;
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, BTreeMap, HashMap};
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex, Condvar};
-use std::task::{Context, Poll, Waker};
-use std::thread;
-use std::cmp::Reverse;
-use std::iter::FromIterator;
+use std::{
+    cmp::{Reverse},
+    collections::{BinaryHeap},
+    future::Future,
+    sync::{Arc, Condvar, Mutex},
+    thread,
+};
 
 
 #[derive(derivative::Derivative)]
@@ -16,7 +13,7 @@ use std::iter::FromIterator;
 struct PrioritizedRunnable<T: Ord> {
     key: T,
     #[derivative(PartialEq = "ignore", PartialOrd = "ignore", Ord = "ignore")]
-    runnable: Runnable
+    runnable: Runnable,
 }
 
 #[derive(Clone)]
@@ -25,9 +22,7 @@ pub struct PrioritizedReactor<T: Ord> {
 }
 
 impl<P: Ord + Clone + Send + Sync + 'static> PrioritizedReactor<P> {
-    pub(self) fn new() -> Self {
-        Self { queue_cvar: Default::default() }
-    }
+    pub(self) fn new() -> Self { Self { queue_cvar: Default::default() } }
 
     pub(self) fn start_inner(&self, num_threads: u64) {
         for _ in 0..num_threads {
@@ -56,14 +51,18 @@ impl<P: Ord + Clone + Send + Sync + 'static> PrioritizedReactor<P> {
         instance
     }
 
-    pub fn spawn_with_priority<O: Send + Sync + 'static>(&self, fut: impl Future<Output = O> + Send + Sync + 'static, priority: P) -> impl Future<Output = O> {
+    pub fn spawn_with_priority<O: Send + Sync + 'static>(
+        &self,
+        fut: impl Future<Output = O> + Send + Sync + 'static,
+        priority: P,
+    ) -> impl Future<Output = O> {
         let queue_cvar = self.queue_cvar.clone();
         let (runnable, task) = async_task::spawn(fut, move |runnable| {
             let (queue, cvar) = &*queue_cvar;
-            queue.lock().unwrap().push(Reverse(PrioritizedRunnable {
-                key: priority.clone(),
-                runnable
-            }));
+            queue
+                .lock()
+                .unwrap()
+                .push(Reverse(PrioritizedRunnable { key: priority.clone(), runnable }));
             cvar.notify_one();
         });
         runnable.schedule();
@@ -73,8 +72,8 @@ impl<P: Ord + Clone + Send + Sync + 'static> PrioritizedReactor<P> {
 
 #[cfg(test)]
 mod prioritized_future_test {
-    use futures::join;
     use super::*;
+    use futures::join;
 
     #[test]
     fn test_smoke() {
@@ -85,21 +84,15 @@ mod prioritized_future_test {
 
             let fut_3 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move {
-                    output.lock().unwrap().push(3)
-                }, 3)
+                pr.spawn_with_priority(async move { output.lock().unwrap().push(3) }, 3)
             };
             let fut_1 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move {
-                    output.lock().unwrap().push(1)
-                }, 1)
+                pr.spawn_with_priority(async move { output.lock().unwrap().push(1) }, 1)
             };
             let fut_2 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move {
-                    output.lock().unwrap().push(2)
-                }, 2)
+                pr.spawn_with_priority(async move { output.lock().unwrap().push(2) }, 2)
             };
 
             pr.start_inner(1);

@@ -1,16 +1,16 @@
 use crate::{
-//    nodes_cpu::bitdepth_convert::BitDepthConverter,
-//   nodes_gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer, display::Display},
-nodes_io::reader_raw::RawDirectoryReader,
-pipeline_processing::{
-    parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
-    processing_context::ProcessingContext,
-    node::{ProcessingNode, ProcessingElement, ProcessingNodeIntoProcessingElement, ProcessingSinkIntoProcessingElement},
-},
+    nodes_io::{reader_raw::RawDirectoryReader, writer_cinema_dng::CinemaDngWriter},
+    pipeline_processing::{
+        node::{
+            ProcessingElement,
+            ProcessingNodeIntoProcessingElement,
+            ProcessingSinkIntoProcessingElement,
+        },
+        parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
+    },
 };
 use anyhow::{anyhow, Result};
-use std::{collections::HashMap, sync::Arc};
-use crate::nodes_io::writer_cinema_dng::CinemaDngWriter;
+use std::{collections::HashMap};
 
 // #[cfg(feature = "gst")]
 // use crate::nodes_io::writer_gstreamer::GstWriter;
@@ -38,7 +38,4 @@ macro_rules! generate_dynamic_node_creation_functions {
     };
 }
 
-generate_dynamic_node_creation_functions![
-    RawDirectoryReader,
-    CinemaDngWriter,
-];
+generate_dynamic_node_creation_functions![RawDirectoryReader, CinemaDngWriter,];
