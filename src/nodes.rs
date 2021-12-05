@@ -2,9 +2,9 @@ use crate::{
     nodes_io::{reader_raw::RawDirectoryReader, writer_cinema_dng::CinemaDngWriter},
     pipeline_processing::{
         node::{
-            ProcessingElement,
-            ProcessingNodeIntoProcessingElement,
-            ProcessingSinkIntoProcessingElement,
+            Node,
+            ProcessingNodeIntoNode,
+            SinkNodeIntoNode,
         },
         parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
     },
@@ -26,7 +26,7 @@ macro_rules! generate_dynamic_node_creation_functions {
             to_return
         }
 
-        pub fn create_node_from_name(name: &str, parameters: &Parameters) -> Result<ProcessingElement> {
+        pub fn create_node_from_name(name: &str, parameters: &Parameters) -> Result<Node> {
             $(
                 if name == <$x>::get_name() {
                     return Ok(<$x>::from_parameters(parameters)?.into_processing_element())

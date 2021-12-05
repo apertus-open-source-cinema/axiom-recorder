@@ -19,7 +19,7 @@ pub trait ProcessingNode {
 }
 
 #[async_trait]
-pub trait ProcessingSink {
+pub trait SinkNode {
     async fn run(
         &self,
         context: ProcessingContext,
@@ -33,31 +33,31 @@ pub struct ProgressUpdate {
 }
 
 
-pub enum ProcessingElement {
+pub enum Node {
     Node(Arc<dyn ProcessingNode + Send + Sync + 'static>),
-    Sink(Arc<dyn ProcessingSink + Send + Sync + 'static>),
+    Sink(Arc<dyn SinkNode + Send + Sync + 'static>),
 }
-impl Debug for ProcessingElement {
+impl Debug for Node {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProcessingElement::Node(_) => f.write_str("ProcessingElement::Node"),
-            ProcessingElement::Sink(_) => f.write_str("ProcessingElement::Sink"),
+            Node::Node(_) => f.write_str("ProcessingElement::Node"),
+            Node::Sink(_) => f.write_str("ProcessingElement::Sink"),
         }
     }
 }
-pub trait ProcessingNodeIntoProcessingElement {
-    fn into_processing_element(self) -> ProcessingElement;
+pub trait ProcessingNodeIntoNode {
+    fn into_processing_element(self) -> Node;
 }
-impl<T: ProcessingNode + Send + Sync + 'static> ProcessingNodeIntoProcessingElement for T {
-    fn into_processing_element(self) -> ProcessingElement {
-        ProcessingElement::Node(Arc::new(self))
+impl<T: ProcessingNode + Send + Sync + 'static> ProcessingNodeIntoNode for T {
+    fn into_processing_element(self) -> Node {
+        Node::Node(Arc::new(self))
     }
 }
-pub trait ProcessingSinkIntoProcessingElement {
-    fn into_processing_element(self) -> ProcessingElement;
+pub trait SinkNodeIntoNode {
+    fn into_processing_element(self) -> Node;
 }
-impl<T: ProcessingSink + Send + Sync + 'static> ProcessingSinkIntoProcessingElement for T {
-    fn into_processing_element(self) -> ProcessingElement {
-        ProcessingElement::Sink(Arc::new(self))
+impl<T: SinkNode + Send + Sync + 'static> SinkNodeIntoNode for T {
+    fn into_processing_element(self) -> Node {
+        Node::Sink(Arc::new(self))
     }
 }
