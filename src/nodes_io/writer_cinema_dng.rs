@@ -57,7 +57,7 @@ impl Parameterizable for CinemaDngWriter {
 
 #[async_trait]
 impl ProcessingSink for CinemaDngWriter {
-    async fn run(&self, context: ProcessingContext) {
+    async fn run(&self, context: ProcessingContext) -> Result<()> {
         pull_unordered(&context, self.input.clone(), |mut input, frame_number| {
             let frame = context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
 
@@ -109,7 +109,7 @@ impl ProcessingSink for CinemaDngWriter {
             )
                 .write_to(format!("{}/{:06}.dng", &self.dir_path, frame_number))?;
             Ok::<(), anyhow::Error>(())
-        }).await;
+        }).await
     }
 }
 

@@ -38,6 +38,7 @@ futures = "0.3.18"
 async-task = "4.0.3"
 derivative = "2.2.0"
 pollster = "0.2.4"
+shellwords = "1.1.0"
 
 
 [profile.release]
