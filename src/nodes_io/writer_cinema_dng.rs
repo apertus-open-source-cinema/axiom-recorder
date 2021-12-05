@@ -1,41 +1,38 @@
 use crate::pipeline_processing::{
     buffers::CpuBuffer,
     frame::Raw,
+    node::{ProcessingNode, ProcessingSink},
     parametrizable::{
-        ParameterType::StringParameter,
+        ParameterType::{NodeInput, StringParameter},
         ParameterTypeDescriptor::Mandatory,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
     },
-    payload::Payload,
     processing_context::ProcessingContext,
+    puller::pull_unordered,
 };
 use anyhow::{Context, Result};
-use std::fs::create_dir;
-use std::sync::Arc;
-use futures::join;
+use async_trait::async_trait;
+
+use std::{fs::create_dir, sync::Arc};
 use tiff_encoder::{
+    ifd::{tags, values::Offsets, Ifd},
+    write::{Datablock, EndianFile},
+    TiffFile,
     ASCII,
     BYTE,
-    ifd::{Ifd, tags, values::Offsets},
     LONG,
     RATIONAL,
     SHORT,
     SRATIONAL,
-    TiffFile,
-    write::{Datablock, EndianFile},
 };
 use vulkano::buffer::TypedBufferAccess;
-use crate::pipeline_processing::node::{Caps, ProcessingNode, ProcessingSink};
-use crate::pipeline_processing::parametrizable::ParameterType::NodeInput;
-use async_trait::async_trait;
-use crate::pipeline_processing::puller::pull_unordered;
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
     dir_path: String,
-    input: Arc<dyn ProcessingNode + Send + Sync>
+    input: Arc<dyn ProcessingNode + Send + Sync>,
 }
 
 impl Parameterizable for CinemaDngWriter {
@@ -59,14 +56,16 @@ impl Parameterizable for CinemaDngWriter {
 impl ProcessingSink for CinemaDngWriter {
     async fn run(&self, context: ProcessingContext) -> Result<()> {
         pull_unordered(&context, self.input.clone(), |mut input, frame_number| {
-            let frame = context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
+            let frame =
+                context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
 
-            let cfa_pattern = match (frame.interp.cfa.first_is_red_x, frame.interp.cfa.first_is_red_y) {
-                (true, true) => BYTE![0, 1, 1, 2],
-                (true, false) => BYTE![1, 0, 2, 1],
-                (false, true) => BYTE![1, 2, 0, 1],
-                (false, false) => BYTE![2, 1, 1, 0],
-            };
+            let cfa_pattern =
+                match (frame.interp.cfa.first_is_red_x, frame.interp.cfa.first_is_red_y) {
+                    (true, true) => BYTE![0, 1, 1, 2],
+                    (true, false) => BYTE![1, 0, 2, 1],
+                    (false, true) => BYTE![1, 2, 0, 1],
+                    (false, false) => BYTE![2, 1, 1, 0],
+                };
 
             TiffFile::new(
                 Ifd::new()
@@ -107,9 +106,10 @@ impl ProcessingSink for CinemaDngWriter {
                     .with_entry(tags::StripOffsets, Offsets::single(frame.storage.clone()))
                     .single(),
             )
-                .write_to(format!("{}/{:06}.dng", &self.dir_path, frame_number))?;
+            .write_to(format!("{}/{:06}.dng", &self.dir_path, frame_number))?;
             Ok::<(), anyhow::Error>(())
-        }).await
+        })
+        .await
     }
 }
 

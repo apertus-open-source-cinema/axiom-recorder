@@ -1,9 +1,10 @@
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
-use crate::pipeline_processing::payload::Payload;
-use async_trait::async_trait;
+use crate::pipeline_processing::{payload::Payload, processing_context::ProcessingContext};
 use anyhow::Result;
-use crate::pipeline_processing::processing_context::ProcessingContext;
+use async_trait::async_trait;
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+};
 
 #[derive(Clone, Copy, Default)]
 pub struct Caps {
@@ -29,8 +30,8 @@ pub enum ProcessingElement {
 impl Debug for ProcessingElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProcessingElement::Node(_) => { f.write_str("ProcessingElement::Node")}
-            ProcessingElement::Sink(_) => { f.write_str("ProcessingElement::Sink")}
+            ProcessingElement::Node(_) => f.write_str("ProcessingElement::Node"),
+            ProcessingElement::Sink(_) => f.write_str("ProcessingElement::Sink"),
         }
     }
 }

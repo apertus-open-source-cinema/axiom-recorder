@@ -4,12 +4,13 @@ use std::{any::type_name, convert::TryInto};
 
 use crate::pipeline_processing::{
     frame::{CfaDescriptor, Raw},
-    processing_context::ProcessingContext,
+    node::ProcessingNode,
 };
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter, Write};
-use std::sync::Arc;
-use crate::pipeline_processing::node::ProcessingNode;
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    sync::Arc,
+};
 
 #[derive(Clone)]
 pub enum ParameterValue {
@@ -17,7 +18,7 @@ pub enum ParameterValue {
     IntRange(i64),
     StringParameter(String),
     BoolParameter(bool),
-    NodeInput(Arc<dyn ProcessingNode + Send + Sync>)
+    NodeInput(Arc<dyn ProcessingNode + Send + Sync>),
 }
 impl ToString for ParameterValue {
     fn to_string(&self) -> String {
@@ -158,8 +159,8 @@ impl ParameterType {
             Self::IntRange(..) => self.value_is_of_type(ParameterValue::IntRange(string.parse()?)),
             Self::FloatRange(..) => {
                 self.value_is_of_type(ParameterValue::FloatRange(string.parse()?))
-            },
-            Self::NodeInput => Err(anyhow!("cant parse node input from string"))
+            }
+            Self::NodeInput => Err(anyhow!("cant parse node input from string")),
         }
     }
 }

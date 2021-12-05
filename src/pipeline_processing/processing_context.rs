@@ -2,9 +2,10 @@ use crate::pipeline_processing::{
     buffers::{CpuBuffer, GpuBuffer},
     frame::Frame,
     payload::Payload,
+    prioritized_executor::PrioritizedReactor,
 };
 use anyhow::{anyhow, Result};
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 use vulkano::{
     buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryCommandBuffer},
@@ -12,8 +13,6 @@ use vulkano::{
     instance::Instance,
     Version,
 };
-use crate::pipeline_processing::prioritized_executor::PrioritizedReactor;
-use std::future::Future;
 
 
 #[derive(Clone)]
@@ -80,11 +79,19 @@ impl Default for ProcessingContext {
         match vk_device {
             None => {
                 println!("using cpu only processing");
-                Self { vulkan_device: None,  priority: Default::default(), prioritized_reactor: PrioritizedReactor::start(4) }
+                Self {
+                    vulkan_device: None,
+                    priority: Default::default(),
+                    prioritized_reactor: PrioritizedReactor::start(4),
+                }
             }
             Some((device, queues)) => {
                 println!("using gpu: {}", device.physical_device().properties().device_name);
-                Self { vulkan_device: Some(VulkanContext { device, queues: queues.collect() }),  priority: Default::default(), prioritized_reactor: PrioritizedReactor::start(4) }
+                Self {
+                    vulkan_device: Some(VulkanContext { device, queues: queues.collect() }),
+                    priority: Default::default(),
+                    prioritized_reactor: PrioritizedReactor::start(4),
+                }
             }
         }
     }
@@ -172,7 +179,10 @@ impl ProcessingContext {
         }
     }
 
-    pub fn spawn<O: Send + Sync + 'static>(&self, fut: impl Future<Output = O> + Send + Sync + 'static) -> impl Future<Output = O> {
+    pub fn spawn<O: Send + Sync + 'static>(
+        &self,
+        fut: impl Future<Output = O> + Send + Sync + 'static,
+    ) -> impl Future<Output = O> {
         self.prioritized_reactor.spawn_with_priority(fut, self.priority)
     }
 }
