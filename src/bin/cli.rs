@@ -6,7 +6,7 @@ use itertools::Itertools;
 use recorder::{
     nodes::{create_node_from_name, list_available_nodes},
     pipeline_processing::{
-        node::ProcessingElement,
+        node::Node,
         parametrizable::{
             ParameterType,
             ParameterTypeDescriptor,
@@ -64,7 +64,7 @@ fn work() -> Result<()> {
         last_element = Some(node);
     }
 
-    let sink = if let ProcessingElement::Sink(sink) = last_element.unwrap() {
+    let sink = if let Node::Sink(sink) = last_element.unwrap() {
         sink
     } else {
         return Err(anyhow!("the last processing element needs to be a sink!"));
@@ -112,8 +112,8 @@ fn nodes_usages_string() -> String {
 fn processing_node_from_commandline(
     commandline: &[String],
     _context: ProcessingContext,
-    last_node: Option<ProcessingElement>,
-) -> Result<ProcessingElement> {
+    last_node: Option<Node>,
+) -> Result<Node> {
     let name = &commandline[0];
 
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
@@ -153,7 +153,7 @@ fn processing_node_from_commandline(
         .collect::<Result<_, anyhow::Error>>()?;
 
     if let Some(last_node) = last_node {
-        if let ProcessingElement::Node(last_node) = last_node {
+        if let Node::Node(last_node) = last_node {
             parameters.insert("input".to_string(), ParameterValue::NodeInput(last_node));
         } else {
             return Err(anyhow!("cant use sink as non last element!"));

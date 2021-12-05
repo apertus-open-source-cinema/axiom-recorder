@@ -1,7 +1,7 @@
 use crate::pipeline_processing::{
     buffers::CpuBuffer,
     frame::Raw,
-    node::{ProcessingNode, ProcessingSink},
+    node::{ProcessingNode, SinkNode},
     parametrizable::{
         ParameterType::{NodeInput, StringParameter},
         ParameterTypeDescriptor::Mandatory,
@@ -54,7 +54,7 @@ impl Parameterizable for CinemaDngWriter {
 }
 
 #[async_trait]
-impl ProcessingSink for CinemaDngWriter {
+impl SinkNode for CinemaDngWriter {
     async fn run(
         &self,
         context: ProcessingContext,
