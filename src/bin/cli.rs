@@ -59,8 +59,7 @@ fn work() -> Result<()> {
     let mut last_element = None;
     for node_cmd in node_commandlines {
         let last_taken = mem::take(&mut last_element);
-        let node =
-            processing_node_from_commandline(node_cmd, &processing_context, last_taken)?;
+        let node = processing_node_from_commandline(node_cmd, &processing_context, last_taken)?;
         last_element = Some(node);
     }
 
