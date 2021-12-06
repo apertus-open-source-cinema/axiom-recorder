@@ -156,7 +156,7 @@ impl ProcessingContext {
     }
     pub fn ensure_cpu_buffer<Interpretation: Clone + Send + Sync + 'static>(
         &self,
-        payload: &mut Payload,
+        payload: &Payload,
     ) -> anyhow::Result<Arc<Frame<Interpretation, CpuBuffer>>> {
         if let Ok(frame) = payload.downcast::<Frame<Interpretation, CpuBuffer>>() {
             Ok(frame)

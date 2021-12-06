@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     buffers::GpuBuffer,
-    frame::{Frame, Raw},
+    frame::{Frame, FrameInterpretation, Raw},
     gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
@@ -23,6 +23,7 @@ use vulkano::{
     device::{Device, Queue},
     pipeline::{ComputePipeline, PipelineBindPoint},
     sync::GpuFuture,
+    DeviceSize,
 };
 
 
@@ -76,15 +77,15 @@ impl ProcessingNode for GpuBitDepthConverter {
             ));
         }
 
+        let interp = Raw { bit_depth: 8, ..frame.interp };
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
-            frame.interp.width * frame.interp.height,
+            interp.required_bytes() as DeviceSize,
             BufferUsage { storage_buffer: true, ..BufferUsage::none() },
             std::iter::once(self.queue.family()),
         )?;
 
-        let push_constants =
-            compute_shader::ty::PushConstantData { width: frame.interp.width as u32 };
+        let push_constants = compute_shader::ty::PushConstantData { width: interp.width as u32 };
 
         let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
         let set = Arc::new({
@@ -109,17 +110,14 @@ impl ProcessingNode for GpuBitDepthConverter {
             )
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
-            .dispatch([frame.interp.width as u32 / 16 / 2, frame.interp.height as u32 / 32, 1])?;
+            .dispatch([interp.width as u32 / 16 / 2, interp.height as u32 / 32, 1])?;
         let command_buffer = builder.build()?;
 
         let future =
             fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        Ok(Payload::from(Frame {
-            interp: Raw { bit_depth: 8, ..frame.interp },
-            storage: GpuBuffer::from(sink_buffer),
-        }))
+        Ok(Payload::from(Frame { interp, storage: GpuBuffer::from(sink_buffer) }))
     }
 
     fn get_caps(&self) -> Caps { self.input.get_caps() }

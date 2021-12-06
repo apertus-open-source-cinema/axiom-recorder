@@ -1,41 +1,42 @@
 use crate::pipeline_processing::{
-    buffers::CpuBuffer,
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
 };
 use anyhow::{Context, Result};
+use std::sync::Arc;
 
 use crate::pipeline_processing::{
-    frame::{Frame, Raw},
+    frame::{Frame, FrameInterpretation, Raw},
+    node::{Caps, ProcessingNode},
+    parametrizable::{ParameterType, ParameterTypeDescriptor},
     processing_context::ProcessingContext,
 };
-use crate::pipeline_processing_legacy::prioritized_reactor::ProcessingStageLockWaiter;
-use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
+use async_trait::async_trait;
 
-pub struct BitDepthConverter {}
+pub struct BitDepthConverter {
+    input: Arc<dyn ProcessingNode + Send + Sync>,
+}
 impl Parameterizable for BitDepthConverter {
-    fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::new() }
+    fn describe_parameters() -> ParametersDescriptor {
+        ParametersDescriptor::new()
+            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+    }
 
-    fn from_parameters(_parameters: &Parameters) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        Ok(Self { })
+    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
+        Ok(Self { input: parameters.get("input")? })
     }
 }
+
+#[async_trait]
 impl ProcessingNode for BitDepthConverter {
-    fn process(
-        &self,
-        input: &mut Payload,
-        _frame_lock: ProcessingStageLockWaiter,
-    ) -> Result<Option<Payload>> {
-        let frame = input.downcast::<Frame<Raw, CpuBuffer>>().context("Wrong input format")?;
-        let mut new_buffer = unsafe {
-            self.context.get_uninit_cpu_buffer((frame.interp.width * frame.interp.height) as usize)
-        };
+    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+        let input = self.input.pull(frame_number, context).await?;
+        let frame = context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
+        let interp = Raw { bit_depth: 8, ..frame.interp };
+        let mut new_buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
 
         if frame.interp.bit_depth == 8 {
-            return Ok(Some(input.clone()));
+            return Ok(input.clone());
         } else if frame.interp.bit_depth == 12 {
             new_buffer.as_mut_slice(|new_buffer| {
                 frame.storage.as_slice(|frame_storage| {
@@ -78,8 +79,10 @@ impl ProcessingNode for BitDepthConverter {
             });
         }
 
-        let new_frame = Frame { storage: new_buffer, interp: Raw { bit_depth: 8, ..frame.interp } };
+        let new_frame = Frame { storage: new_buffer, interp };
 
-        Ok(Some(Payload::from(new_frame)))
+        Ok(Payload::from(new_frame))
     }
+
+    fn get_caps(&self) -> Caps { self.input.get_caps() }
 }
