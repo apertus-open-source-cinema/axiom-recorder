@@ -134,5 +134,5 @@ impl ProcessingNode for Debayer {
         }))
     }
 
-    fn get_caps(&self) -> Caps { todo!() }
+    fn get_caps(&self) -> Caps { self.input.get_caps() }
 }
