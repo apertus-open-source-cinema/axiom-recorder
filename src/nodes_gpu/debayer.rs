@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     buffers::GpuBuffer,
-    frame::{Frame, Raw, Rgb},
+    frame::{Frame, FrameInterpretation, Raw, Rgb},
     gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
@@ -23,6 +23,7 @@ use vulkano::{
     device::{Device, Queue},
     pipeline::{ComputePipeline, PipelineBindPoint},
     sync::GpuFuture,
+    DeviceSize,
 };
 
 mod compute_shader {
@@ -75,9 +76,11 @@ impl ProcessingNode for Debayer {
             ));
         }
 
+        let interp =
+            Rgb { width: frame.interp.width, height: frame.interp.height, fps: frame.interp.fps };
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
-            frame.interp.width * frame.interp.height * 3,
+            interp.required_bytes() as DeviceSize,
             BufferUsage {
                 storage_buffer: true,
                 storage_texel_buffer: true,
@@ -124,14 +127,7 @@ impl ProcessingNode for Debayer {
             fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        Ok(Payload::from(Frame {
-            interp: Rgb {
-                width: frame.interp.width,
-                height: frame.interp.height,
-                fps: frame.interp.fps,
-            },
-            storage: GpuBuffer::from(sink_buffer),
-        }))
+        Ok(Payload::from(Frame { interp, storage: GpuBuffer::from(sink_buffer) }))
     }
 
     fn get_caps(&self) -> Caps { self.input.get_caps() }

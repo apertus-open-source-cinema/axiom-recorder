@@ -10,7 +10,7 @@ use std::{
     ops::Deref,
     sync::{
         atomic::{AtomicU64, Ordering},
-        mpsc::{sync_channel, Receiver},
+        mpsc::{sync_channel, Receiver, SendError},
         Arc,
     },
     thread,
@@ -84,7 +84,10 @@ impl OrderedPuller {
                 }
                 if let Some(payload) = todo.pop_back() {
                     if let Ok(payload) = pollster::block_on(payload) {
-                        tx.send(payload)?;
+                        match tx.send(payload) {
+                            Ok(()) => {}
+                            Err(SendError(_)) => break,
+                        }
                     } else {
                         break;
                     }

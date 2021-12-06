@@ -151,7 +151,7 @@ impl SinkNode for Display {
         let (device, queues) = context.require_vulkan()?;
         let live = self.live;
 
-        let event_loop: EventLoop<()> = EventLoop::new();
+        let event_loop = EventLoop::new();
         let surface = WindowBuilder::new()
             .with_title("axiom converter vulkan output")
             .build_vk_surface(&event_loop, device.instance().clone())
