@@ -1,5 +1,5 @@
 use crate::{
-    nodes_gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer},
+    nodes_gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer, display::Display},
     nodes_io::{reader_raw::RawDirectoryReader, writer_cinema_dng::CinemaDngWriter},
     pipeline_processing::{
         node::{Node, ProcessingNodeIntoNode, SinkNodeIntoNode},
@@ -41,4 +41,5 @@ generate_dynamic_node_creation_functions![
     CinemaDngWriter,
     GpuBitDepthConverter,
     Debayer,
+    Display,
 ];

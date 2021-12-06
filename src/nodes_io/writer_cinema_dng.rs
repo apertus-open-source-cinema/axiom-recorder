@@ -60,11 +60,14 @@ impl SinkNode for CinemaDngWriter {
         context: &ProcessingContext,
         progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
+        let context = context.clone();
+        let dir_path = self.dir_path.clone();
+
         pull_unordered(
-            &context,
+            &context.clone(),
             progress_callback,
             self.input.clone(),
-            |mut input, frame_number| {
+            move |mut input, frame_number| {
                 let frame =
                     context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
 
@@ -115,7 +118,7 @@ impl SinkNode for CinemaDngWriter {
                     .with_entry(tags::StripOffsets, Offsets::single(frame.storage.clone()))
                     .single(),
                 )
-                .write_to(format!("{}/{:06}.dng", &self.dir_path, frame_number))?;
+                .write_to(format!("{}/{:06}.dng", &dir_path, frame_number))?;
                 Ok::<(), anyhow::Error>(())
             },
         )

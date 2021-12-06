@@ -51,9 +51,9 @@ impl<P: Ord + Clone + Send + Sync + 'static> PrioritizedReactor<P> {
         instance
     }
 
-    pub fn spawn_with_priority<O: Send + Sync + 'static>(
+    pub fn spawn_with_priority<O: Send + 'static>(
         &self,
-        fut: impl Future<Output = O> + Send + Sync + 'static,
+        fut: impl Future<Output = O> + Send + 'static,
         priority: P,
     ) -> impl Future<Output = O> {
         let queue_cvar = self.queue_cvar.clone();

@@ -179,9 +179,9 @@ impl ProcessingContext {
         }
     }
 
-    pub fn spawn<O: Send + Sync + 'static>(
+    pub fn spawn<O: Send + 'static>(
         &self,
-        fut: impl Future<Output = O> + Send + Sync + 'static,
+        fut: impl Future<Output = O> + Send + 'static,
     ) -> impl Future<Output = O> {
         self.prioritized_reactor.spawn_with_priority(fut, self.priority)
     }
