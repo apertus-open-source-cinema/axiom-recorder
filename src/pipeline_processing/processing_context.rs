@@ -82,7 +82,7 @@ impl Default for ProcessingContext {
                 Self {
                     vulkan_device: None,
                     priority: Default::default(),
-                    prioritized_reactor: PrioritizedReactor::start(4),
+                    prioritized_reactor: PrioritizedReactor::start(8),
                 }
             }
             Some((device, queues)) => {
@@ -90,7 +90,7 @@ impl Default for ProcessingContext {
                 Self {
                     vulkan_device: Some(VulkanContext { device, queues: queues.collect() }),
                     priority: Default::default(),
-                    prioritized_reactor: PrioritizedReactor::start(4),
+                    prioritized_reactor: PrioritizedReactor::start(8),
                 }
             }
         }
