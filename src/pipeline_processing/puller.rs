@@ -4,7 +4,6 @@ use crate::pipeline_processing::{
     processing_context::ProcessingContext,
 };
 use anyhow::Result;
-
 use std::{
     collections::VecDeque,
     ops::Deref,
@@ -60,13 +59,23 @@ pub struct OrderedPuller {
 }
 
 impl OrderedPuller {
-    pub fn new(context: &ProcessingContext, input: Arc<dyn ProcessingNode + Send + Sync>) -> Self {
+    pub fn new(
+        context: &ProcessingContext,
+        input: Arc<dyn ProcessingNode + Send + Sync>,
+        do_loop: bool,
+    ) -> Self {
         let (tx, rx) = sync_channel::<Payload>(10);
         let context = context.clone();
         let join_handle = thread::spawn(move || {
-            let mut range = match input.get_caps().frame_count {
-                Some(frame_count) => 0..frame_count,
-                None => 0..u64::MAX,
+            let mut range: Box<dyn Iterator<Item = u64>> = match input.get_caps().frame_count {
+                Some(frame_count) => {
+                    if do_loop {
+                        Box::new((0..frame_count).cycle())
+                    } else {
+                        Box::new(0..frame_count)
+                    }
+                }
+                None => Box::new(0..u64::MAX),
             };
 
             let mut todo = VecDeque::with_capacity(10);

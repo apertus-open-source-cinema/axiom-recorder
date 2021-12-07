@@ -57,3 +57,19 @@ pub struct Rgba {
 impl FrameInterpretation for Rgba {
     fn required_bytes(&self) -> usize { self.width as usize * self.height as usize * 3 }
 }
+
+
+pub enum FrameInterpretations {
+    Raw(Raw),
+    Rgb(Rgb),
+    Rgba(Rgba),
+}
+impl FrameInterpretation for FrameInterpretations {
+    fn required_bytes(&self) -> usize {
+        match self {
+            FrameInterpretations::Raw(interp) => interp.required_bytes(),
+            FrameInterpretations::Rgb(interp) => interp.required_bytes(),
+            FrameInterpretations::Rgba(interp) => interp.required_bytes(),
+        }
+    }
+}
