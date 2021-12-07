@@ -122,7 +122,6 @@ impl ProcessingNode for RawDirectoryReader {
         }
 
         let path = &self.files[frame_number as usize];
-        dbg!(frame_number, path);
         let mut file = File::open(path)?;
 
         let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
