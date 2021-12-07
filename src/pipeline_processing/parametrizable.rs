@@ -3,7 +3,7 @@ use anyhow::{anyhow, Error, Result};
 use std::{any::type_name, convert::TryInto};
 
 use crate::pipeline_processing::{
-    frame::{CfaDescriptor, Raw},
+    frame::{CfaDescriptor, FrameInterpretations, Raw, Rgb},
     node::ProcessingNode,
     processing_context::ProcessingContext,
 };
@@ -21,6 +21,7 @@ pub enum ParameterValue {
     BoolParameter(bool),
     NodeInput(Arc<dyn ProcessingNode + Send + Sync>),
 }
+
 impl ToString for ParameterValue {
     fn to_string(&self) -> String {
         match self {
@@ -32,11 +33,13 @@ impl ToString for ParameterValue {
         }
     }
 }
+
 impl Debug for ParameterValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("ParameterValue({})", self.to_string()))
     }
 }
+
 impl TryInto<f64> for ParameterValue {
     type Error = Error;
 
@@ -47,6 +50,7 @@ impl TryInto<f64> for ParameterValue {
         }
     }
 }
+
 impl TryInto<i64> for ParameterValue {
     type Error = Error;
 
@@ -57,6 +61,7 @@ impl TryInto<i64> for ParameterValue {
         }
     }
 }
+
 impl TryInto<u64> for ParameterValue {
     type Error = Error;
 
@@ -67,6 +72,7 @@ impl TryInto<u64> for ParameterValue {
         }
     }
 }
+
 impl TryInto<String> for ParameterValue {
     type Error = Error;
 
@@ -77,6 +83,7 @@ impl TryInto<String> for ParameterValue {
         }
     }
 }
+
 impl TryInto<bool> for ParameterValue {
     type Error = Error;
 
@@ -87,6 +94,7 @@ impl TryInto<bool> for ParameterValue {
         }
     }
 }
+
 impl TryInto<Arc<dyn ProcessingNode + Send + Sync>> for ParameterValue {
     type Error = Error;
 
@@ -100,6 +108,7 @@ impl TryInto<Arc<dyn ProcessingNode + Send + Sync>> for ParameterValue {
 
 #[derive(Debug, Clone)]
 pub struct Parameters(pub HashMap<String, ParameterValue>);
+
 impl Parameters {
     pub fn get<T>(&self, key: &str) -> Result<T>
     where
@@ -112,13 +121,18 @@ impl Parameters {
         parameter_value.clone().try_into()
     }
 
-    pub fn get_raw_interpretation(&self) -> Result<Raw> {
+    pub fn get_interpretation(&self) -> Result<FrameInterpretations> {
         let width = self.get("width")?;
         let height = self.get("height")?;
         let bit_depth = self.get("bit-depth")?;
         let cfa = CfaDescriptor::from_first_red(self.get("first-red-x")?, self.get("first-red-y")?);
         let fps = self.get("fps")?;
-        Ok(Raw { bit_depth, width, height, cfa, fps })
+
+        if self.get("rgb")? {
+            Ok(FrameInterpretations::Rgb(Rgb { width, height, fps }))
+        } else {
+            Ok(FrameInterpretations::Raw(Raw { bit_depth, width, height, cfa, fps }))
+        }
     }
 }
 
@@ -130,6 +144,7 @@ pub enum ParameterType {
     BoolParameter,
     NodeInput,
 }
+
 impl ParameterType {
     pub fn value_is_of_type(&self, value: ParameterValue) -> Result<ParameterValue> {
         match (self, &value) {
@@ -171,6 +186,7 @@ pub enum ParameterTypeDescriptor {
     Optional(ParameterType, ParameterValue),
     Mandatory(ParameterType),
 }
+
 impl ParameterTypeDescriptor {
     pub fn parse(&self, string: Option<&str>) -> Result<ParameterValue> {
         match self {
@@ -188,34 +204,37 @@ impl ParameterTypeDescriptor {
 
 #[derive(Debug, Clone)]
 pub struct ParametersDescriptor(pub HashMap<String, ParameterTypeDescriptor>);
+
 impl Default for ParametersDescriptor {
     fn default() -> Self { Self::new() }
 }
+
 impl ParametersDescriptor {
     pub fn new() -> Self { ParametersDescriptor(HashMap::new()) }
     pub fn with(mut self, name: &str, descriptor: ParameterTypeDescriptor) -> ParametersDescriptor {
         self.0.insert(name.to_string(), descriptor);
         ParametersDescriptor(self.0)
     }
-    pub fn with_raw_interpretation(self) -> ParametersDescriptor {
-        self.with("bit-depth", Mandatory(ParameterType::IntRange(8, 16)))
-            .with("width", Mandatory(ParameterType::IntRange(0, i64::max_value())))
-            .with("height", Mandatory(ParameterType::IntRange(0, i64::max_value())))
-            .with(
-                "first-red-x",
-                Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
-            )
-            .with(
-                "first-red-y",
-                Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
-            )
-            .with(
-                "fps",
-                Optional(
-                    ParameterType::FloatRange(0.0, f64::MAX),
-                    ParameterValue::FloatRange(24.0),
-                ),
-            )
+    pub fn with_interpretation(self) -> ParametersDescriptor {
+        self.with(
+            "bit-depth",
+            Optional(ParameterType::IntRange(8, 16), ParameterValue::IntRange(12)),
+        )
+        .with("width", Mandatory(ParameterType::IntRange(0, i64::max_value())))
+        .with("height", Mandatory(ParameterType::IntRange(0, i64::max_value())))
+        .with(
+            "first-red-x",
+            Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+        )
+        .with(
+            "first-red-y",
+            Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+        )
+        .with("rgb", Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(false)))
+        .with(
+            "fps",
+            Optional(ParameterType::FloatRange(0.0, f64::MAX), ParameterValue::FloatRange(24.0)),
+        )
     }
 }
 

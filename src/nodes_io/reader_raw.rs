@@ -1,5 +1,5 @@
 use crate::pipeline_processing::{
-    frame::{Frame, FrameInterpretation, Raw},
+    frame::{Frame, FrameInterpretation, FrameInterpretations},
     node::{Caps, ProcessingNode},
     parametrizable::{
         ParameterType::{BoolParameter, StringParameter},
@@ -12,7 +12,7 @@ use crate::pipeline_processing::{
     payload::Payload,
     processing_context::ProcessingContext,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use glob::glob;
 use std::{fs::File, io::Read, path::PathBuf, sync::Mutex};
@@ -80,9 +80,9 @@ impl ProcessingNode for RawBlobReader {
 
 pub struct RawDirectoryReader {
     files: Vec<PathBuf>,
-    payload_vec: Mutex<Vec<Option<Payload>>>,
-    do_loop: bool,
-    interp: Raw,
+    interp: FrameInterpretations,
+    cache_frames: bool,
+    cache: Mutex<Vec<Option<Payload>>>,
 }
 impl Parameterizable for RawDirectoryReader {
     const DESCRIPTION: Option<&'static str> =
@@ -90,9 +90,9 @@ impl Parameterizable for RawDirectoryReader {
 
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with_raw_interpretation()
+            .with_interpretation()
             .with("file-pattern", Mandatory(StringParameter))
-            .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
+            .with("cache-frames", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
     fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self>
     where
@@ -103,9 +103,9 @@ impl Parameterizable for RawDirectoryReader {
         let frame_count = files.len();
         Ok(Self {
             files,
-            interp: options.get_raw_interpretation()?,
-            do_loop: options.get("loop")?,
-            payload_vec: Mutex::new((0..frame_count).map(|_| None).collect()),
+            interp: options.get_interpretation()?,
+            cache_frames: options.get("cache-frames")?,
+            cache: Mutex::new((0..frame_count).map(|_| None).collect()),
         })
     }
 }
@@ -113,49 +113,39 @@ impl Parameterizable for RawDirectoryReader {
 #[async_trait]
 impl ProcessingNode for RawDirectoryReader {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        Ok(match self.payload_vec.lock().unwrap()[(frame_number) as usize % self.files.len()] {
-            Some(ref payload) => {
-                if self.do_loop || frame_number < self.files.len() as u64 {
-                    payload.clone()
-                } else {
-                    return Err(anyhow!(
-                        "frame {} was requested but this stream only has a length of {}",
-                        frame_number,
-                        self.files.len()
-                    ));
-                }
-            }
-            ref mut none => {
-                if self.do_loop || frame_number < self.files.len() as u64 {
-                    let path = &self.files[frame_number as usize % self.files.len()];
-                    let mut file = File::open(path)?;
+        if frame_number >= self.files.len() as u64 {
+            return Err(anyhow!(
+                "frame {} was requested but this stream only has a length of {}",
+                frame_number,
+                self.files.len()
+            ));
+        }
 
-                    let mut buffer =
-                        unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
-                    buffer.as_mut_slice(|buffer| {
-                        file.read_exact(buffer).unwrap();
-                    });
-                    let payload = Payload::from(Frame { storage: buffer, interp: self.interp });
+        let path = &self.files[frame_number as usize];
+        dbg!(frame_number, path);
+        let mut file = File::open(path)?;
 
-                    if self.do_loop {
-                        *none = Some(payload.clone());
-                    }
-                    payload
-                } else {
-                    return Err(anyhow!(
-                        "frame {} was requested but this stream only has a length of {}",
-                        frame_number,
-                        self.files.len()
-                    ));
-                }
+        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        buffer
+            .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
+
+        if self.cache_frames {
+            if let Some(cached) = self.cache.lock().unwrap()[frame_number as usize].clone() {
+                return Ok(cached);
             }
-        })
+        }
+
+        let payload = match self.interp {
+            FrameInterpretations::Raw(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgb(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgba(interp) => Payload::from(Frame { storage: buffer, interp }),
+        };
+
+        self.cache.lock().unwrap()[frame_number as usize] = Some(payload.clone());
+        Ok(payload)
     }
 
     fn get_caps(&self) -> Caps {
-        Caps {
-            frame_count: if self.do_loop { None } else { Some(self.files.len() as u64) },
-            is_live: false,
-        }
+        Caps { frame_count: Some(self.files.len() as u64), is_live: false }
     }
 }

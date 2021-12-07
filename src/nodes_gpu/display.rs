@@ -119,6 +119,7 @@ mod fragment_shader {
 pub struct Display {
     mailbox: bool,
     live: bool,
+    do_loop: bool,
     input: Arc<dyn ProcessingNode + Send + Sync>,
 }
 
@@ -127,6 +128,7 @@ impl Parameterizable for Display {
         ParametersDescriptor::default()
             .with("mailbox", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
             .with("live", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
+            .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
             .with("input", Mandatory(ParameterType::NodeInput))
     }
 
@@ -134,6 +136,7 @@ impl Parameterizable for Display {
         Ok(Self {
             mailbox: parameters.get("mailbox")?,
             live: parameters.get("live")?,
+            do_loop: parameters.get("loop")?,
             input: parameters.get("input")?,
         })
     }
@@ -147,7 +150,7 @@ impl SinkNode for Display {
         context: &ProcessingContext,
         _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let puller = OrderedPuller::new(context, self.input.clone());
+        let puller = OrderedPuller::new(context, self.input.clone(), self.do_loop);
         let (device, queues) = context.require_vulkan()?;
         let live = self.live;
 
