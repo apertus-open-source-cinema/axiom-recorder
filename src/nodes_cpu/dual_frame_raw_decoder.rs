@@ -17,7 +17,7 @@ use crate::pipeline_processing::{
     processing_context::ProcessingContext,
 };
 use async_trait::async_trait;
-use futures::{try_join, StreamExt};
+use futures::{try_join};
 
 pub struct DualFrameRawDecoder {
     input: Arc<dyn ProcessingNode + Send + Sync>,
@@ -79,7 +79,7 @@ impl ProcessingNode for DualFrameRawDecoder {
 
         let mut new_buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
 
-        let line_bytes = interp.width as usize * 3;
+        let line_bytes = frame_a.interp.width as usize * 3;
         frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
                 new_buffer.as_mut_slice(|new_buffer| {
