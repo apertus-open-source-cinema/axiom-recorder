@@ -10,7 +10,7 @@ use vulkano::{
     buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryCommandBuffer},
     device::{physical::PhysicalDevice, Device, DeviceExtensions, Queue},
-    instance::Instance,
+    instance::{Instance},
     Version,
 };
 
@@ -58,13 +58,17 @@ impl Default for ProcessingContext {
             Instance::new(None, Version::V1_2, &vulkano_win::required_extensions(), None)
                 .ok()
                 .and_then(|instance| {
+                    // let instance = Instance::new(None, Version::V1_1, &InstanceExtensions::none(), None).unwrap();
+                    for physical_device in PhysicalDevice::enumerate(&instance) {
+                        println!("Available device: {}", physical_device.properties().device_name);
+                    }
                     PhysicalDevice::enumerate(&instance).find_map(|physical| {
+                        // dbg!(physical);
                         let queue_family = physical.queue_families().map(|qf| (qf, 0.5)); // All queues have the same priority
                         let device_ext = DeviceExtensions {
                             khr_swapchain: true,
                             khr_storage_buffer_storage_class: true,
                             khr_8bit_storage: true,
-                            khr_shader_non_semantic_info: true,
                             ..(*physical.required_extensions())
                         };
                         Device::new(
@@ -73,6 +77,9 @@ impl Default for ProcessingContext {
                             &device_ext,
                             queue_family,
                         )
+                        .map_err(|err| {
+                            dbg!(err);
+                        })
                         .ok()
                     })
                 });

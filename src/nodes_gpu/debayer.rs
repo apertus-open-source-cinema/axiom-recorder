@@ -1,7 +1,6 @@
 use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, FrameInterpretation, Raw, Rgb},
-    gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
         ParameterType,
@@ -22,7 +21,7 @@ use vulkano::{
     descriptor_set::persistent::PersistentDescriptorSet,
     device::{Device, Queue},
     pipeline::{ComputePipeline, PipelineBindPoint},
-    sync::GpuFuture,
+    sync::{GpuFuture, now},
     DeviceSize,
 };
 
@@ -67,8 +66,8 @@ impl ProcessingNode for Debayer {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
         let input = self.input.pull(frame_number, context).await?;
 
-        let (frame, fut) =
-            ensure_gpu_buffer::<Raw>(&input, self.queue.clone()).context("Wrong input format")?;
+        let frame =
+            context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
 
         if frame.interp.bit_depth != 8 {
             return Err(anyhow!(
@@ -100,7 +99,7 @@ impl ProcessingNode for Debayer {
         let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
         let set = Arc::new({
             let mut builder = PersistentDescriptorSet::start(layout);
-            builder.add_buffer(frame.storage.untyped())?;
+            builder.add_buffer(frame.storage.cpu_accessible_buffer())?;
             builder.add_buffer(sink_buffer.clone())?;
             builder.build()?
         });
@@ -124,7 +123,7 @@ impl ProcessingNode for Debayer {
         let command_buffer = builder.build()?;
 
         let future =
-            fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
+            now(self.device.clone()).then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
         Ok(Payload::from(Frame { interp, storage: GpuBuffer::from(sink_buffer) }))

@@ -54,19 +54,22 @@ impl SinkNode for BenchmarkSink {
         .await?;
         println!("starting benchmark...");
         let start_time = Instant::now();
-        pull_unordered(
-            &context.clone(),
-            progress_callback.clone(),
-            self.input.clone(),
-            move |_input, _frame_number| Ok(()),
-        )
-        .await?;
+
+        for _ in 0..10 {
+            pull_unordered(
+                &context.clone(),
+                progress_callback.clone(),
+                self.input.clone(),
+                move |_input, _frame_number| Ok(()),
+            )
+            .await?;
+        }
         let elapsed = (Instant::now() - start_time).as_secs_f64();
         println!(
             "time elapsed: {:.2}s for {:.2} frames. {:.2} fps",
             elapsed,
-            frame_count,
-            frame_count as f64 / elapsed
+            frame_count * 10,
+            (frame_count * 10) as f64 / elapsed
         );
 
         Ok(())

@@ -1,7 +1,5 @@
 use crate::pipeline_processing::{
-    buffers::GpuBuffer,
     frame::{Frame, FrameInterpretation, Raw},
-    gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
         ParameterType,
@@ -17,13 +15,11 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
 use vulkano::{
-    buffer::{BufferUsage, DeviceLocalBuffer},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit},
     descriptor_set::persistent::PersistentDescriptorSet,
     device::{Device, Queue},
     pipeline::{ComputePipeline, PipelineBindPoint},
-    sync::GpuFuture,
-    DeviceSize,
+    sync::{GpuFuture, now},
 };
 
 
@@ -68,7 +64,7 @@ impl ProcessingNode for GpuBitDepthConverter {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
         let mut input = self.input.pull(frame_number, &context).await?;
 
-        let (frame, fut) = ensure_gpu_buffer::<Raw>(&mut input, self.queue.clone())
+        let frame = context.ensure_cpu_buffer::<Raw>(&mut input)
             .context("Wrong input format")?;
 
         if frame.interp.bit_depth != 12 {
@@ -78,20 +74,17 @@ impl ProcessingNode for GpuBitDepthConverter {
         }
 
         let interp = Raw { bit_depth: 8, ..frame.interp };
-        let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
-            self.device.clone(),
-            interp.required_bytes() as DeviceSize,
-            BufferUsage { storage_buffer: true, ..BufferUsage::none() },
-            std::iter::once(self.queue.family()),
-        )?;
+        let sink_buffer = unsafe {
+            context.get_uninit_cpu_buffer(interp.required_bytes())
+        };
 
         let push_constants = compute_shader::ty::PushConstantData { width: interp.width as u32 };
 
         let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
         let set = Arc::new({
             let mut builder = PersistentDescriptorSet::start(layout);
-            builder.add_buffer(frame.storage.untyped())?;
-            builder.add_buffer(sink_buffer.clone())?;
+            builder.add_buffer(frame.storage.cpu_accessible_buffer())?;
+            builder.add_buffer(sink_buffer.cpu_accessible_buffer())?;
             builder.build()?
         });
 
@@ -114,10 +107,10 @@ impl ProcessingNode for GpuBitDepthConverter {
         let command_buffer = builder.build()?;
 
         let future =
-            fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
-
+            now(self.device.clone()).then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
+        
         future.wait(None).unwrap();
-        Ok(Payload::from(Frame { interp, storage: GpuBuffer::from(sink_buffer) }))
+        Ok(Payload::from(Frame { interp, storage: sink_buffer }))
     }
 
     fn get_caps(&self) -> Caps { self.input.get_caps() }
