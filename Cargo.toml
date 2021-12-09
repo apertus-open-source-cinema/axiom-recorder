@@ -39,6 +39,7 @@ async-task = "4.0.3"
 derivative = "2.2.0"
 pollster = "0.2.4"
 shellwords = "1.1.0"
+nokhwa = { version = "0.9.1", features = ["output-threaded"] }
 
 
 [profile.release]

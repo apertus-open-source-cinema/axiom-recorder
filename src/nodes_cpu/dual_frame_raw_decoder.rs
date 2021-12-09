@@ -17,7 +17,7 @@ use crate::pipeline_processing::{
     processing_context::ProcessingContext,
 };
 use async_trait::async_trait;
-use futures::{try_join};
+use futures::try_join;
 
 pub struct DualFrameRawDecoder {
     input: Arc<dyn ProcessingNode + Send + Sync>,
