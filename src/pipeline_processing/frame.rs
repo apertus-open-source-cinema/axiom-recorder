@@ -21,7 +21,7 @@ impl CfaDescriptor {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Raw {
     pub width: u64,
     pub height: u64,
@@ -36,7 +36,7 @@ impl FrameInterpretation for Raw {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Rgb {
     pub width: u64,
     pub height: u64,
@@ -47,7 +47,7 @@ impl FrameInterpretation for Rgb {
     fn required_bytes(&self) -> usize { self.width as usize * self.height as usize * 3 }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Rgba {
     pub width: u64,
     pub height: u64,
@@ -59,6 +59,7 @@ impl FrameInterpretation for Rgba {
 }
 
 
+#[derive(Clone, Copy, Debug)]
 pub enum FrameInterpretations {
     Raw(Raw),
     Rgb(Rgb),

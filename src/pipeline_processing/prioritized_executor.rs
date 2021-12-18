@@ -74,6 +74,11 @@ impl<P: Ord + Clone + Send + Sync + 'static> PrioritizedReactor<P> {
 mod prioritized_future_test {
     use super::*;
     use futures::join;
+    use std::{
+        pin::Pin,
+        sync::atomic::{AtomicU64, Ordering},
+        task::{Context, Poll},
+    };
 
     #[test]
     fn test_smoke() {
@@ -99,5 +104,31 @@ mod prioritized_future_test {
             pollster::block_on(async { join!(fut_3, fut_1, fut_2) });
             assert_eq!(&*output.lock().unwrap(), &vec![1, 2, 3]);
         }
+    }
+
+    #[test]
+    fn test_step_future() {
+        struct StepFuture {
+            current: AtomicU64,
+        }
+        impl Future for StepFuture {
+            type Output = ();
+
+            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                match self.current.load(Ordering::Relaxed) {
+                    1_000 => Poll::Ready(()),
+                    _ => {
+                        self.current.fetch_add(1, Ordering::Relaxed);
+                        cx.waker().clone().wake();
+                        Poll::Pending
+                    }
+                }
+            }
+        }
+
+        let pr = PrioritizedReactor::new();
+        pr.start_inner(1);
+        let fut = pr.spawn_with_priority(StepFuture { current: Default::default() }, 1);
+        pollster::block_on(fut);
     }
 }

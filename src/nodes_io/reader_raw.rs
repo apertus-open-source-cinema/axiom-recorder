@@ -15,15 +15,20 @@ use crate::pipeline_processing::{
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use glob::glob;
-use std::{fs::File, io::Read, path::PathBuf, sync::Mutex};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    path::PathBuf,
+    sync::Mutex,
+};
 
-/*
+
 pub struct RawBlobReader {
     file: Mutex<File>,
-    interp: Raw,
+    interp: FrameInterpretations,
+    cache_frames: bool,
+    cache: Mutex<Vec<Option<Payload>>>,
     frame_count: u64,
-    sleep: f64,
-    context: ProcessingContext,
 }
 impl Parameterizable for RawBlobReader {
     const DESCRIPTION: Option<&'static str> =
@@ -31,52 +36,67 @@ impl Parameterizable for RawBlobReader {
 
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
+            .with_interpretation()
             .with("file", Mandatory(StringParameter))
-            .with_raw_interpretation()
-            .with("sleep", Optional(FloatRange(0., f64::MAX), ParameterValue::FloatRange(0.0)))
+            .with("cache-frames", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
-    fn from_parameters(options: &Parameters, context: ProcessingContext) -> anyhow::Result<Self>
+    fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
-        let interp = options.get_raw_interpretation()?;
         let path: String = options.get("file")?;
+        let file = File::open(path)?;
 
-        let file = File::open(&path)?;
+        let interp = options.get_interpretation()?;
         let frame_count = file.metadata()?.len() / interp.required_bytes() as u64;
         Ok(Self {
             file: Mutex::new(file),
-            frame_count,
             interp,
-            sleep: options.get("sleep")?,
-            context,
+            frame_count,
+            cache_frames: options.get("cache-frames")?,
+            cache: Mutex::new((0..frame_count).map(|_| None).collect()),
         })
     }
 }
+#[async_trait]
 impl ProcessingNode for RawBlobReader {
-    fn process(
-        &self,
-        _input: &mut Payload,
-        _frame_lock: ProcessingStageLockWaiter,
-    ) -> Result<Option<Payload>> {
-        sleep(Duration::from_secs_f64(self.sleep));
-
-        let mut buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
-        let read_count =
-            buffer.as_mut_slice(|buffer| self.file.lock().unwrap().read(buffer).unwrap());
-
-        if read_count == 0 {
-            Ok(None)
-        } else if read_count == buffer.len() {
-            Ok(Some(Payload::from(Frame { storage: buffer, interp: self.interp })))
-        } else {
-            Err(anyhow!("File could not be fully consumed. is the resolution set right?"))
+    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+        if frame_number >= self.frame_count as u64 {
+            return Err(anyhow!(
+                "frame {} was requested but this stream only has a length of {}",
+                frame_number,
+                self.frame_count
+            ));
         }
+
+        let mut file = self.file.lock().unwrap();
+        file.seek(SeekFrom::Start(frame_number * self.interp.required_bytes() as u64))?;
+
+        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        buffer
+            .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
+
+        if self.cache_frames {
+            if let Some(cached) = self.cache.lock().unwrap()[frame_number as usize].clone() {
+                return Ok(cached);
+            }
+        }
+
+        let payload = match self.interp {
+            FrameInterpretations::Raw(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgb(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgba(interp) => Payload::from(Frame { storage: buffer, interp }),
+        };
+
+        self.cache.lock().unwrap()[frame_number as usize] = Some(payload.clone());
+        Ok(payload)
     }
-    fn size_hint(&self) -> Option<u64> { Some(self.frame_count) }
+
+    fn get_caps(&self) -> Caps {
+        Caps { frame_count: Some(self.frame_count as u64), is_live: false }
+    }
 }
- */
+
 
 pub struct RawDirectoryReader {
     files: Vec<PathBuf>,

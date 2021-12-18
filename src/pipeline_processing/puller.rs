@@ -92,19 +92,16 @@ impl OrderedPuller {
                     }
                 }
                 if let Some(payload) = todo.pop_back() {
-                    if let Ok(payload) = pollster::block_on(payload) {
-                        match tx.send(payload) {
-                            Ok(()) => {}
-                            Err(SendError(_)) => break,
-                        }
-                    } else {
-                        break;
+                    match tx.send(pollster::block_on(payload)?) {
+                        Ok(()) => {}
+                        Err(SendError(_)) => break,
                     }
                 } else {
                     break;
                 }
             }
 
+            dbg!("loool");
             Ok(())
         });
 

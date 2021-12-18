@@ -1,16 +1,16 @@
 use std::{
-    sync::mpsc::{channel, Sender},
+    sync::mpsc::{sync_channel, SyncSender},
     thread,
     time::{Duration, SystemTime},
 };
 
 pub struct FPSReporter {
-    tx: Sender<()>,
+    tx: SyncSender<()>,
 }
 
 impl FPSReporter {
     pub fn new(name: &str) -> Self {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(100);
         let name = name.to_string();
         thread::spawn(move || {
             let mut time = SystemTime::now();
@@ -32,5 +32,5 @@ impl FPSReporter {
         Self { tx }
     }
 
-    pub fn frame(&mut self) { self.tx.send(()).unwrap(); }
+    pub fn frame(&self) { self.tx.send(()).unwrap(); }
 }
