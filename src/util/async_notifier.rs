@@ -1,18 +1,13 @@
-
 use std::{
     future::Future,
     pin::Pin,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-        Mutex,
-    },
+    sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
 };
 
 pub struct AsyncNotifierInner<T> {
     data: T,
-    futures: Vec<(Arc<AsyncNotifierFuture>, Box<dyn Fn(&T) -> bool + Send + Sync>)>,
+    futures: Vec<(AsyncNotifierFuture, Box<dyn Fn(&T) -> bool + Send + Sync>)>,
 }
 #[derive(Clone)]
 pub struct AsyncNotifier<T>(Arc<Mutex<AsyncNotifierInner<T>>>);
@@ -24,24 +19,37 @@ impl<T> AsyncNotifier<T> {
     pub fn wait(
         &self,
         predicate: impl Fn(&T) -> bool + 'static + Send + Sync,
-    ) -> Arc<AsyncNotifierFuture> {
-        let fut = Arc::new(AsyncNotifierFuture { waker: None, ready: AtomicBool::new(false) });
-
-        self.0.lock().unwrap().futures.push((fut.clone(), Box::new(predicate)));
+    ) -> AsyncNotifierFuture {
+        let mut lock = self.0.lock().unwrap();
+        let ready = predicate(&lock.data);
+        let fut = AsyncNotifierFuture(Arc::new(Mutex::new(AsyncNotifierFutureInner {
+            waker: None,
+            ready,
+            poll_count: 0,
+        })));
+        lock.futures.push((fut.clone(), Box::new(predicate)));
         fut
     }
 
-    pub fn update(&self, gen_new_value: impl Fn(&T) -> T + 'static + Send + Sync) {
+    pub fn update<R>(&self, modify: impl FnOnce(&mut T) -> R + Send + Sync) -> R {
         let mut lock = self.0.lock().unwrap();
-        let value = gen_new_value(&lock.data);
+        let AsyncNotifierInner { data, futures } = &mut *lock;
+        let to_return = modify(data);
 
-        lock.futures.retain(|(future, predicate)| {
-            let ready = predicate(&value);
-            future.ready.store(ready, Ordering::Relaxed);
+        futures.retain(|(future, predicate)| {
+            let ready = predicate(data);
+            if ready {
+                let mut future = future.0.lock().unwrap();
+                future.ready = true;
+                if let Some(waker) = future.waker.take() {
+                    waker.wake();
+                } else {
+                }
+            }
             !ready
         });
 
-        lock.data = value;
+        to_return
     }
 }
 impl<T: Clone> AsyncNotifier<T> {
@@ -53,16 +61,21 @@ impl<T: Default> Default for AsyncNotifier<T> {
 }
 
 #[derive(Debug)]
-pub struct AsyncNotifierFuture {
+pub struct AsyncNotifierFutureInner {
     waker: Option<Waker>,
-    ready: AtomicBool,
+    ready: bool,
+    poll_count: u64,
 }
+#[derive(Debug, Clone)]
+pub struct AsyncNotifierFuture(Arc<Mutex<AsyncNotifierFutureInner>>);
 impl Future for AsyncNotifierFuture {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.waker.replace(cx.waker().clone());
-        if self.ready.load(Ordering::Relaxed) {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut lock = self.0.lock().unwrap();
+        lock.poll_count += 1;
+        lock.waker.replace(cx.waker().clone());
+        if lock.ready {
             Poll::Ready(())
         } else {
             Poll::Pending

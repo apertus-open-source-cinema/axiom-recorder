@@ -3,8 +3,8 @@ use crate::{
         frame::{Frame, FrameInterpretation, Rgb},
         node::{Caps, ProcessingNode},
         parametrizable::{
-            ParameterType::{IntRange},
-            ParameterTypeDescriptor::{Optional},
+            ParameterType::IntRange,
+            ParameterTypeDescriptor::Optional,
             ParameterValue,
             Parameterizable,
             Parameters,
@@ -17,20 +17,25 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-
-use nokhwa::{Camera};
 use std::{
     collections::VecDeque,
-    sync::{
-        Arc,
-        Mutex,
-    },
+    mem,
+    sync::{mpsc, Arc},
     thread,
 };
+use v4l::{
+    buffer::{Metadata, Type},
+    device::Handle,
+    v4l2,
+    video::Capture,
+    Device,
+    Memory,
+};
+use v4l2_sys_mit::*;
+
 
 pub struct WebcamInput {
-    queue: Arc<Mutex<VecDeque<(u64, Payload)>>>,
-    last_frame: AsyncNotifier<u64>,
+    queue: AsyncNotifier<VecDeque<(u64, Payload)>>,
 }
 impl Parameterizable for WebcamInput {
     const DESCRIPTION: Option<&'static str> =
@@ -41,55 +46,177 @@ impl Parameterizable for WebcamInput {
             .with("device", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
     }
     fn from_parameters(options: &Parameters, context: &ProcessingContext) -> anyhow::Result<Self> {
-        let mut camera = Camera::new(options.get::<u64>("device")? as usize, None)?;
-        let queue = Arc::new(Mutex::new(VecDeque::new()));
-        let last_frame = AsyncNotifier::new(0);
-        let interp = Rgb {
-            width: camera.resolution().width() as u64,
-            height: camera.resolution().height() as u64,
-            fps: camera.frame_rate() as f64,
-        };
-        let context = context.clone();
-        let queue_clone = queue.clone();
-        let last_frame_clone = last_frame.clone();
-        camera.open_stream()?;
+        let dev =
+            Device::new(options.get::<u64>("device")? as usize).expect("Failed to open device");
+        let format = dev.format()?;
+        let interp = Rgb { width: format.width as u64, height: format.height as u64, fps: 10000.0 };
+        let mut stream = CpuBufferQueueManager::new(&dev);
+        stream.start();
+        let (tx, rx) = mpsc::channel();
         thread::spawn(move || loop {
-            let mut buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
-            buffer.as_mut_slice(|buffer| camera.frame_to_buffer(buffer, false)).unwrap();
-            last_frame_clone.update(|old| old + 1);
-            queue_clone.lock().unwrap().push_back((
-                last_frame_clone.get(),
-                Payload::from(Frame { storage: buffer, interp: interp.clone() }),
-            ));
+            tx.send(stream.dequeue()).unwrap();
+            stream.enqueue();
         });
 
-        Ok(Self { queue, last_frame })
+        let queue = AsyncNotifier::new(VecDeque::new());
+        let queue_clone = queue.clone();
+        let context = context.clone();
+        thread::spawn(move || loop {
+            let mut buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
+            let (src_buf, metadata) = rx.recv().unwrap();
+            buffer.as_mut_slice(|buffer| {
+                for (src, dst) in src_buf.chunks_exact(3).zip(buffer.chunks_exact_mut(3)) {
+                    dst[0] = src[2];
+                    dst[1] = src[1];
+                    dst[2] = src[0];
+                }
+            });
+
+            queue_clone.update(move |queue| {
+                queue.push_back((
+                    metadata.sequence as u64,
+                    Payload::from(Frame { storage: buffer, interp: interp.clone() }),
+                ));
+            });
+        });
+
+        Ok(Self { queue })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for WebcamInput {
     async fn pull(&self, frame_number: u64, _context: &ProcessingContext) -> Result<Payload> {
-        let mut lock = self.queue.lock().unwrap();
-        let base_index = lock[0].0;
-        if frame_number < base_index {
-            Err(anyhow!(
-                "the frame {} is not available anymore. your access pattern is probably bad"
+        self.queue
+            .wait(move |queue| {
+                queue
+                    .iter()
+                    .map(|(n, _)| n)
+                    .max()
+                    .map(|latest| *latest >= frame_number)
+                    .unwrap_or(false)
+            })
+            .await;
+
+        self.queue.update(|queue| {
+            let _number_vec = queue.iter().map(|(n, _)| n).collect::<Vec<_>>();
+
+            let pos = queue.iter().position(|(n, _)| *n == frame_number).ok_or(anyhow!(
+                "Frame {} is not present anymore in webcam input buffer",
+                frame_number
             ))?;
-        } else {
-            self.last_frame.wait(move |n| *n >= frame_number);
-        }
-
-        let payload = lock
-            .iter()
-            .find(|(n, _)| *n == frame_number)
-            .ok_or(anyhow!("Frame {} is not present anymore in webcam input buffer", frame_number))?
-            .1
-            .clone();
-        lock.retain(|(n, _)| *n < frame_number);
-
-        Ok(payload)
+            let payload = queue.remove(pos).unwrap().1;
+            Ok(payload)
+        })
     }
 
     fn get_caps(&self) -> Caps { Caps { frame_count: None, is_live: true } }
+}
+
+pub struct CpuBufferQueueManager {
+    handle: Arc<Handle>,
+    buffer_size: usize,
+    buffers: Vec<Option<Vec<u8>>>,
+}
+impl CpuBufferQueueManager {
+    fn new(dev: &Device) -> Self {
+        let handle = dev.handle().clone();
+        let num_buffers = 4usize;
+
+        let mut v4l2_reqbufs: v4l2_requestbuffers;
+        unsafe {
+            v4l2_reqbufs = mem::zeroed();
+            v4l2_reqbufs.type_ = Type::VideoCapture as u32;
+            v4l2_reqbufs.count = num_buffers as u32;
+            v4l2_reqbufs.memory = Memory::UserPtr as u32;
+            v4l2::ioctl(
+                handle.fd(),
+                v4l2::vidioc::VIDIOC_REQBUFS,
+                &mut v4l2_reqbufs as *mut _ as *mut std::os::raw::c_void,
+            )
+            .unwrap();
+        }
+
+        let mut v4l2_fmt: v4l2_format;
+        unsafe {
+            v4l2_fmt = mem::zeroed();
+            v4l2_fmt.type_ = Type::VideoCapture as u32;
+            v4l2::ioctl(
+                handle.fd(),
+                v4l2::vidioc::VIDIOC_G_FMT,
+                &mut v4l2_fmt as *mut _ as *mut std::os::raw::c_void,
+            )
+            .unwrap();
+        }
+        let buffer_size = unsafe { v4l2_fmt.fmt.pix.sizeimage } as usize;
+
+        let buffers = vec![None; num_buffers];
+        let mut to_return = Self { handle, buffers, buffer_size };
+        for _ in 0..(num_buffers - 1) {
+            to_return.enqueue()
+        }
+
+        to_return
+    }
+
+    fn start(&mut self) {
+        unsafe {
+            let mut typ = Type::VideoCapture as u32;
+            v4l2::ioctl(
+                self.handle.fd(),
+                v4l2::vidioc::VIDIOC_STREAMON,
+                &mut typ as *mut _ as *mut std::os::raw::c_void,
+            )
+            .unwrap();
+        }
+    }
+
+    fn enqueue(&mut self) {
+        let buffer = vec![0u8; self.buffer_size];
+        let index = self.buffers.iter().position(|x| x.is_none()).unwrap();
+
+        let mut v4l2_buf: v4l2_buffer;
+        unsafe {
+            v4l2_buf = mem::zeroed();
+            v4l2_buf.type_ = Type::VideoCapture as u32;
+            v4l2_buf.memory = Memory::UserPtr as u32;
+            v4l2_buf.index = index as u32;
+            v4l2_buf.m.userptr = buffer.as_ptr() as std::os::raw::c_ulong;
+            v4l2_buf.length = buffer.len() as u32;
+            v4l2::ioctl(
+                self.handle.fd(),
+                v4l2::vidioc::VIDIOC_QBUF,
+                &mut v4l2_buf as *mut _ as *mut std::os::raw::c_void,
+            )
+            .unwrap();
+        }
+
+        self.buffers[index].replace(buffer);
+    }
+
+    fn dequeue(&mut self) -> (Vec<u8>, Metadata) {
+        let mut v4l2_buf: v4l2_buffer;
+        unsafe {
+            v4l2_buf = mem::zeroed();
+            v4l2_buf.type_ = Type::VideoCapture as u32;
+            v4l2_buf.memory = Memory::UserPtr as u32;
+            v4l2::ioctl(
+                self.handle.fd(),
+                v4l2::vidioc::VIDIOC_DQBUF,
+                &mut v4l2_buf as *mut _ as *mut std::os::raw::c_void,
+            )
+            .unwrap();
+        }
+
+        let metadata = Metadata {
+            bytesused: v4l2_buf.bytesused,
+            flags: v4l2_buf.flags.into(),
+            field: v4l2_buf.field,
+            timestamp: v4l2_buf.timestamp.into(),
+            sequence: v4l2_buf.sequence,
+        };
+        let index = v4l2_buf.index as usize;
+
+        (self.buffers[index].take().unwrap(), metadata)
+    }
 }

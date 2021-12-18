@@ -5,16 +5,19 @@ use crate::pipeline_processing::{
 use anyhow::{Context, Result};
 use std::sync::Arc;
 
-use crate::pipeline_processing::{
-    frame::{CfaDescriptor, Frame, FrameInterpretation, Raw, Rgb},
-    node::{Caps, ProcessingNode},
-    parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        ParameterTypeDescriptor::Optional,
-        ParameterValue,
+use crate::{
+    pipeline_processing::{
+        frame::{CfaDescriptor, Frame, FrameInterpretation, Raw, Rgb},
+        node::{Caps, ProcessingNode},
+        parametrizable::{
+            ParameterType,
+            ParameterTypeDescriptor,
+            ParameterTypeDescriptor::Optional,
+            ParameterValue,
+        },
+        processing_context::ProcessingContext,
     },
-    processing_context::ProcessingContext,
+    util::async_notifier::AsyncNotifier,
 };
 use async_trait::async_trait;
 use futures::try_join;
@@ -22,7 +25,7 @@ use futures::try_join;
 pub struct DualFrameRawDecoder {
     input: Arc<dyn ProcessingNode + Send + Sync>,
     cfa_descriptor: CfaDescriptor,
-    first_even: bool,
+    last_frame_info: AsyncNotifier<(u64, u64)>,
 }
 impl Parameterizable for DualFrameRawDecoder {
     fn describe_parameters() -> ParametersDescriptor {
@@ -36,10 +39,6 @@ impl Parameterizable for DualFrameRawDecoder {
                 "first-red-y",
                 Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
             )
-            .with(
-                "first-frame-even",
-                Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
-            )
     }
 
     fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
@@ -49,7 +48,7 @@ impl Parameterizable for DualFrameRawDecoder {
                 first_is_red_x: parameters.get("first-red-x")?,
                 first_is_red_y: parameters.get("first-red-y")?,
             },
-            first_even: parameters.get("first-frame-even")?,
+            last_frame_info: Default::default(),
         })
     }
 }
@@ -57,17 +56,38 @@ impl Parameterizable for DualFrameRawDecoder {
 #[async_trait]
 impl ProcessingNode for DualFrameRawDecoder {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+        self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
+        let (_, next_even) = self.last_frame_info.get();
+
         let frames = try_join!(
-            self.input.pull(frame_number * 2 + self.first_even as u64, context),
-            self.input.pull(frame_number * 2 + (!self.first_even) as u64, context)
+            self.input.pull(next_even, context),
+            self.input.pull(next_even + 1, context)
         )?;
         let frames_array = [frames.0, frames.1];
         let mut frames_collected = frames_array
             .iter()
             .map(|x| context.ensure_cpu_buffer::<Rgb>(&x).context("Wrong input format"));
 
-        let frame_a = frames_collected.next().unwrap()?;
-        let frame_b = frames_collected.next().unwrap()?;
+        let mut frame_a = frames_collected.next().unwrap()?;
+        let mut frame_b = frames_collected.next().unwrap()?;
+
+        let is_correct = frame_a.storage.as_slice(|frame_a| frame_a[0] % 2 == 1);
+
+        let next_next_even = if !is_correct {
+            // we slip one frame
+            println!("frame slipped in DualFrameRawDecoder");
+            frame_a = frame_b;
+            frame_b = context
+                .ensure_cpu_buffer::<Rgb>(&self.input.pull(next_even + 2, &context).await?)
+                .context("Wrong input format")?;
+            next_even + 3
+        } else {
+            next_even + 2
+        };
+        self.last_frame_info.update(move |(next, next_even)| {
+            *next = frame_number + 1;
+            *next_even = next_next_even;
+        });
 
         let interp = Raw {
             width: frame_a.interp.width * 2,
@@ -89,8 +109,8 @@ impl ProcessingNode for DualFrameRawDecoder {
                         .zip(new_buffer.chunks_exact_mut(line_bytes * 2))
                     {
                         let mut chunks = output_chunk.chunks_exact_mut(line_bytes);
-                        chunks.next().unwrap().copy_from_slice(frame_a_chunk);
                         chunks.next().unwrap().copy_from_slice(frame_b_chunk);
+                        chunks.next().unwrap().copy_from_slice(frame_a_chunk);
                     }
                 });
             })
