@@ -4,9 +4,13 @@ use crate::pipeline_processing::{
     processing_context::ProcessingContext,
 };
 use anyhow::Result;
+use futures::{
+    stream::{FuturesUnordered},
+    StreamExt,
+};
 use std::{
     collections::VecDeque,
-    ops::Deref,
+    ops::{Deref},
     sync::{
         atomic::{AtomicU64, Ordering},
         mpsc::{sync_channel, Receiver, SendError},
@@ -26,32 +30,40 @@ pub async fn pull_unordered(
     let total_frames = input.get_caps().frame_count;
     let latest_frame = Arc::new(AtomicU64::new(0));
 
-    let range = match total_frames {
+    let mut range = match total_frames {
         Some(frame_count) => 0..frame_count,
         None => 0..u64::MAX,
     };
+    let mut futures_unordered = FuturesUnordered::new();
 
-    futures::future::try_join_all(range.map(move |frame_number| {
-        let input = input.clone();
-        let latest_frame = latest_frame.clone();
-        let progress_callback = progress_callback.clone();
-        let context = context.for_frame(frame_number);
-        let context_clone = context.clone();
-        let on_payload = on_payload.clone();
-        context.spawn(async move {
-            let input = input.clone().pull(frame_number, &context_clone).await?;
-            on_payload(input, frame_number)?;
+    loop {
+        if futures_unordered.len() >= context.num_threads() {
+            if let Some(result) = futures_unordered.next().await {
+                result?;
+            } else {
+                break;
+            }
+        }
+        if let Some(frame) = range.next() {
+            let context_clone = context.clone();
+            let input = input.clone();
+            let on_payload = on_payload.clone();
+            let progress_callback = progress_callback.clone();
+            let latest_frame = latest_frame.clone();
+            futures_unordered.push(context.spawn(async move {
+                let payload = input.pull(frame, &context_clone).await?;
+                on_payload(payload, frame)?;
 
-            let latest_frame = latest_frame.fetch_max(frame_number, Ordering::Relaxed);
-            progress_callback(ProgressUpdate { latest_frame, total_frames });
+                let latest_frame = latest_frame.fetch_max(frame, Ordering::Relaxed);
+                progress_callback(ProgressUpdate { latest_frame, total_frames });
 
-            Ok::<(), anyhow::Error>(())
-        })
-    }))
-    .await?;
+                Ok::<(), anyhow::Error>(())
+            }))
+        }
+    }
+
     Ok(())
 }
-
 
 pub struct OrderedPuller {
     rx: Option<Receiver<Payload>>,
@@ -64,7 +76,7 @@ impl OrderedPuller {
         input: Arc<dyn ProcessingNode + Send + Sync>,
         do_loop: bool,
     ) -> Self {
-        let (tx, rx) = sync_channel::<Payload>(10);
+        let (tx, rx) = sync_channel::<Payload>(context.num_threads());
         let context = context.clone();
         let join_handle = thread::spawn(move || {
             let mut range: Box<dyn Iterator<Item = u64>> = match input.get_caps().frame_count {
@@ -78,7 +90,7 @@ impl OrderedPuller {
                 None => Box::new(0..u64::MAX),
             };
 
-            let mut todo = VecDeque::with_capacity(10);
+            let mut todo = VecDeque::with_capacity(context.num_threads());
             loop {
                 while todo.len() < 10 {
                     if let Some(frame) = range.next() {
@@ -101,7 +113,6 @@ impl OrderedPuller {
                 }
             }
 
-            dbg!("loool");
             Ok(())
         });
 
