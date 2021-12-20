@@ -54,6 +54,7 @@ pub struct ProcessingContext {
 }
 impl Default for ProcessingContext {
     fn default() -> Self {
+        let threads = num_cpus::get();
         let vk_device =
             Instance::new(None, Version::V1_2, &vulkano_win::required_extensions(), None)
                 .ok()
@@ -82,7 +83,7 @@ impl Default for ProcessingContext {
                 Self {
                     vulkan_device: None,
                     priority: Default::default(),
-                    prioritized_reactor: PrioritizedReactor::start(8),
+                    prioritized_reactor: PrioritizedReactor::start(threads),
                 }
             }
             Some((device, queues)) => {
@@ -90,7 +91,7 @@ impl Default for ProcessingContext {
                 Self {
                     vulkan_device: Some(VulkanContext { device, queues: queues.collect() }),
                     priority: Default::default(),
-                    prioritized_reactor: PrioritizedReactor::start(8),
+                    prioritized_reactor: PrioritizedReactor::start(threads),
                 }
             }
         }
@@ -185,4 +186,6 @@ impl ProcessingContext {
     ) -> impl Future<Output = O> {
         self.prioritized_reactor.spawn_with_priority(fut, self.priority)
     }
+
+    pub fn num_threads(&self) -> usize { self.prioritized_reactor.num_threads }
 }

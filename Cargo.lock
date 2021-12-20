@@ -1574,6 +1574,7 @@ dependencies = [
  "itertools",
  "lazy_static",
  "num",
+ "num_cpus",
  "owning_ref",
  "pollster",
  "rayon",

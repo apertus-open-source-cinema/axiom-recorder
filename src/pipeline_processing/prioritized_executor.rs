@@ -19,13 +19,16 @@ struct PrioritizedRunnable<T: Ord> {
 #[derive(Clone)]
 pub struct PrioritizedReactor<T: Ord> {
     queue_cvar: Arc<(Mutex<BinaryHeap<Reverse<PrioritizedRunnable<T>>>>, Condvar)>,
+    pub num_threads: usize,
 }
 
 impl<P: Ord + Clone + Send + Sync + 'static> PrioritizedReactor<P> {
-    pub(self) fn new() -> Self { Self { queue_cvar: Default::default() } }
+    pub(self) fn new(num_threads: usize) -> Self {
+        Self { queue_cvar: Default::default(), num_threads }
+    }
 
-    pub(self) fn start_inner(&self, num_threads: u64) {
-        for _ in 0..num_threads {
+    pub(self) fn start_inner(&self) {
+        for _ in 0..self.num_threads {
             let queue_cvar = self.queue_cvar.clone();
             thread::spawn(move || {
                 let (queue, cvar) = &*queue_cvar;
@@ -45,9 +48,9 @@ impl<P: Ord + Clone + Send + Sync + 'static> PrioritizedReactor<P> {
         }
     }
 
-    pub fn start(num_threads: u64) -> Self {
-        let instance = Self::new();
-        instance.start_inner(num_threads);
+    pub fn start(num_threads: usize) -> Self {
+        let instance = Self::new(num_threads);
+        instance.start_inner();
         instance
     }
 
@@ -83,7 +86,7 @@ mod prioritized_future_test {
     #[test]
     fn test_smoke() {
         for _ in 0..100 {
-            let pr = PrioritizedReactor::new();
+            let pr = PrioritizedReactor::new(1);
 
             let output: Arc<Mutex<Vec<u64>>> = Default::default();
 
@@ -100,7 +103,7 @@ mod prioritized_future_test {
                 pr.spawn_with_priority(async move { output.lock().unwrap().push(2) }, 2)
             };
 
-            pr.start_inner(1);
+            pr.start_inner();
             pollster::block_on(async { join!(fut_3, fut_1, fut_2) });
             assert_eq!(&*output.lock().unwrap(), &vec![1, 2, 3]);
         }
@@ -126,8 +129,8 @@ mod prioritized_future_test {
             }
         }
 
-        let pr = PrioritizedReactor::new();
-        pr.start_inner(1);
+        let pr = PrioritizedReactor::new(1);
+        pr.start_inner();
         let fut = pr.spawn_with_priority(StepFuture { current: Default::default() }, 1);
         pollster::block_on(fut);
     }
