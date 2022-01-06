@@ -18,6 +18,7 @@ layout(set = 0, binding = 1) buffer writeonly Sink   { uint8_t data[]; } sink;
 
 void main() {
     uvec2 pos = gl_GlobalInvocationID.xy;
+    if (pos.x >= params.width || pos.y >= params.height) return;
 
     /*
     variables a-i are the neighbour pixels (we are e)

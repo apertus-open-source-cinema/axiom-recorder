@@ -6,6 +6,7 @@ layout(local_size_x = 16, local_size_y = 32, local_size_z = 1) in;
 
 layout(push_constant) uniform PushConstantData {
     uint width;
+    uint height;
 } params;
 
 layout(set = 0, binding = 0) buffer readonly  Source { uint8_t data[]; } source;
@@ -13,6 +14,8 @@ layout(set = 0, binding = 1) buffer writeonly Sink   { uint8_t data[]; } sink;
 
 void main() {
     uvec2 pos = gl_GlobalInvocationID.xy;
+    if (pos.x * 2 >= params.width || pos.y >= params.height) return;
+
 
     uint source_idx = pos.y * params.width * 3 / 2 + 3 * pos.x;
     uint8_t a = source.data[source_idx + 0];
