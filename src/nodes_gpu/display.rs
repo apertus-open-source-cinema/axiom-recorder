@@ -107,8 +107,8 @@ mod fragment_shader {
             }
 
             void main() {
-                int x = int(tex_coords.x * params.width);
-                int y = int(tex_coords.y * params.height);
+                int x = int(tex_coords.x * (params.width - 1));
+                int y = int(tex_coords.y * (params.height - 1));
                 f_color = vec4(get_px(x, y), 1.);
             }
         "

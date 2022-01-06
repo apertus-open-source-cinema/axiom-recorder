@@ -85,7 +85,10 @@ impl ProcessingNode for GpuBitDepthConverter {
             std::iter::once(self.queue.family()),
         )?;
 
-        let push_constants = compute_shader::ty::PushConstantData { width: interp.width as u32 };
+        let push_constants = compute_shader::ty::PushConstantData {
+            width: interp.width as u32,
+            height: interp.height as u32,
+        };
 
         let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
         let set = Arc::new({
@@ -110,7 +113,7 @@ impl ProcessingNode for GpuBitDepthConverter {
             )
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
-            .dispatch([interp.width as u32 / 16 / 2, interp.height as u32 / 32, 1])?;
+            .dispatch([(interp.width as u32 + 31) / 16 / 2, (interp.height as u32 + 31) / 32, 1])?;
         let command_buffer = builder.build()?;
 
         let future =

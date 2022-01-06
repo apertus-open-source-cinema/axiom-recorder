@@ -120,7 +120,11 @@ impl ProcessingNode for Debayer {
             )
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
-            .dispatch([frame.interp.width as u32 / 32, frame.interp.height as u32 / 32, 1])?;
+            .dispatch([
+                (frame.interp.width + 31) as u32 / 32,
+                (frame.interp.height as u32 + 31) / 32,
+                1,
+            ])?;
         let command_buffer = builder.build()?;
 
         let future =
