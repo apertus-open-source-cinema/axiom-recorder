@@ -4,13 +4,10 @@ use crate::pipeline_processing::{
     processing_context::ProcessingContext,
 };
 use anyhow::Result;
-use futures::{
-    stream::{FuturesUnordered},
-    StreamExt,
-};
+use futures::{stream::FuturesUnordered, StreamExt};
 use std::{
     collections::VecDeque,
-    ops::{Deref},
+    ops::Deref,
     sync::{
         atomic::{AtomicU64, Ordering},
         mpsc::{sync_channel, Receiver, SendError},
