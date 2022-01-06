@@ -4,7 +4,12 @@ use crate::{
         bitdepth_convert::BitDepthConverter,
         dual_frame_raw_decoder::DualFrameRawDecoder,
     },
-    nodes_gpu::{bitdepth_convert::GpuBitDepthConverter, debayer::Debayer, display::Display},
+    nodes_gpu::{
+        bitdepth_convert::GpuBitDepthConverter,
+        color_voodoo::ColorVoodoo,
+        debayer::Debayer,
+        display::Display,
+    },
     nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
         reader_webcam::WebcamInput,
@@ -56,4 +61,5 @@ generate_dynamic_node_creation_functions![
     DualFrameRawDecoder,
     BenchmarkSink,
     WebcamInput,
+    ColorVoodoo,
 ];
