@@ -15,7 +15,10 @@ use crate::pipeline_processing::{
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 
-use crate::pipeline_processing::node::ProgressUpdate;
+use crate::pipeline_processing::{
+    node::ProgressUpdate,
+    parametrizable::{ParameterType::IntRange, ParameterTypeDescriptor::Optional, ParameterValue},
+};
 use std::{fs::create_dir, sync::Arc};
 use tiff_encoder::{
     ifd::{tags, values::Offsets, Ifd},
@@ -34,6 +37,7 @@ use vulkano::buffer::TypedBufferAccess;
 pub struct CinemaDngWriter {
     dir_path: String,
     input: Arc<dyn ProcessingNode + Send + Sync>,
+    number_of_frames: u64,
 }
 
 impl Parameterizable for CinemaDngWriter {
@@ -41,6 +45,7 @@ impl Parameterizable for CinemaDngWriter {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInput))
+            .with("number-of-frames", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
     }
 
     fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
@@ -49,7 +54,11 @@ impl Parameterizable for CinemaDngWriter {
     {
         let filename = parameters.get("path")?;
         create_dir(&filename).context("Error while creating target directory")?;
-        Ok(Self { dir_path: filename, input: parameters.get("input")? })
+        Ok(Self {
+            dir_path: filename,
+            input: parameters.get("input")?,
+            number_of_frames: parameters.get("number-of-frames")?,
+        })
     }
 }
 
@@ -67,6 +76,7 @@ impl SinkNode for CinemaDngWriter {
             &context.clone(),
             progress_callback,
             self.input.clone(),
+            self.number_of_frames,
             move |mut input, frame_number| {
                 let frame =
                     context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;

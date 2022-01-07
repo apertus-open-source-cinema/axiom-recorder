@@ -22,15 +22,19 @@ pub async fn pull_unordered(
     context: &ProcessingContext,
     progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     input: Arc<dyn ProcessingNode + Send + Sync>,
+    number_of_frames: u64,
     on_payload: impl Fn(Payload, u64) -> Result<()> + Send + Sync + Clone + 'static,
 ) -> Result<()> {
-    let total_frames = input.get_caps().frame_count;
-    let latest_frame = Arc::new(AtomicU64::new(0));
-
-    let mut range = match total_frames {
-        Some(frame_count) => 0..frame_count,
-        None => 0..u64::MAX,
+    let mut range = match (number_of_frames, input.get_caps().frame_count) {
+        (0, None) => 0..u64::MAX,
+        (0, Some(n)) => 0..n,
+        (n, None) => 0..n,
+        (n, Some(m)) => 0..(n.min(m)),
     };
+
+    let total_frames = if range.end == u64::MAX { None } else { Some(range.end) };
+
+    let latest_frame = Arc::new(AtomicU64::new(0));
     let mut futures_unordered = FuturesUnordered::new();
 
     loop {
@@ -72,20 +76,20 @@ impl OrderedPuller {
         context: &ProcessingContext,
         input: Arc<dyn ProcessingNode + Send + Sync>,
         do_loop: bool,
+        number_of_frames: u64,
     ) -> Self {
         let (tx, rx) = sync_channel::<Payload>(context.num_threads());
         let context = context.clone();
         let join_handle = thread::spawn(move || {
-            let mut range: Box<dyn Iterator<Item = u64>> = match input.get_caps().frame_count {
-                Some(frame_count) => {
-                    if do_loop {
-                        Box::new((0..frame_count).cycle())
-                    } else {
-                        Box::new(0..frame_count)
-                    }
-                }
-                None => Box::new(0..u64::MAX),
+            let range = match (number_of_frames, input.get_caps().frame_count) {
+                (0, None) => 0..u64::MAX,
+                (0, Some(n)) => 0..n,
+                (n, None) => 0..n,
+                (n, Some(m)) => 0..(n.min(m)),
             };
+
+            let mut range: Box<dyn Iterator<Item = u64>> =
+                if do_loop { Box::new(range.cycle()) } else { Box::new(range) };
 
             let mut todo = VecDeque::with_capacity(context.num_threads());
             loop {

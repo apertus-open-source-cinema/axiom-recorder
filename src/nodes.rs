@@ -14,6 +14,7 @@ use crate::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
         reader_webcam::WebcamInput,
         writer_cinema_dng::CinemaDngWriter,
+        writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
     pipeline_processing::{
         node::{Node, ProcessingNodeIntoNode, SinkNodeIntoNode},
@@ -62,4 +63,6 @@ generate_dynamic_node_creation_functions![
     BenchmarkSink,
     WebcamInput,
     ColorVoodoo,
+    RawDirectoryWriter,
+    RawBlobWriter,
 ];
