@@ -51,6 +51,7 @@ impl SinkNode for BenchmarkSink {
                 &context.clone(),
                 progress_callback.clone(),
                 self.input.clone(),
+                0,
                 move |_input, _frame_number| Ok(()),
             )
             .await?;
@@ -60,6 +61,7 @@ impl SinkNode for BenchmarkSink {
                 &context.clone(),
                 progress_callback.clone(),
                 self.input.clone(),
+                0,
                 move |_input, _frame_number| Ok(()),
             )
             .await?;
@@ -73,7 +75,7 @@ impl SinkNode for BenchmarkSink {
 
             Ok(())
         } else {
-            let puller = OrderedPuller::new(context, self.input.clone(), false);
+            let puller = OrderedPuller::new(context, self.input.clone(), false, 0);
             let reporter = FPSReporter::new("pipeline");
             loop {
                 puller.recv().unwrap();

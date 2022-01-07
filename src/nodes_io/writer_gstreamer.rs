@@ -15,9 +15,6 @@ use gstreamer::{Buffer, Format, Fraction, ParseContext, Pipeline, prelude::*};
 use gstreamer_app::AppSrc;
 use gstreamer_video::{VideoFormat, VideoInfo};
 use std::thread::{JoinHandle, spawn};
-use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
-use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
-
 
 pub struct GstWriter {
     appsrc: AppSrc,

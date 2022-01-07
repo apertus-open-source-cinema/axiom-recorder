@@ -150,7 +150,7 @@ impl SinkNode for Display {
         context: &ProcessingContext,
         _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let puller = OrderedPuller::new(context, self.input.clone(), self.do_loop);
+        let puller = OrderedPuller::new(context, self.input.clone(), self.do_loop, 0);
         let (device, queues) = context.require_vulkan()?;
         let live = self.live;
 

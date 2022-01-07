@@ -1,32 +1,30 @@
 use crate::pipeline_processing::{
     frame::Rgb,
+    node::{ProcessingNode, ProgressUpdate, SinkNode},
     parametrizable::{
+        ParameterType::{FloatRange, NodeInput, StringParameter},
+        ParameterTypeDescriptor::{Mandatory, Optional},
+        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
-        ParameterType::{FloatRange, StringParameter},
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
     },
-    payload::Payload,
     processing_context::ProcessingContext,
+    puller::OrderedPuller,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
+use async_trait::async_trait;
 use std::{
     io::Write,
-    process::{Child, Command, Stdio},
-    sync::{Arc, Mutex},
+    process::{Command, Stdio},
+    sync::Arc,
 };
-use crate::pipeline_processing_legacy::execute::ProcessingStageLockWaiter;
-use crate::pipeline_processing_legacy::processing_node::ProcessingNode;
 
 pub struct FfmpegWriter {
     output: String,
     input_options: String,
     fps: f64,
-    resolution: Arc<Mutex<Option<[u64; 2]>>>,
-    child: Arc<Mutex<Option<Child>>>,
-    context: ProcessingContext,
+    input: Arc<dyn ProcessingNode + Send + Sync>,
 }
 impl Parameterizable for FfmpegWriter {
     fn describe_parameters() -> ParametersDescriptor {
@@ -37,75 +35,57 @@ impl Parameterizable for FfmpegWriter {
                 "input-options",
                 Optional(StringParameter, ParameterValue::StringParameter("".to_string())),
             )
+            .with("input", Mandatory(NodeInput))
     }
-    fn from_parameters(parameters: &Parameters, context: ProcessingContext) -> Result<Self>
+    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
     where
         Self: Sized,
     {
         Ok(Self {
-            child: Arc::new(Mutex::new(None)),
-            resolution: Arc::new(Mutex::new(None)),
             output: parameters.get("output")?,
             input_options: parameters.get("input-options")?,
             fps: parameters.get("fps")?,
-            context,
+            input: parameters.get("input")?,
         })
     }
 }
-impl ProcessingNode for FfmpegWriter {
-    fn process(
-        &self,
-        input: &mut Payload,
-        frame_lock: ProcessingStageLockWaiter,
-    ) -> Result<Option<Payload>> {
-        frame_lock.wait();
-        let frame = self.context.ensure_cpu_buffer::<Rgb>(input).context("Wrong input format")?;
 
-        {
-            let mut resolution = self.resolution.lock().unwrap();
-            if resolution.is_none() {
-                let child = Command::new("ffmpeg")
-                    .args(
-                        shlex::split(&format!(
-                        "{} -f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb24 -i - {}",
-                        self.input_options,
-                        self.fps,
-                        frame.interp.width,
-                        frame.interp.height,
-                        self.output
-                    ))
-                        .unwrap(),
-                    )
-                    .stdin(Stdio::piped())
-                    .spawn()?;
-                *self.child.lock().unwrap() = Some(child);
-                *resolution = Some([frame.interp.width, frame.interp.height])
-            } else if resolution.is_some() {
-                let [width, height] = resolution.unwrap();
-                if width != frame.interp.width || height != frame.interp.height {
-                    return Err(anyhow!(
-                        "the resolution MAY NOT change during an ffmpeg encoding session"
-                    ));
-                }
+#[async_trait]
+impl SinkNode for FfmpegWriter {
+    async fn run(
+        &self,
+        context: &ProcessingContext,
+        _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
+    ) -> Result<()> {
+        let puller = OrderedPuller::new(context, self.input.clone(), false, 0);
+        let mut frame = context
+            .ensure_cpu_buffer::<Rgb>(&puller.recv().unwrap())
+            .context("Wrong input format")?;
+
+        let mut child = Command::new("ffmpeg")
+            .args(
+                shlex::split(&format!(
+                    "{} -f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb24 -i - {}",
+                    self.input_options,
+                    self.fps,
+                    frame.interp.width,
+                    frame.interp.height,
+                    self.output
+                ))
+                .unwrap(),
+            )
+            .stdin(Stdio::piped())
+            .spawn()?;
+
+        loop {
+            frame.storage.as_slice(|slice| child.stdin.as_mut().unwrap().write_all(slice))?;
+
+            if let Ok(payload) = puller.recv() {
+                frame = context.ensure_cpu_buffer::<Rgb>(&payload).context("Wrong input format")?;
+            } else {
+                break;
             }
         }
-
-        frame.storage.as_slice(|slice| {
-            self.child
-                .clone()
-                .lock()
-                .unwrap()
-                .as_mut()
-                .unwrap()
-                .stdin
-                .as_mut()
-                .unwrap()
-                .write_all(slice)
-        })?;
-
-        Ok(Some(Payload::empty()))
+        Ok(())
     }
-}
-impl Drop for FfmpegWriter {
-    fn drop(&mut self) { self.child.lock().unwrap().as_mut().unwrap().wait().unwrap(); }
 }
