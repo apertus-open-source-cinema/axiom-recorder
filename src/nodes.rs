@@ -12,7 +12,6 @@ use crate::{
     },
     nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
-        reader_webcam::WebcamInput,
         writer_cinema_dng::CinemaDngWriter,
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
@@ -22,6 +21,8 @@ use crate::{
         processing_context::ProcessingContext,
     },
 };
+#[cfg(linux)]
+use crate::nodes_io::reader_webcam::WebcamInput;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
@@ -51,6 +52,7 @@ macro_rules! generate_dynamic_node_creation_functions {
     };
 }
 
+#[cfg(linux)]
 generate_dynamic_node_creation_functions![
     RawDirectoryReader,
     RawBlobReader,
@@ -62,6 +64,22 @@ generate_dynamic_node_creation_functions![
     DualFrameRawDecoder,
     BenchmarkSink,
     WebcamInput,
+    ColorVoodoo,
+    RawDirectoryWriter,
+    RawBlobWriter,
+];
+
+#[cfg(not(linux))]
+generate_dynamic_node_creation_functions![
+    RawDirectoryReader,
+    RawBlobReader,
+    CinemaDngWriter,
+    GpuBitDepthConverter,
+    Debayer,
+    Display,
+    BitDepthConverter,
+    DualFrameRawDecoder,
+    BenchmarkSink,
     ColorVoodoo,
     RawDirectoryWriter,
     RawBlobWriter,

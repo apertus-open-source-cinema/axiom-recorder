@@ -39,10 +39,11 @@ async-task = "4.0.3"
 derivative = "2.2.0"
 pollster = "0.2.4"
 shellwords = "1.1.0"
-v4l2-sys-mit = "0.2.0"
-v4l = "0.12.1"
 num_cpus = "1.13.0"
 
+[target.'cfg(linux)'.dependencies]
+v4l = "0.12.1"
+v4l2-sys-mit = "0.2.0"
 
 [profile.release]
 debug = true

@@ -65,7 +65,6 @@ impl Default for ProcessingContext {
                             khr_swapchain: true,
                             khr_storage_buffer_storage_class: true,
                             khr_8bit_storage: true,
-                            khr_shader_non_semantic_info: true,
                             ..(*physical.required_extensions())
                         };
                         Device::new(
