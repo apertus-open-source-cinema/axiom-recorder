@@ -14,7 +14,7 @@ use crate::pipeline_processing::{
     payload::Payload,
     processing_context::ProcessingContext,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
 use vulkano::{
@@ -142,7 +142,7 @@ impl ProcessingNode for ColorVoodoo {
             )
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
-            .dispatch([frame.interp.width as u32 / 16, frame.interp.height as u32 / 16, 1])?;
+            .dispatch([(frame.interp.width as u32 + 31) / 32, (frame.interp.height as u32 + 31) / 32, 1])?;
         let command_buffer = builder.build()?;
 
         let future =
