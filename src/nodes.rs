@@ -1,3 +1,5 @@
+#[cfg(linux)]
+use crate::nodes_io::reader_webcam::WebcamInput;
 use crate::{
     nodes_cpu::{
         benchmark_sink::BenchmarkSink,
@@ -9,6 +11,7 @@ use crate::{
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
         display::Display,
+        lut_3d::Lut3d,
     },
     nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
@@ -21,8 +24,6 @@ use crate::{
         processing_context::ProcessingContext,
     },
 };
-#[cfg(linux)]
-use crate::nodes_io::reader_webcam::WebcamInput;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
@@ -67,6 +68,7 @@ generate_dynamic_node_creation_functions![
     ColorVoodoo,
     RawDirectoryWriter,
     RawBlobWriter,
+    Lut3d,
 ];
 
 #[cfg(not(linux))]
@@ -83,4 +85,5 @@ generate_dynamic_node_creation_functions![
     ColorVoodoo,
     RawDirectoryWriter,
     RawBlobWriter,
+    Lut3d,
 ];

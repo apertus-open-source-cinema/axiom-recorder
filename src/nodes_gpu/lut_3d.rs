@@ -6,7 +6,6 @@ use crate::pipeline_processing::{
     parametrizable::{
         ParameterType,
         ParameterTypeDescriptor,
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
@@ -14,63 +13,48 @@ use crate::pipeline_processing::{
     payload::Payload,
     processing_context::ProcessingContext,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use std::sync::Arc;
+use std::{
+    fs::File,
+    io::{BufReader, Read},
+    sync::Arc,
+};
 use vulkano::{
     buffer::{BufferUsage, DeviceLocalBuffer},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit},
     descriptor_set::persistent::PersistentDescriptorSet,
     device::{Device, Queue},
+    image::{view::ImageView, ImageViewAbstract, ImmutableImage},
     pipeline::{ComputePipeline, PipelineBindPoint},
+    sampler::{Filter, MipmapMode, Sampler, SamplerAddressMode},
     sync::GpuFuture,
     DeviceSize,
 };
 
-
 mod compute_shader {
     vulkano_shaders::shader! {
         ty: "compute",
-        path: "src/nodes_gpu/color_voodoo.glsl"
+        path: "src/nodes_gpu/lut_3d.glsl"
     }
 }
 
-pub struct ColorVoodoo {
+pub struct Lut3d {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
     input: Arc<dyn ProcessingNode + Send + Sync>,
-    pedestal: u8,
-    s_gamma: f64,
-    v_gamma: f64,
+    lut_image_view: Arc<dyn ImageViewAbstract>,
+    lut_sampler: Arc<Sampler>,
 }
 
-impl Parameterizable for ColorVoodoo {
+impl Parameterizable for Lut3d {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with(
-                "pedestal",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::IntRange(0, 255),
-                    ParameterValue::IntRange(8),
-                ),
-            )
-            .with(
-                "s_gamma",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::FloatRange(0.0, 100.0),
-                    ParameterValue::FloatRange(1.0),
-                ),
-            )
-            .with(
-                "v_gamma",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::FloatRange(0.0, 100.0),
-                    ParameterValue::FloatRange(1.0),
-                ),
-            )
+            .with("file", ParameterTypeDescriptor::Mandatory(ParameterType::StringParameter))
     }
+
     fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
     where
         Self: Sized,
@@ -84,20 +68,128 @@ impl Parameterizable for ColorVoodoo {
                 .unwrap()
         });
 
-        Ok(ColorVoodoo {
+        let lut_image = read_lut_texture_from_cube_file(parameters.get("file")?, queue.clone())?;
+        let lut_sampler = Sampler::new(
+            device.clone(),
+            Filter::Linear,
+            Filter::Linear,
+            MipmapMode::Nearest,
+            SamplerAddressMode::Repeat,
+            SamplerAddressMode::Repeat,
+            SamplerAddressMode::Repeat,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+        )
+        .unwrap();
+
+        Ok(Lut3d {
             device,
             pipeline,
             queue,
             input: parameters.get("input")?,
-            pedestal: parameters.get::<u64>("pedestal")? as u8,
-            s_gamma: parameters.get("s_gamma")?,
-            v_gamma: parameters.get("v_gamma")?,
+            lut_image_view: ImageView::new(lut_image).unwrap(),
+            lut_sampler,
         })
     }
 }
 
+fn read_cube_size(file_contents: &str) -> Result<usize> {
+    for (line_idx, line) in file_contents.lines().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+
+        if line.starts_with("LUT_3D_SIZE") {
+            let parts: Vec<_> = line.split(' ').collect();
+            if parts.len() < 2 {
+                return Err(anyhow!(
+                    "Invalid cube file: LUT_3D_SIZE is missing an argument (line {})",
+                    line_idx + 1
+                ));
+            }
+            return Ok(parts[1].parse()?);
+        }
+    }
+
+    Err(anyhow!("Invalid cube file: Couldn't find LUT_3D_SIZE"))
+}
+
+fn read_cube_data(file_contents: &str, mut on_value: impl FnMut(f32, f32, f32)) -> Result<()> {
+    for (line_idx, line) in file_contents.lines().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+
+        let first_char = line.chars().next().unwrap();
+        if first_char.is_ascii_digit() {
+            let parts: Vec<_> = line.trim().split(' ').collect();
+
+            if parts.len() != 3 {
+                // throw error
+                return Err(anyhow!(
+                    "Invalid cube file: Expected 3 numbers in line (line {})",
+                    line_idx + 1
+                ));
+            }
+
+            let r = parts[0].parse::<f32>()?;
+            let g = parts[1].parse::<f32>()?;
+            let b = parts[2].parse::<f32>()?;
+
+            on_value(r, g, b);
+        }
+    }
+
+    Ok(())
+}
+
+fn read_lut_texture_from_cube_file(path: String, queue: Arc<Queue>) -> Result<Arc<ImmutableImage>> {
+    let file = File::open(path)?;
+
+    let mut reader = BufReader::new(file);
+    let mut file_contents = String::new();
+    reader.read_to_string(&mut file_contents)?;
+
+    let size = read_cube_size(&file_contents)?;
+    let mut buffer: Vec<u8> = Vec::with_capacity(size.pow(3) * 4);
+
+    read_cube_data(&file_contents, |r, g, b| {
+        buffer.push((b * 255.0) as u8);
+        buffer.push((g * 255.0) as u8);
+        buffer.push((r * 255.0) as u8);
+        buffer.push(255);
+    })?;
+
+    if size.pow(3) * 4 != buffer.len() {
+        let received_lines = buffer.len() / 4;
+        let expected_lines = size.pow(3);
+        return Err(anyhow!(
+            "Invalid cube file: Expected {0:}x{0:}x{0:} = {1:} lines, found {2:} lines",
+            size,
+            expected_lines,
+            received_lines,
+        ));
+    }
+
+    let (image, _image_fut) = ImmutableImage::from_iter(
+        buffer.into_iter(),
+        vulkano::image::ImageDimensions::Dim3d {
+            width: size as u32,
+            height: size as u32,
+            depth: size as u32,
+        },
+        vulkano::image::MipmapsCount::One,
+        vulkano::format::Format::B8G8R8A8_UNORM,
+        queue,
+    )?;
+
+    Ok(image)
+}
+
 #[async_trait]
-impl ProcessingNode for ColorVoodoo {
+impl ProcessingNode for Lut3d {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
         let mut input = self.input.pull(frame_number, &context).await?;
 
@@ -112,9 +204,6 @@ impl ProcessingNode for ColorVoodoo {
         )?;
 
         let push_constants = compute_shader::ty::PushConstantData {
-            pedestal: self.pedestal as f32,
-            s_gamma: self.s_gamma as f32,
-            v_gamma: self.v_gamma as f32,
             width: frame.interp.width as _,
             height: frame.interp.height as _,
         };
@@ -124,6 +213,7 @@ impl ProcessingNode for ColorVoodoo {
             let mut builder = PersistentDescriptorSet::start(layout);
             builder.add_buffer(frame.storage.untyped())?;
             builder.add_buffer(sink_buffer.clone())?;
+            builder.add_sampled_image(self.lut_image_view.clone(), self.lut_sampler.clone())?;
             builder.build()?
         });
 
