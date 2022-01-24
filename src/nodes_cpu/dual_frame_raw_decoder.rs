@@ -63,15 +63,21 @@ impl ProcessingNode for DualFrameRawDecoder {
             self.input.pull(next_even, context),
             self.input.pull(next_even + 1, context)
         )?;
-        let frames_array = [frames.0, frames.1];
-        let mut frames_collected = frames_array
-            .iter()
-            .map(|x| context.ensure_cpu_buffer::<Rgb>(&x).context("Wrong input format"));
+        let mut frame_a =
+            context.ensure_cpu_buffer::<Rgb>(&frames.0).context("Wrong input format")?;
+        let mut frame_b =
+            context.ensure_cpu_buffer::<Rgb>(&frames.1).context("Wrong input format")?;
 
-        let mut frame_a = frames_collected.next().unwrap()?;
-        let mut frame_b = frames_collected.next().unwrap()?;
-
-        let is_correct = frame_a.storage.as_slice(|frame_a| frame_a[0] % 2 == 1);
+        let is_correct = frame_a.storage.as_slice(|frame_a| {
+            frame_b.storage.as_slice(|frame_b| {
+                let wrsel_matches = frame_a[1] == frame_b[1];
+                let ctr_a = frame_a[0];
+                let ctr_b = frame_b[0];
+                let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
+                let ctr_is_ok = ctr_is_ok || (ctr_b == 0);
+                return wrsel_matches && ctr_is_ok;
+            })
+        });
 
         let next_next_even = if !is_correct {
             // we slip one frame
@@ -102,6 +108,11 @@ impl ProcessingNode for DualFrameRawDecoder {
         let line_bytes = frame_a.interp.width as usize * 3;
         frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
+                // println!("---------");
+                // println!("frame a: ctr: {}, wrsel: {}, ty: {}", frame_a[0], frame_a[1],
+                // frame_a[2]); println!("frame b: ctr: {}, wrsel: {}, ty: {}",
+                // frame_b[0], frame_b[1], frame_b[2]);
+
                 new_buffer.as_mut_slice(|new_buffer| {
                     for ((frame_a_chunk, frame_b_chunk), output_chunk) in frame_a
                         .chunks_exact(line_bytes)
