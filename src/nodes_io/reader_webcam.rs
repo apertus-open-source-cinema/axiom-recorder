@@ -54,7 +54,10 @@ impl Parameterizable for WebcamInput {
         stream.start();
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || loop {
-            tx.send(stream.dequeue()).unwrap();
+            let (frame, metadata) = stream.dequeue();
+            if metadata.bytesused > 0 {
+                tx.send((frame, metadata.sequence)).unwrap();
+            }
             stream.enqueue();
         });
 
@@ -63,7 +66,7 @@ impl Parameterizable for WebcamInput {
         let context = context.clone();
         thread::spawn(move || loop {
             let mut buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
-            let (src_buf, metadata) = rx.recv().unwrap();
+            let (src_buf, sequence) = rx.recv().unwrap();
             buffer.as_mut_slice(|buffer| {
                 for (src, dst) in src_buf.chunks_exact(3).zip(buffer.chunks_exact_mut(3)) {
                     dst[0] = src[2];
@@ -74,10 +77,11 @@ impl Parameterizable for WebcamInput {
 
             queue_clone.update(move |queue| {
                 queue.push_back((
-                    metadata.sequence as u64,
+                    sequence as u64,
                     Payload::from(Frame { storage: buffer, interp: interp.clone() }),
                 ));
             });
+
         });
 
         Ok(Self { queue })
@@ -98,9 +102,9 @@ impl ProcessingNode for WebcamInput {
             })
             .await;
 
-        self.queue.update(|queue| {
-            let _number_vec = queue.iter().map(|(n, _)| n).collect::<Vec<_>>();
+        dbg!(frame_number);
 
+        self.queue.update(|queue| {
             let pos = queue.iter().position(|(n, _)| *n == frame_number).ok_or(anyhow!(
                 "Frame {} is not present anymore in webcam input buffer",
                 frame_number
