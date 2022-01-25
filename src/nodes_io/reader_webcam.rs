@@ -81,7 +81,6 @@ impl Parameterizable for WebcamInput {
                     Payload::from(Frame { storage: buffer, interp: interp.clone() }),
                 ));
             });
-
         });
 
         Ok(Self { queue })
@@ -101,8 +100,6 @@ impl ProcessingNode for WebcamInput {
                     .unwrap_or(false)
             })
             .await;
-
-        dbg!(frame_number);
 
         self.queue.update(|queue| {
             let pos = queue.iter().position(|(n, _)| *n == frame_number).ok_or(anyhow!(
