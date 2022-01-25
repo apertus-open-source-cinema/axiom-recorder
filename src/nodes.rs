@@ -1,4 +1,4 @@
-#[cfg(linux)]
+#[cfg(target_os = "linux")]
 use crate::nodes_io::reader_webcam::WebcamInput;
 use crate::{
     nodes_cpu::{
@@ -53,7 +53,7 @@ macro_rules! generate_dynamic_node_creation_functions {
     };
 }
 
-#[cfg(linux)]
+#[cfg(target_os = "linux")]
 generate_dynamic_node_creation_functions![
     RawDirectoryReader,
     RawBlobReader,
@@ -71,7 +71,7 @@ generate_dynamic_node_creation_functions![
     Lut3d,
 ];
 
-#[cfg(not(linux))]
+#[cfg(not(target_os = "linux"))]
 generate_dynamic_node_creation_functions![
     RawDirectoryReader,
     RawBlobReader,

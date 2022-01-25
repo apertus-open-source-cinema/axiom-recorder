@@ -1,5 +1,5 @@
 pub mod reader_raw;
-#[cfg(linux)]
+#[cfg(target_os = "linux")]
 pub mod reader_webcam;
 pub mod writer_cinema_dng;
 //pub mod reader_tcp;

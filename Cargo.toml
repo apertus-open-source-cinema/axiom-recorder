@@ -41,10 +41,12 @@ pollster = "0.2.4"
 shellwords = "1.1.0"
 num_cpus = "1.13.0"
 
-[target.'cfg(linux)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.12.1"
 v4l2-sys-mit = "0.2.0"
 
 [profile.release]
 debug = true
 panic = "abort"
+incremental = true
+
