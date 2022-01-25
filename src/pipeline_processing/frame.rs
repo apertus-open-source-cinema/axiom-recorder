@@ -11,13 +11,13 @@ pub struct Frame<Interpretation, Storage> {
 
 #[derive(Debug, Copy, Clone)]
 pub struct CfaDescriptor {
-    pub first_is_red_x: bool,
-    pub first_is_red_y: bool,
+    pub red_in_first_col: bool,
+    pub red_in_first_row: bool,
 }
 
 impl CfaDescriptor {
-    pub fn from_first_red(first_is_red_x: bool, first_is_red_y: bool) -> Self {
-        CfaDescriptor { first_is_red_x, first_is_red_y }
+    pub fn from_first_red(red_in_first_col: bool, red_in_first_row: bool) -> Self {
+        CfaDescriptor { red_in_first_col, red_in_first_row }
     }
 }
 

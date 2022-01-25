@@ -34,11 +34,11 @@ impl Parameterizable for DualFrameRawDecoder {
         ParametersDescriptor::new()
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
             .with(
-                "first-red-x",
+                "red-in-first-col",
                 Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
             )
             .with(
-                "first-red-y",
+                "red-in-first-row",
                 Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
             )
     }
@@ -47,8 +47,8 @@ impl Parameterizable for DualFrameRawDecoder {
         Ok(Self {
             input: parameters.get("input")?,
             cfa_descriptor: CfaDescriptor {
-                first_is_red_x: parameters.get("first-red-x")?,
-                first_is_red_y: parameters.get("first-red-y")?,
+                red_in_first_col: parameters.get("red-in-first-col")?,
+                red_in_first_row: parameters.get("red-in-first-row")?,
             },
             last_frame_info: Default::default(),
         })
@@ -71,7 +71,7 @@ impl ProcessingNode for DualFrameRawDecoder {
                 context.ensure_cpu_buffer::<Rgb>(&frames.0).context("Wrong input format")?;
             let mut frame_b =
                 context.ensure_cpu_buffer::<Rgb>(&frames.1).context("Wrong input format")?;
-    
+
             let is_correct = frame_a.storage.as_slice(|frame_a| {
                 frame_b.storage.as_slice(|frame_b| {
                     let wrsel_matches = frame_a[1] == frame_b[1];
@@ -82,7 +82,7 @@ impl ProcessingNode for DualFrameRawDecoder {
                     wrsel_matches && ctr_is_ok
                 })
             });
-    
+
             if !is_correct {
                 // we slip one frame
                 println!("frame slipped in DualFrameRawDecoder");
@@ -92,7 +92,8 @@ impl ProcessingNode for DualFrameRawDecoder {
                     .context("Wrong input format")?;
             }
             Result::<_>::Ok((frame_a, frame_b, !is_correct))
-        })().await;
+        })()
+        .await;
 
         if let Ok((_, _, true)) = pulled_frames {
             next_next_even += 1;
@@ -116,7 +117,6 @@ impl ProcessingNode for DualFrameRawDecoder {
         let line_bytes = frame_a.interp.width as usize * 3;
         frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
-
                 let (frame_a, frame_b) = if frame_a[2] == FRAME_A_MARKER {
                     (frame_a, frame_b)
                 } else {

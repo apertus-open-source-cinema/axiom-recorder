@@ -35,7 +35,7 @@ NODES:
     * RawDirectoryWriter --path <path>
     * BitDepthConverter
     * FfmpegWriter [OPTIONS] --fps <fps> --output <output>
-    * RawDirectoryReader [OPTIONS] --bit-depth <bit-depth> --file-pattern <file-pattern> --height <height> --width <width> --first-red-x <true/false> --first-red-y <true/false>
+    * RawDirectoryReader [OPTIONS] --bit-depth <bit-depth> --file-pattern <file-pattern> --height <height> --width <width> --red-in-first-col <true/false> --red-in-first-row <true/false>
     * Usb3Reader [OPTIONS] --bit-depth <bit-depth> --height <height> --width <width>
     * Debayer
     * RawBlobWriter --path <path>
@@ -49,12 +49,12 @@ NODES:
 
 Record a cinema dng sequence via usb3 from the micro:
 ```shell
-$ target/release/converter ! Usb3Reader --bit-depth 8 --height 1296 --width 2304 --first-red-x false ! CinemaDngWriter --fps 30 --path cinema_dng_folder'
+$ target/release/converter ! Usb3Reader --bit-depth 8 --height 1296 --width 2304 --red-in-first-col false ! CinemaDngWriter --fps 30 --path cinema_dng_folder'
 ```
 
 Display Live Video from the micro via usb3:
 ```shell
-$ target/release/converter ! Usb3Reader --bit-depth 8 --height 1296 --width 2304 --first-red-x false ! Debayer ! Display'
+$ target/release/converter ! Usb3Reader --bit-depth 8 --height 1296 --width 2304 --red-in-first-col false ! Debayer ! Display'
 ```
 
 Convert a raw directory to mp4 (h264) from the Beta using FFmpeg:

@@ -93,8 +93,8 @@ impl ProcessingNode for Debayer {
         let push_constants = compute_shader::ty::PushConstantData {
             width: frame.interp.width as u32,
             height: frame.interp.height as u32,
-            first_red_x: (!frame.interp.cfa.first_is_red_x) as u32,
-            first_red_y: (!frame.interp.cfa.first_is_red_y) as u32,
+            first_red_x: (!frame.interp.cfa.red_in_first_col) as u32,
+            first_red_y: (!frame.interp.cfa.red_in_first_row) as u32,
         };
 
         let layout = self.pipeline.layout().descriptor_set_layouts()[0].clone();
