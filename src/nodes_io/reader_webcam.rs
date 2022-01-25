@@ -57,6 +57,8 @@ impl Parameterizable for WebcamInput {
             let (frame, metadata) = stream.dequeue();
             if metadata.bytesused > 0 {
                 tx.send((frame, metadata.sequence)).unwrap();
+            } else {
+                println!("we got no data from the webcam :(");
             }
             stream.enqueue();
         });

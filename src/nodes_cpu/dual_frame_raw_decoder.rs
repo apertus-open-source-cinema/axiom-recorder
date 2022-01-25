@@ -123,12 +123,10 @@ impl ProcessingNode for DualFrameRawDecoder {
                     (frame_b, frame_a)
                 };
 
-                println!("---------");
-                println!("frame a: ctr: {}, wrsel: {}, ty: {}", frame_a[0], frame_a[1], frame_a[2]); 
-                println!("frame b: ctr: {}, wrsel: {}, ty: {}",
-                frame_b[0], frame_b[1], frame_b[2]);
+                //println!("---------");
+                //println!("frame a: ctr: {}, wrsel: {}, ty: {}", frame_a[0], frame_a[1], frame_a[2]); 
+                //println!("frame b: ctr: {}, wrsel: {}, ty: {}", frame_b[0], frame_b[1], frame_b[2]);
                 
-
                 new_buffer.as_mut_slice(|new_buffer| {
                     for ((frame_a_chunk, frame_b_chunk), output_chunk) in frame_a
                         .chunks_exact(line_bytes)
