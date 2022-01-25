@@ -13,6 +13,7 @@ use vulkano::{
     instance::Instance,
     Version,
 };
+use vulkano::device::physical::PhysicalDeviceType;
 
 
 #[derive(Clone)]
@@ -60,6 +61,10 @@ impl Default for ProcessingContext {
                 .ok()
                 .and_then(|instance| {
                     PhysicalDevice::enumerate(&instance).find_map(|physical| {
+                        if physical.properties().device_type == PhysicalDeviceType::Cpu {
+                            return None;
+                        }
+
                         let queue_family = physical.queue_families().map(|qf| (qf, 0.5)); // All queues have the same priority
                         let device_ext = DeviceExtensions {
                             khr_swapchain: true,
