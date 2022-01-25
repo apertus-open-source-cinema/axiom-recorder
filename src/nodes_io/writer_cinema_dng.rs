@@ -82,7 +82,7 @@ impl SinkNode for CinemaDngWriter {
                     context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
 
                 let cfa_pattern =
-                    match (frame.interp.cfa.first_is_red_x, frame.interp.cfa.first_is_red_y) {
+                    match (frame.interp.cfa.red_in_first_row, frame.interp.cfa.red_in_first_col) {
                         (true, true) => BYTE![0, 1, 1, 2],
                         (true, false) => BYTE![1, 0, 2, 1],
                         (false, true) => BYTE![1, 2, 0, 1],

@@ -125,7 +125,10 @@ impl Parameters {
         let width = self.get("width")?;
         let height = self.get("height")?;
         let bit_depth = self.get("bit-depth")?;
-        let cfa = CfaDescriptor::from_first_red(self.get("first-red-x")?, self.get("first-red-y")?);
+        let cfa = CfaDescriptor::from_first_red(
+            self.get("red-in-first-col")?,
+            self.get("red-in-first-row")?,
+        );
         let fps = self.get("fps")?;
 
         if self.get("rgb")? {
@@ -223,11 +226,11 @@ impl ParametersDescriptor {
         .with("width", Mandatory(ParameterType::IntRange(0, i64::max_value())))
         .with("height", Mandatory(ParameterType::IntRange(0, i64::max_value())))
         .with(
-            "first-red-x",
+            "red-in-first-col",
             Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
         )
         .with(
-            "first-red-y",
+            "red-in-first-row",
             Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
         )
         .with("rgb", Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(false)))

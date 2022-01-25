@@ -9,11 +9,15 @@ use std::{future::Future, sync::Arc};
 use vulkano::{
     buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryCommandBuffer},
-    device::{physical::PhysicalDevice, Device, DeviceExtensions, Queue},
+    device::{
+        physical::{PhysicalDevice, PhysicalDeviceType},
+        Device,
+        DeviceExtensions,
+        Queue,
+    },
     instance::Instance,
     Version,
 };
-use vulkano::device::physical::PhysicalDeviceType;
 
 
 #[derive(Clone)]
