@@ -52,8 +52,9 @@ pub async fn pull_unordered(
             let progress_callback = progress_callback.clone();
             let latest_frame = latest_frame.clone();
             futures_unordered.push(context.spawn(async move {
-                if let Ok(payload) = input.pull(frame, &context_clone).await {
-                    on_payload(payload, frame)?;
+                match input.pull(frame, &context_clone).await {
+                    Ok(pulled) => on_payload(pulled, frame)?,
+                    Err(e) => println!("frame {} dropped. error:\n{:?}", frame, e),
                 }
 
                 let latest_frame = latest_frame.fetch_max(frame, Ordering::Relaxed);
@@ -106,11 +107,12 @@ impl OrderedPuller {
                     }
                 }
                 if let Some(payload) = todo.pop_back() {
-                    if let Ok(pulled) = pollster::block_on(payload) {
-                        match tx.send(pulled) {
+                    match pollster::block_on(payload) {
+                        Ok(pulled) => match tx.send(pulled) {
                             Ok(()) => {}
                             Err(SendError(_)) => break,
-                        }
+                        },
+                        Err(e) => println!("frame dropped. error:\n\t{:?}", e),
                     }
                 } else {
                     break;
