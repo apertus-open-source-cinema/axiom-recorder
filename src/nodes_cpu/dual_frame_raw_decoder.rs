@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use std::sync::Arc;
 
 use crate::{
@@ -60,49 +60,43 @@ impl ProcessingNode for DualFrameRawDecoder {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
         self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
         let (_, next_even) = self.last_frame_info.get();
-
-        let mut next_next_even = next_even + 2;
         let pulled_frames = (|| async {
             let frames = try_join!(
                 self.input.pull(next_even, context),
                 self.input.pull(next_even + 1, context)
             )?;
-            let mut frame_a =
+            let frame_a =
                 context.ensure_cpu_buffer::<Rgb>(&frames.0).context("Wrong input format")?;
-            let mut frame_b =
+            let frame_b =
                 context.ensure_cpu_buffer::<Rgb>(&frames.1).context("Wrong input format")?;
-
-            let is_correct = frame_a.storage.as_slice(|frame_a| {
-                frame_b.storage.as_slice(|frame_b| {
-                    let wrsel_matches = frame_a[1] == frame_b[1];
-                    let ctr_a = frame_a[0];
-                    let ctr_b = frame_b[0];
-                    let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
-                    let ctr_is_ok = ctr_is_ok || (ctr_b == 0);
-                    wrsel_matches && ctr_is_ok
-                })
-            });
-
-            if !is_correct {
-                // we slip one frame
-                println!("frame slipped in DualFrameRawDecoder");
-                frame_a = frame_b;
-                frame_b = context
-                    .ensure_cpu_buffer::<Rgb>(&self.input.pull(next_even + 2, &context).await?)
-                    .context("Wrong input format")?;
-            }
-            Result::<_>::Ok((frame_a, frame_b, !is_correct))
+            Result::<_>::Ok((frame_a, frame_b))
         })()
         .await;
-
-        if let Ok((_, _, true)) = pulled_frames {
-            next_next_even += 1;
+        if let Err(e) = pulled_frames {
+            self.last_frame_info.update(move |(next, next_next_even)| {
+                *next = frame_number + 1;
+                *next_next_even = next_even + 1;
+            });
+            return Err(e);
         }
-        self.last_frame_info.update(move |(next, next_even)| {
-            *next = frame_number + 1;
-            *next_even = next_next_even;
+        let (frame_a, frame_b) = pulled_frames.unwrap();
+        let is_correct = frame_a.storage.as_slice(|frame_a| {
+            frame_b.storage.as_slice(|frame_b| {
+                let wrsel_matches = frame_a[1] == frame_b[1];
+                let ctr_a = frame_a[0];
+                let ctr_b = frame_b[0];
+                let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
+                let ctr_is_ok = ctr_is_ok || (ctr_b == 0);
+                wrsel_matches && ctr_is_ok
+            })
         });
-        let (frame_a, frame_b, _) = pulled_frames?;
+        self.last_frame_info.update(move |(next, next_next_even)| {
+            *next = frame_number + 1;
+            *next_next_even = if is_correct { next_even + 2 } else { next_even + 1 };
+        });
+        if !is_correct {
+            return Err(anyhow!("frame slipped in DualFrameRawDecoder"));
+        }
 
         let interp = Raw {
             width: frame_a.interp.width * 2,
@@ -124,9 +118,10 @@ impl ProcessingNode for DualFrameRawDecoder {
                 };
 
                 //println!("---------");
-                //println!("frame a: ctr: {}, wrsel: {}, ty: {}", frame_a[0], frame_a[1], frame_a[2]); 
-                //println!("frame b: ctr: {}, wrsel: {}, ty: {}", frame_b[0], frame_b[1], frame_b[2]);
-                
+                //println!("frame a: ctr: {}, wrsel: {}, ty: {}", frame_a[0], frame_a[1],
+                // frame_a[2]); println!("frame b: ctr: {}, wrsel: {}, ty: {}",
+                // frame_b[0], frame_b[1], frame_b[2]);
+
                 new_buffer.as_mut_slice(|new_buffer| {
                     for ((frame_a_chunk, frame_b_chunk), output_chunk) in frame_a
                         .chunks_exact(line_bytes)

@@ -20,7 +20,7 @@ use async_trait::async_trait;
 use std::{
     collections::VecDeque,
     mem,
-    sync::{mpsc, Arc},
+    sync::{mpsc, Arc, Mutex},
     thread,
 };
 use v4l::{
@@ -36,6 +36,7 @@ use v4l2_sys_mit::*;
 
 pub struct WebcamInput {
     queue: AsyncNotifier<VecDeque<(u64, Payload)>>,
+    last_frame_last_pulled: Mutex<(u64, u64)>,
 }
 impl Parameterizable for WebcamInput {
     const DESCRIPTION: Option<&'static str> =
@@ -85,13 +86,13 @@ impl Parameterizable for WebcamInput {
             });
         });
 
-        Ok(Self { queue })
+        Ok(Self { queue, last_frame_last_pulled: Default::default() })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for WebcamInput {
-    async fn pull(&self, frame_number: u64, _context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
         self.queue
             .wait(move |queue| {
                 queue
@@ -108,7 +109,16 @@ impl ProcessingNode for WebcamInput {
                 "Frame {} is not present anymore in webcam input buffer",
                 frame_number
             ))?;
-            let payload = queue.remove(pos).unwrap().1;
+            let payload = queue.get(pos).unwrap().1.clone();
+
+            let mut last_frame_last_pulled = self.last_frame_last_pulled.lock().unwrap();
+            if last_frame_last_pulled.0 < context.frame() {
+                queue.retain(|(n, _)| n >= &last_frame_last_pulled.1)
+            }
+
+            last_frame_last_pulled.0 = context.frame();
+            last_frame_last_pulled.1 = frame_number;
+
             Ok(payload)
         })
     }

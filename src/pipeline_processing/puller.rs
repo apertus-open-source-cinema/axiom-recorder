@@ -54,7 +54,7 @@ pub async fn pull_unordered(
             futures_unordered.push(context.spawn(async move {
                 match input.pull(frame, &context_clone).await {
                     Ok(pulled) => on_payload(pulled, frame)?,
-                    Err(e) => println!("frame {} dropped. error:\n{:?}", frame, e),
+                    Err(e) => eprintln!("frame {} dropped. error:\n{:?}\n\n", frame, e),
                 }
 
                 let latest_frame = latest_frame.fetch_max(frame, Ordering::Relaxed);
@@ -112,7 +112,7 @@ impl OrderedPuller {
                             Ok(()) => {}
                             Err(SendError(_)) => break,
                         },
-                        Err(e) => println!("frame dropped. error:\n\t{:?}", e),
+                        Err(e) => eprintln!("frame dropped. error:\n{:?}\n\n", e),
                     }
                 } else {
                     break;

@@ -40,6 +40,8 @@ impl Priority {
     pub fn for_frame(self, frame_number: u64) -> Self {
         Self((self.0 & !Self::MASK) | (frame_number & Self::MASK))
     }
+
+    pub fn get_frame(&self) -> u64 { self.0 & Self::MASK }
 }
 
 impl std::fmt::Display for Priority {
@@ -116,6 +118,7 @@ impl ProcessingContext {
     pub fn for_frame(&self, frame: u64) -> Self {
         self.for_priority(self.priority.for_frame(frame))
     }
+    pub fn frame(&self) -> u64 { self.priority.get_frame() }
 
     pub unsafe fn get_uninit_cpu_buffer(&self, len: usize) -> CpuBuffer {
         if let Some(vulkan_context) = &self.vulkan_device {
