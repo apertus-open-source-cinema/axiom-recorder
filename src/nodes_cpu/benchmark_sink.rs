@@ -47,24 +47,26 @@ impl SinkNode for BenchmarkSink {
 
             println!("starting benchmark with {} frames...", frame_count);
             println!("warming cache...");
-            pull_unordered(
+            let res = pull_unordered(
                 &context.clone(),
                 progress_callback.clone(),
                 self.input.clone(),
                 0,
                 move |_input, _frame_number| Ok(()),
             )
-            .await?;
+            .await;
+            println!("res = {:?}", res);
             println!("starting benchmark...");
             let start_time = Instant::now();
-            pull_unordered(
+            let res = pull_unordered(
                 &context.clone(),
                 progress_callback.clone(),
                 self.input.clone(),
                 0,
                 move |_input, _frame_number| Ok(()),
             )
-            .await?;
+            .await;
+            println!("res = {:?}", res);
             let elapsed = (Instant::now() - start_time).as_secs_f64();
             println!(
                 "time elapsed: {:.2}s for {:.2} frames. {:.2} fps",
