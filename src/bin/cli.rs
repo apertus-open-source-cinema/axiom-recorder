@@ -8,12 +8,9 @@ use recorder::{
     pipeline_processing::{
         node::Node,
         parametrizable::{
-            ParameterType,
-            ParameterTypeDescriptor,
+            ParameterType, ParameterTypeDescriptor,
             ParameterTypeDescriptor::{Mandatory, Optional},
-            ParameterValue,
-            ParameterizableDescriptor,
-            Parameters,
+            ParameterValue, ParameterizableDescriptor, Parameters,
         },
         processing_context::ProcessingContext,
     },
@@ -41,9 +38,9 @@ fn work() -> Result<()> {
         .about("convert raw footage from AXIOM cameras into other formats.")
         .setting(AppSettings::TrailingVarArg)
         .arg(
-            Arg::with_name("pipeline")
+            Arg::new("pipeline")
                 .required(true)
-                .multiple(true)
+                .multiple_values(true)
                 .help("example: <Node1> --source-arg ! <Node2> --sink-arg"),
         )
         .after_help(format!("NODES:\n{}", nodes_usages_string()).as_str())
@@ -98,12 +95,12 @@ fn nodes_usages_string() -> String {
             Box::leak(Box::new(
                 clap_app_from_node_name(node_name)
                     .unwrap()
-                    .template("    * {usage}")
+                    .help_template("    * {usage}")
                     .setting(AppSettings::NoBinaryName)
-                    .get_matches_from_safe(once::<&str>("--help"))
+                    .try_get_matches_from(once::<&str>("--help"))
                     .err()
                     .unwrap()
-                    .message,
+                    .to_string(),
             ))
         })
         .join("\n")
@@ -129,7 +126,7 @@ fn processing_node_from_commandline(
     let app = clap_app_from_node_name(name)?;
 
     let results = app
-        .get_matches_from_safe(commandline)
+        .try_get_matches_from(commandline)
         .with_context(|| format!("Wrong Parameters for Node {}", name))?;
     let mut parameters: HashMap<_, _> = parameters_description
         .0
@@ -163,7 +160,7 @@ fn processing_node_from_commandline(
         .with_context(|| format!("Error while creating Node {}", name))
 }
 
-fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
+fn clap_app_from_node_name(name: &str) -> Result<App<'static>> {
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
     let node_descriptor: ParameterizableDescriptor = available_nodes
         .get(name)
@@ -189,7 +186,7 @@ fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
         };
         let parameter_type_for_closure = parameter_type.clone();
         app = app.arg(match parameter_type {
-            Mandatory(_) => Arg::with_name(key)
+            Mandatory(_) => Arg::new(key.as_str())
                 .long(key)
                 .takes_value(true)
                 .allow_hyphen_values(true)
@@ -200,7 +197,7 @@ fn clap_app_from_node_name(name: &str) -> Result<App<'static, 'static>> {
                         .map_err(|e| format!("{}", e))
                 })
                 .required(true),
-            Optional(_, default) => Arg::with_name(key)
+            Optional(_, default) => Arg::new(key.as_str())
                 .long(key)
                 .takes_value(true)
                 .allow_hyphen_values(true)

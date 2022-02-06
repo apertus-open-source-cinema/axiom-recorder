@@ -12,7 +12,7 @@ default = []
 gst = ["gstreamer", "gstreamer-video", "gstreamer-base", "gstreamer-app"]
 
 [dependencies]
-clap = "2.33.3"
+clap = "3.0.14"
 indicatif = "0.16.2"
 tiff-encoder = "0.3.2"
 glob = "0.3.0"
