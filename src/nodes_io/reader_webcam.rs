@@ -3,12 +3,8 @@ use crate::{
         frame::{Frame, FrameInterpretation, Rgb},
         node::{Caps, ProcessingNode},
         parametrizable::{
-            ParameterType::IntRange,
-            ParameterTypeDescriptor::Optional,
-            ParameterValue,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
+            ParameterType::IntRange, ParameterTypeDescriptor::Optional, ParameterValue,
+            Parameterizable, Parameters, ParametersDescriptor,
         },
         payload::Payload,
         processing_context::ProcessingContext,
@@ -28,11 +24,9 @@ use v4l::{
     device::Handle,
     v4l2,
     video::Capture,
-    Device,
-    Memory,
+    Device, Memory,
 };
 use v4l2_sys_mit::*;
-
 
 pub struct WebcamInput {
     queue: AsyncNotifier<VecDeque<(u64, Payload)>>,
@@ -79,10 +73,8 @@ impl Parameterizable for WebcamInput {
             });
 
             queue_clone.update(move |queue| {
-                queue.push_back((
-                    sequence as u64,
-                    Payload::from(Frame { storage: buffer, interp: interp.clone() }),
-                ));
+                queue
+                    .push_back((sequence as u64, Payload::from(Frame { storage: buffer, interp })));
             });
         });
 
@@ -105,10 +97,9 @@ impl ProcessingNode for WebcamInput {
             .await;
 
         self.queue.update(|queue| {
-            let pos = queue.iter().position(|(n, _)| *n == frame_number).ok_or(anyhow!(
-                "Frame {} is not present anymore in webcam input buffer",
-                frame_number
-            ))?;
+            let pos = queue.iter().position(|(n, _)| *n == frame_number).ok_or_else(|| {
+                anyhow!("Frame {} is not present anymore in webcam input buffer", frame_number)
+            })?;
             let payload = queue.get(pos).unwrap().1.clone();
 
             let mut last_frame_last_pulled = self.last_frame_last_pulled.lock().unwrap();
@@ -123,7 +114,9 @@ impl ProcessingNode for WebcamInput {
         })
     }
 
-    fn get_caps(&self) -> Caps { Caps { frame_count: None, is_live: true } }
+    fn get_caps(&self) -> Caps {
+        Caps { frame_count: None, is_live: true }
+    }
 }
 
 pub struct CpuBufferQueueManager {
@@ -133,7 +126,7 @@ pub struct CpuBufferQueueManager {
 }
 impl CpuBufferQueueManager {
     fn new(dev: &Device) -> Self {
-        let handle = dev.handle().clone();
+        let handle = dev.handle();
         let num_buffers = 4usize;
 
         let mut v4l2_reqbufs: v4l2_requestbuffers;

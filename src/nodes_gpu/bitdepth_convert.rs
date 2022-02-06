@@ -4,11 +4,7 @@ use crate::pipeline_processing::{
     gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
+        ParameterType, ParameterTypeDescriptor, Parameterizable, Parameters, ParametersDescriptor,
     },
     payload::Payload,
     processing_context::ProcessingContext,
@@ -25,7 +21,6 @@ use vulkano::{
     sync::GpuFuture,
     DeviceSize,
 };
-
 
 mod compute_shader {
     vulkano_shaders::shader! {
@@ -66,10 +61,10 @@ impl Parameterizable for GpuBitDepthConverter {
 #[async_trait]
 impl ProcessingNode for GpuBitDepthConverter {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        let mut input = self.input.pull(frame_number, &context).await?;
+        let input = self.input.pull(frame_number, context).await?;
 
-        let (frame, fut) = ensure_gpu_buffer::<Raw>(&mut input, self.queue.clone())
-            .context("Wrong input format")?;
+        let (frame, fut) =
+            ensure_gpu_buffer::<Raw>(&input, self.queue.clone()).context("Wrong input format")?;
 
         if frame.interp.bit_depth != 12 {
             return Err(anyhow!(
@@ -123,5 +118,7 @@ impl ProcessingNode for GpuBitDepthConverter {
         Ok(Payload::from(Frame { interp, storage: GpuBuffer::from(sink_buffer) }))
     }
 
-    fn get_caps(&self) -> Caps { self.input.get_caps() }
+    fn get_caps(&self) -> Caps {
+        self.input.get_caps()
+    }
 }

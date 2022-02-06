@@ -36,7 +36,7 @@ impl ProcessingNode for BitDepthConverter {
         let mut new_buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
 
         if frame.interp.bit_depth == 8 {
-            return Ok(input.clone());
+            return Ok(input);
         } else if frame.interp.bit_depth == 12 {
             new_buffer.as_mut_slice(|new_buffer| {
                 frame.storage.as_slice(|frame_storage| {
@@ -84,5 +84,7 @@ impl ProcessingNode for BitDepthConverter {
         Ok(Payload::from(new_frame))
     }
 
-    fn get_caps(&self) -> Caps { self.input.get_caps() }
+    fn get_caps(&self) -> Caps {
+        self.input.get_caps()
+    }
 }

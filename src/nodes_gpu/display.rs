@@ -6,10 +6,7 @@ use crate::pipeline_processing::{
         ParameterType,
         ParameterType::BoolParameter,
         ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
+        ParameterValue, Parameterizable, Parameters, ParametersDescriptor,
     },
     processing_context::ProcessingContext,
     puller::OrderedPuller,
@@ -23,9 +20,7 @@ use std::{
 use vulkano::{
     buffer::BufferView,
     command_buffer::{
-        AutoCommandBufferBuilder,
-        CommandBufferUsage::OneTimeSubmit,
-        SubpassContents,
+        AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit, SubpassContents,
     },
     descriptor_set::PersistentDescriptorSet,
     format::Format::R8_UNORM,
@@ -43,7 +38,6 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
-
 
 mod vertex_shader {
     vulkano_shaders::shader! {
@@ -115,7 +109,6 @@ mod fragment_shader {
     }
 }
 
-
 pub struct Display {
     mailbox: bool,
     live: bool,
@@ -141,7 +134,6 @@ impl Parameterizable for Display {
         })
     }
 }
-
 
 #[async_trait]
 impl SinkNode for Display {
@@ -255,7 +247,7 @@ impl SinkNode for Display {
                 }
 
                 let now = Instant::now();
-                let needs_new_frame = live || if now > next_frame_time { true } else { false };
+                let needs_new_frame = live || now > next_frame_time;
 
                 if needs_new_frame {
                     match puller.try_recv() {
@@ -344,7 +336,6 @@ impl SinkNode for Display {
                 if let Some(fut) = source_future.take() {
                     future = future.join(fut).boxed();
                 }
-
 
                 let future = future
                     .then_execute(queue.clone(), command_buffer)

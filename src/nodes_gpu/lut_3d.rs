@@ -4,11 +4,7 @@ use crate::pipeline_processing::{
     gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
+        ParameterType, ParameterTypeDescriptor, Parameterizable, Parameters, ParametersDescriptor,
     },
     payload::Payload,
     processing_context::ProcessingContext,
@@ -191,10 +187,10 @@ fn read_lut_texture_from_cube_file(path: String, queue: Arc<Queue>) -> Result<Ar
 #[async_trait]
 impl ProcessingNode for Lut3d {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        let mut input = self.input.pull(frame_number, &context).await?;
+        let input = self.input.pull(frame_number, context).await?;
 
-        let (frame, fut) = ensure_gpu_buffer::<Rgb>(&mut input, self.queue.clone())
-            .context("Wrong input format")?;
+        let (frame, fut) =
+            ensure_gpu_buffer::<Rgb>(&input, self.queue.clone()).context("Wrong input format")?;
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
@@ -246,5 +242,7 @@ impl ProcessingNode for Lut3d {
         Ok(Payload::from(Frame { interp: frame.interp, storage: GpuBuffer::from(sink_buffer) }))
     }
 
-    fn get_caps(&self) -> Caps { self.input.get_caps() }
+    fn get_caps(&self) -> Caps {
+        self.input.get_caps()
+    }
 }
