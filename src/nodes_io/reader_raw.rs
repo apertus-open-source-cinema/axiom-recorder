@@ -141,18 +141,18 @@ impl ProcessingNode for RawDirectoryReader {
             ));
         }
 
-        let path = &self.files[frame_number as usize];
-        let mut file = File::open(path)?;
-
-        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
-        buffer
-            .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
-
         if self.cache_frames {
             if let Some(cached) = self.cache.lock().unwrap()[frame_number as usize].clone() {
                 return Ok(cached);
             }
         }
+
+        let path = &self.files[frame_number as usize];
+        let mut file = File::open(path)?;
+        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        buffer
+            .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
+
 
         let payload = match self.interp {
             FrameInterpretations::Raw(interp) => Payload::from(Frame { storage: buffer, interp }),
