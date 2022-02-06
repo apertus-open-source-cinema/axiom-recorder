@@ -98,8 +98,7 @@ fn nodes_usages_string() -> String {
                     .help_template("    * {usage}")
                     .setting(AppSettings::NoBinaryName)
                     .try_get_matches_from(once::<&str>("--help"))
-                    .err()
-                    .unwrap()
+                    .unwrap_err()
                     .to_string(),
             ))
         })
