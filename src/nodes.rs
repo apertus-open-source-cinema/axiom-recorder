@@ -5,6 +5,7 @@ use crate::{
         benchmark_sink::BenchmarkSink,
         bitdepth_convert::BitDepthConverter,
         dual_frame_raw_decoder::DualFrameRawDecoder,
+        average::Average,
     },
     nodes_gpu::{
         bitdepth_convert::GpuBitDepthConverter,
@@ -69,6 +70,7 @@ generate_dynamic_node_creation_functions![
     RawDirectoryWriter,
     RawBlobWriter,
     Lut3d,
+    Average,
 ];
 
 #[cfg(not(target_os = "linux"))]

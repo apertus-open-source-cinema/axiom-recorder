@@ -255,7 +255,7 @@ impl SinkNode for Display {
                 }
 
                 let now = Instant::now();
-                let needs_new_frame = live || if now > next_frame_time { true } else { false };
+                let needs_new_frame = live || now > next_frame_time;
 
                 if needs_new_frame {
                     match puller.try_recv() {

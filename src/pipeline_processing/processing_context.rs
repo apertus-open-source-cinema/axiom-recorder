@@ -140,6 +140,15 @@ impl ProcessingContext {
             unimplemented!()
         }
     }
+    pub fn get_init_cpu_buffer(&self, len: usize, init: u8) -> CpuBuffer {
+        unsafe {
+            let mut buf = self.get_uninit_cpu_buffer(len);
+            buf.as_mut_slice(|buf| {
+                buf.iter_mut().for_each(|v| *v = init);
+            });
+            buf
+        }
+    }
     fn to_cpu_buffer<Interpretation: Clone + Send + Sync + 'static>(
         &self,
         frame: Arc<Frame<Interpretation, GpuBuffer>>,
