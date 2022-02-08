@@ -81,7 +81,7 @@ impl Parameterizable for WebcamInput {
             queue_clone.update(move |queue| {
                 queue.push_back((
                     sequence as u64,
-                    Payload::from(Frame { storage: buffer, interp: interp.clone() }),
+                    Payload::from(Frame { storage: buffer, interp }),
                 ));
             });
         });
@@ -133,7 +133,7 @@ pub struct CpuBufferQueueManager {
 }
 impl CpuBufferQueueManager {
     fn new(dev: &Device) -> Self {
-        let handle = dev.handle().clone();
+        let handle = dev.handle();
         let num_buffers = 4usize;
 
         let mut v4l2_reqbufs: v4l2_requestbuffers;

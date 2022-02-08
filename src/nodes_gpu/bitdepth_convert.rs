@@ -66,7 +66,7 @@ impl Parameterizable for GpuBitDepthConverter {
 #[async_trait]
 impl ProcessingNode for GpuBitDepthConverter {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        let mut input = self.input.pull(frame_number, &context).await?;
+        let mut input = self.input.pull(frame_number, context).await?;
 
         let (frame, fut) = ensure_gpu_buffer::<Raw>(&mut input, self.queue.clone())
             .context("Wrong input format")?;

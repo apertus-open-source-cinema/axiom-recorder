@@ -191,7 +191,7 @@ fn read_lut_texture_from_cube_file(path: String, queue: Arc<Queue>) -> Result<Ar
 #[async_trait]
 impl ProcessingNode for Lut3d {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        let mut input = self.input.pull(frame_number, &context).await?;
+        let mut input = self.input.pull(frame_number, context).await?;
 
         let (frame, fut) = ensure_gpu_buffer::<Rgb>(&mut input, self.queue.clone())
             .context("Wrong input format")?;
