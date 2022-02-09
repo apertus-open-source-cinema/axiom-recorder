@@ -153,13 +153,13 @@ fn read_lut_texture_from_cube_file(path: String, queue: Arc<Queue>) -> Result<Ar
     reader.read_to_string(&mut file_contents)?;
 
     let size = read_cube_size(&file_contents)?;
-    let mut buffer: Vec<u8> = Vec::with_capacity(size.pow(3) * 4);
+    let mut buffer: Vec<u16> = Vec::with_capacity(size.pow(3) * 4);
 
     read_cube_data(&file_contents, |r, g, b| {
-        buffer.push((b * 255.0) as u8);
-        buffer.push((g * 255.0) as u8);
-        buffer.push((r * 255.0) as u8);
-        buffer.push(255);
+        buffer.push((r * u16::MAX as f32) as u16);
+        buffer.push((g * u16::MAX as f32) as u16);
+        buffer.push((b * u16::MAX as f32) as u16);
+        buffer.push(0);
     })?;
 
     if size.pow(3) * 4 != buffer.len() {
@@ -181,7 +181,7 @@ fn read_lut_texture_from_cube_file(path: String, queue: Arc<Queue>) -> Result<Ar
             depth: size as u32,
         },
         vulkano::image::MipmapsCount::One,
-        vulkano::format::Format::B8G8R8A8_UNORM,
+        vulkano::format::Format::R16G16B16A16_UNORM,
         queue,
     )?;
 

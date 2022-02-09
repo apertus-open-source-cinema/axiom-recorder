@@ -9,8 +9,8 @@ layout(push_constant) uniform PushConstantData {
     uint  height;
 } params;
 
-layout(set = 0, binding = 0) buffer readonly  Source { uint8_t data[]; } source;
-layout(set = 0, binding = 1) buffer writeonly Sink   { uint8_t data[]; } sink;
+layout(set = 0, binding = 0) buffer readonly Source { uint8_t data[]; } source;
+layout(set = 0, binding = 1) buffer writeonly Sink { uint8_t data[]; } sink;
 layout(set = 0, binding = 2) uniform sampler3D lut_sampler;
 
 void main() {

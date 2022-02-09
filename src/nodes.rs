@@ -11,12 +11,12 @@ use crate::{
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
         display::Display,
-        lut_3d::Lut3d,
+        lut_3d::Lut3d, waveform::Waveform,
     },
     nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
         writer_cinema_dng::CinemaDngWriter,
-        writer_raw::{RawBlobWriter, RawDirectoryWriter},
+        writer_raw::{RawBlobWriter, RawDirectoryWriter}, writer_ffmpeg::FfmpegWriter,
     },
     pipeline_processing::{
         node::{Node, ProcessingNodeIntoNode, SinkNodeIntoNode},
@@ -69,6 +69,8 @@ generate_dynamic_node_creation_functions![
     RawDirectoryWriter,
     RawBlobWriter,
     Lut3d,
+    Waveform,
+    FfmpegWriter,
 ];
 
 #[cfg(not(linux))]
@@ -86,4 +88,6 @@ generate_dynamic_node_creation_functions![
     RawDirectoryWriter,
     RawBlobWriter,
     Lut3d,
+    Waveform,
+    FfmpegWriter,
 ];

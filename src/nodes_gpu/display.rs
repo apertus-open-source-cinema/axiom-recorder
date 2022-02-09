@@ -69,8 +69,8 @@ mod vertex_shader {
                 int top = idx & 1;
                 int left = (idx & 2) / 2;
                 gl_Position = vec4(
-                    (2 * top - 1) / (aspect > 1 ? aspect : 1),
-                    (2 * left - 1) * (aspect < 1 ? aspect : 1),
+                    (2 * top - 1),
+                    (2 * left - 1),
                     0.0,
                     1.0
                 );
@@ -109,7 +109,7 @@ mod fragment_shader {
             void main() {
                 int x = int(tex_coords.x * (params.width - 1));
                 int y = int(tex_coords.y * (params.height - 1));
-                f_color = vec4(get_px(x, y), 1.);
+                f_color = vec4((get_px(x, y) + get_px(x, y + 1) + get_px(x + 1, y) + get_px(x + 1, y + 1)) / 4, 1.);
             }
         "
     }
