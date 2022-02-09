@@ -8,9 +8,12 @@ use recorder::{
     pipeline_processing::{
         node::Node,
         parametrizable::{
-            ParameterType, ParameterTypeDescriptor,
+            ParameterType,
+            ParameterTypeDescriptor,
             ParameterTypeDescriptor::{Mandatory, Optional},
-            ParameterValue, ParameterizableDescriptor, Parameters,
+            ParameterValue,
+            ParameterizableDescriptor,
+            Parameters,
         },
         processing_context::ProcessingContext,
     },
@@ -46,9 +49,12 @@ fn work() -> Result<()> {
         .after_help(format!("NODES:\n{}", nodes_usages_string()).as_str())
         .get_matches();
 
-    let pipeline_raw = main_app_arguments.values_of_lossy("pipeline").unwrap();
-    let pipeline_split =
-        if pipeline_raw.len() == 1 { shellwords::split(&pipeline_raw[0])? } else { pipeline_raw };
+    let pipeline_raw: Vec<_> = main_app_arguments.values_of("pipeline").unwrap().collect();
+    let pipeline_split = if pipeline_raw.len() == 1 {
+        shellwords::split(&pipeline_raw[0])?
+    } else {
+        pipeline_raw.iter().map(|f| f.to_string()).collect()
+    };
     let node_commandlines = pipeline_split.split(|element| element == "!").collect::<Vec<_>>();
 
     let processing_context = ProcessingContext::default();
