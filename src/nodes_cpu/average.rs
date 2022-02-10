@@ -19,7 +19,7 @@ use crate::util::async_notifier::AsyncNotifier;
 
 pub struct Average {
     input: Arc<dyn ProcessingNode + Send + Sync>,
-    n: usize,
+    num_frames: usize,
     last_frame_info: AsyncNotifier<(u64, u64)>,
 }
 impl Parameterizable for Average {
@@ -32,7 +32,7 @@ impl Parameterizable for Average {
     fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
         Ok(Self {
             input: parameters.get("input")?,
-            n: parameters.get::<i64>("n")? as usize,
+            num_frames: parameters.get::<i64>("n")? as usize,
             last_frame_info: Default::default(),
         })
     }
@@ -43,7 +43,7 @@ impl ProcessingNode for Average {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
         self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
         let total_offset = self.last_frame_info.get().1;
-        let mut n = (self.n as u64) * frame_number + total_offset;
+        let mut n = (self.num_frames as u64) * frame_number + total_offset;
         let input = loop {
             let input = self.input.pull(n, context).await;
             match input {
@@ -58,10 +58,11 @@ impl ProcessingNode for Average {
         let interp = frame.interp;
         assert_eq!(frame.interp.bit_depth, 12);
 
+        // println!("[{frame_number}] adding {n}");
         // u32 -> 4 bytes per pixel
         let out_buffer = unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
 
-        let out = Arc::new(ChunkedCpuBuffer::new(out_buffer, 8));
+        let out = Arc::new(ChunkedCpuBuffer::new(out_buffer, num_cpus::get()));
 
         frame.storage.as_slice_async(|frame: &[u8]| {
             let out = out.clone();
@@ -102,28 +103,38 @@ impl ProcessingNode for Average {
                             }
                         }).await;
                     }.boxed()).await;
+                    // println!("[{frame_number}] adding {}", $i);
 
                     anyhow::Result::<_, anyhow::Error>::Ok($i)
                 })
             }};
         }
 
-        let chunk_size = self.n;
-        let mut futs = (1u64..self.n as u64).into_iter().map(|i| spawn!(n + i).boxed()).collect::<FuturesUnordered<_>>();
+        let to_spawn = self.num_frames.min(num_cpus::get() + 1) as u64;
+        let mut futs = (1u64..to_spawn).into_iter().map(|i| spawn!(n + i).boxed()).collect::<FuturesUnordered<_>>();
+        let mut spawned = to_spawn;
+        let mut limit = self.num_frames as u64;
+        let mut next = n + to_spawn;
 
         while let Some(res) = futs.next().await {
             match res {
                 Err(e) => {
-                    futs.push(spawn!(n + chunk_size as u64).boxed());
                     n += 1;
-                }
+                    limit += 1
+                },
                 _ => {}
+            }
+
+            if spawned < limit {
+                futs.push(spawn!(next as u64).boxed());
+                spawned += 1;
+                next += 1;
             }
         }
 
         self.last_frame_info.update(move |(next, total_offset)| {
             *next = frame_number + 1;
-            *total_offset = n - (self.n as u64) * frame_number;
+            *total_offset = n - (self.num_frames as u64) * frame_number;
         });
 
         let mut out_buffer = match Arc::try_unwrap(out) {
@@ -134,7 +145,7 @@ impl ProcessingNode for Average {
         out_buffer.as_mut_slice(|out| {
             let out: &mut [u32] = bytemuck::cast_slice_mut(out);
             for val in out {
-                *val = bytemuck::cast((*val as f32) / (self.n as f32));
+                *val = bytemuck::cast((*val as f32) / (self.num_frames as f32));
             }
         });
 
@@ -148,7 +159,7 @@ impl ProcessingNode for Average {
     fn get_caps(&self) -> Caps {
         let caps = self.input.get_caps();
         Caps {
-            frame_count: caps.frame_count.map(|v| v / self.n as u64),
+            frame_count: caps.frame_count.map(|v| v / self.num_frames as u64),
             is_live: caps.is_live
         }
     }
