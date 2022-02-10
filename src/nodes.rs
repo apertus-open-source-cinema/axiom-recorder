@@ -2,10 +2,10 @@
 use crate::nodes_io::reader_webcam::WebcamInput;
 use crate::{
     nodes_cpu::{
+        average::Average,
         benchmark_sink::BenchmarkSink,
         bitdepth_convert::BitDepthConverter,
         dual_frame_raw_decoder::DualFrameRawDecoder,
-        average::Average,
     },
     nodes_gpu::{
         bitdepth_convert::GpuBitDepthConverter,
@@ -16,6 +16,7 @@ use crate::{
     },
     nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
+        reader_tcp::TcpReader,
         writer_cinema_dng::CinemaDngWriter,
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
@@ -33,10 +34,11 @@ use std::collections::HashMap;
 
 
 macro_rules! generate_dynamic_node_creation_functions {
-    ($($x:ty),+ $(,)?) => {
+    ($($(#[$m:meta])? $x:ty),+ $(,)?) => {
         pub fn list_available_nodes() -> HashMap<String, ParameterizableDescriptor> {
             let mut to_return = HashMap::new();
             $(
+                $(#[$m])?
                 to_return.insert(<$x>::get_name(), <$x>::describe());
             )+
             to_return
@@ -44,6 +46,7 @@ macro_rules! generate_dynamic_node_creation_functions {
 
         pub fn create_node_from_name(name: &str, parameters: &Parameters, context: &ProcessingContext) -> Result<Node> {
             $(
+                $(#[$m])?
                 if name == <$x>::get_name() {
                     return Ok(<$x>::from_parameters(parameters, &context)?.into_processing_element())
                 };
@@ -54,7 +57,6 @@ macro_rules! generate_dynamic_node_creation_functions {
     };
 }
 
-#[cfg(target_os = "linux")]
 generate_dynamic_node_creation_functions![
     RawDirectoryReader,
     RawBlobReader,
@@ -65,27 +67,12 @@ generate_dynamic_node_creation_functions![
     BitDepthConverter,
     DualFrameRawDecoder,
     BenchmarkSink,
-    WebcamInput,
     ColorVoodoo,
     RawDirectoryWriter,
     RawBlobWriter,
     Lut3d,
     Average,
-];
-
-#[cfg(not(target_os = "linux"))]
-generate_dynamic_node_creation_functions![
-    RawDirectoryReader,
-    RawBlobReader,
-    CinemaDngWriter,
-    GpuBitDepthConverter,
-    Debayer,
-    Display,
-    BitDepthConverter,
-    DualFrameRawDecoder,
-    BenchmarkSink,
-    ColorVoodoo,
-    RawDirectoryWriter,
-    RawBlobWriter,
-    Lut3d,
+    TcpReader,
+    #[cfg(target_os = "linux")]
+    WebcamInput,
 ];
