@@ -1,25 +1,118 @@
-
-
-use std::sync::Arc;
+use std::{
+    ops::{Deref, DerefMut},
+    sync::{Arc, atomic::{AtomicUsize, Ordering}}
+};
 use futures::{StreamExt};
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use owning_ref::{OwningHandle};
 
-use vulkano::buffer::{BufferAccess, CpuAccessibleBuffer, TypedBufferAccess};
+use vulkano::buffer::{BufferAccess, BufferInner, CpuAccessibleBuffer, TypedBufferAccess};
 use vulkano::buffer::cpu_access::WriteLock;
+use vulkano::device::Queue;
+use vulkano::DeviceSize;
+use vulkano::sync::AccessError;
+
+static DROP_ID: AtomicUsize = AtomicUsize::new(0);
+
+pub struct TrackDrop<T> {
+    val: T,
+    id: usize
+}
+
+impl<T> Deref for TrackDrop<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.val
+    }
+}
+
+unsafe impl<T: TypedBufferAccess> TypedBufferAccess for TrackDrop<T> {
+    type Content = T::Content;
+}
+
+unsafe impl<T: BufferAccess> BufferAccess for TrackDrop<T> {
+    fn inner(&self) -> BufferInner {
+        self.val.inner()
+    }
+
+    fn size(&self) -> DeviceSize {
+        self.val.size()
+    }
+
+    fn conflict_key(&self) -> (u64, u64) {
+        self.val.conflict_key()
+    }
+
+    fn try_gpu_lock(&self, exclusive_access: bool, queue: &Queue) -> Result<(), AccessError> {
+        self.val.try_gpu_lock(exclusive_access, queue)
+    }
+
+    unsafe fn increase_gpu_lock(&self) {
+        self.val.increase_gpu_lock()
+    }
+
+    unsafe fn unlock(&self) {
+        self.val.unlock()
+    }
+}
+
+impl<T> DerefMut for TrackDrop<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.val
+    }
+}
+
+impl<T> Drop for TrackDrop<T> {
+    fn drop(&mut self) {
+        #[cfg(feature = "track-drop")]
+        println!("dropping {} from {:?}", self.id, backtrace::Backtrace::new())
+    }
+}
+
+pub trait InfoForTrackDrop {
+    fn info(&self) -> String;
+}
+
+impl InfoForTrackDrop for CpuAccessibleBuffer<[u8]> {
+    fn info(&self) -> String {
+        format!("len = {}", self.len()).into()
+    }
+}
+
+impl<T: InfoForTrackDrop> From<T> for TrackDrop<T> {
+    fn from(val: T) -> Self {
+        let id = DROP_ID.fetch_add(1, Ordering::SeqCst);
+        #[cfg(feature = "track-drop")]
+        eprintln!("creating {id}: {}", val.info());
+        Self {
+            val,
+            id
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct CpuBuffer {
-    buf: Arc<CpuAccessibleBuffer<[u8]>>,
+    buf: Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>,
 }
+
 impl From<Arc<CpuAccessibleBuffer<[u8]>>> for CpuBuffer {
-    fn from(buf: Arc<CpuAccessibleBuffer<[u8]>>) -> Self { Self { buf } }
+    fn from(buf: Arc<CpuAccessibleBuffer<[u8]>>) -> Self {
+        Self { buf: Arc::new(Arc::try_unwrap(buf).unwrap().into()) }
+    }
 }
+
+impl From<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>> for CpuBuffer {
+    fn from(buf: Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>) -> Self {
+        Self { buf: buf.clone() }
+    }
+}
+
 impl CpuBuffer {
     pub fn len(&self) -> usize { self.buf.len() as _ }
 
-    pub fn cpu_accessible_buffer(&self) -> Arc<CpuAccessibleBuffer<[u8]>> { self.buf.clone() }
+    pub fn cpu_accessible_buffer(&self) -> Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>> { self.buf.clone() }
 
     pub fn as_slice<FN: FnOnce(&[u8]) -> R, R>(&self, func: FN) -> R {
         func(&*self.buf.read().unwrap())
@@ -39,7 +132,7 @@ impl CpuBuffer {
 }
 
 pub struct ChunkedCpuBuffer<'a> {
-    buf_holder: OwningHandle<Arc<CpuAccessibleBuffer<[u8]>>, WriteLock<'a, [u8]>>,
+    buf_holder: OwningHandle<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>, WriteLock<'a, [u8]>>,
     locks: Vec<futures::lock::Mutex<usize>>,
     n: usize,
     chunk_size: usize,

@@ -9,6 +9,8 @@ edition = "2018"
 
 [features]
 default = []
+dhat-heap = ["dhat"]
+track-drop = ["backtrace"]
 gst = ["gstreamer", "gstreamer-video", "gstreamer-base", "gstreamer-app"]
 
 [dependencies]
@@ -40,6 +42,8 @@ derivative = "2.2.0"
 pollster = "0.2.4"
 shellwords = "1.1.0"
 num_cpus = "1.13.0"
+dhat = { version = "0.3.0", optional = true }
+backtrace = { version = "0.3.64", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.12.1"

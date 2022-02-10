@@ -31,7 +31,6 @@ use tiff_encoder::{
     SHORT,
     SRATIONAL,
 };
-use vulkano::buffer::TypedBufferAccess;
 
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
@@ -138,7 +137,7 @@ impl SinkNode for CinemaDngWriter {
 
 
 impl Datablock for CpuBuffer {
-    fn size(&self) -> u32 { self.cpu_accessible_buffer().len() as u32 }
+    fn size(&self) -> u32 { self.len() as u32 }
 
     fn write_to(self, file: &mut EndianFile) -> std::io::Result<()> {
         self.as_slice(|slice| file.write_all_u8(slice))
