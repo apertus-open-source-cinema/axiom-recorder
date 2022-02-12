@@ -28,11 +28,13 @@ pub struct DualFrameRawDecoder {
     input: Arc<dyn ProcessingNode + Send + Sync>,
     cfa_descriptor: CfaDescriptor,
     last_frame_info: AsyncNotifier<(u64, u64)>,
+    debug: bool
 }
 impl Parameterizable for DualFrameRawDecoder {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+            .with("debug", ParameterTypeDescriptor::Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(false)))
             .with(
                 "red-in-first-col",
                 Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
@@ -51,6 +53,7 @@ impl Parameterizable for DualFrameRawDecoder {
                 red_in_first_row: parameters.get("red-in-first-row")?,
             },
             last_frame_info: Default::default(),
+            debug: parameters.get("debug")?
         })
     }
 }
@@ -82,6 +85,11 @@ impl ProcessingNode for DualFrameRawDecoder {
         let (frame_a, frame_b) = pulled_frames.unwrap();
         let is_correct = frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
+                if self.debug {
+                    println!("---------");
+                    println!("frame a: ctr: {}, wrsel: {}, ty: {}", frame_a[0], frame_a[1], frame_a[2]);
+                    println!("frame b: ctr: {}, wrsel: {}, ty: {}", frame_b[0], frame_b[1], frame_b[2]);
+                }
                 let wrsel_matches = frame_a[1] == frame_b[1];
                 let ctr_a = frame_a[0];
                 let ctr_b = frame_b[0];
