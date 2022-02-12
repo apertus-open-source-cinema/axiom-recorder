@@ -112,10 +112,10 @@ impl SinkNode for CinemaDngWriter {
 
                     // color matrix from https://github.com/apertus-open-source-cinema/misc-tools-utilities/blob/8c8e9fca96b4b3fec50756fd7a72be6ea5c7b77c/raw2dng/raw2dng.c#L46-L49
                     .with_entry(50721, SRATIONAL![  // ColorMatrix1
-                    (11038, 10000), (-3184, 10000), (-1009, 10000),
-                    (-3284, 10000), (11499, 10000), (1737, 10000),
-                    (-1283, 10000), (3550, 10000), (5967, 10000)
-           ])
+                        (11038, 10000), (-3184, 10000), (-1009, 10000),
+                        (-3284, 10000), (11499, 10000), (1737, 10000),
+                        (-1283, 10000), (3550, 10000), (5967, 10000)
+                    ])
 
                     .with_entry(51044, SRATIONAL![((frame.interp.fps * 10000.0) as i32, 10000)])// FrameRate
 
