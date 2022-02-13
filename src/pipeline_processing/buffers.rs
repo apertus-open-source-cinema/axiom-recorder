@@ -1,30 +1,37 @@
+use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use owning_ref::OwningHandle;
 use std::{
     ops::{Deref, DerefMut},
-    sync::{Arc, atomic::{AtomicUsize, Ordering}}
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
-use futures::{StreamExt};
-use futures::future::BoxFuture;
-use futures::stream::FuturesUnordered;
-use owning_ref::{OwningHandle};
 
-use vulkano::buffer::{BufferAccess, BufferInner, CpuAccessibleBuffer, TypedBufferAccess};
-use vulkano::buffer::cpu_access::WriteLock;
-use vulkano::device::Queue;
-use vulkano::DeviceSize;
-use vulkano::sync::AccessError;
+use vulkano::{
+    buffer::{
+        cpu_access::WriteLock,
+        BufferAccess,
+        BufferInner,
+        CpuAccessibleBuffer,
+        TypedBufferAccess,
+    },
+    device::Queue,
+    sync::AccessError,
+    DeviceSize,
+};
 
 static DROP_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub struct TrackDrop<T> {
     val: T,
-    id: usize
+    #[cfg(feature = "track-drop")]
+    id: usize,
 }
 
 impl<T> Deref for TrackDrop<T> {
     type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.val
-    }
+    fn deref(&self) -> &Self::Target { &self.val }
 }
 
 unsafe impl<T: TypedBufferAccess> TypedBufferAccess for TrackDrop<T> {
@@ -32,35 +39,23 @@ unsafe impl<T: TypedBufferAccess> TypedBufferAccess for TrackDrop<T> {
 }
 
 unsafe impl<T: BufferAccess> BufferAccess for TrackDrop<T> {
-    fn inner(&self) -> BufferInner {
-        self.val.inner()
-    }
+    fn inner(&self) -> BufferInner { self.val.inner() }
 
-    fn size(&self) -> DeviceSize {
-        self.val.size()
-    }
+    fn size(&self) -> DeviceSize { self.val.size() }
 
-    fn conflict_key(&self) -> (u64, u64) {
-        self.val.conflict_key()
-    }
+    fn conflict_key(&self) -> (u64, u64) { self.val.conflict_key() }
 
     fn try_gpu_lock(&self, exclusive_access: bool, queue: &Queue) -> Result<(), AccessError> {
         self.val.try_gpu_lock(exclusive_access, queue)
     }
 
-    unsafe fn increase_gpu_lock(&self) {
-        self.val.increase_gpu_lock()
-    }
+    unsafe fn increase_gpu_lock(&self) { self.val.increase_gpu_lock() }
 
-    unsafe fn unlock(&self) {
-        self.val.unlock()
-    }
+    unsafe fn unlock(&self) { self.val.unlock() }
 }
 
 impl<T> DerefMut for TrackDrop<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.val
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.val }
 }
 
 impl<T> Drop for TrackDrop<T> {
@@ -75,19 +70,18 @@ pub trait InfoForTrackDrop {
 }
 
 impl InfoForTrackDrop for CpuAccessibleBuffer<[u8]> {
-    fn info(&self) -> String {
-        format!("len = {}", self.len()).into()
-    }
+    fn info(&self) -> String { format!("len = {}", self.len()) }
 }
 
 impl<T: InfoForTrackDrop> From<T> for TrackDrop<T> {
     fn from(val: T) -> Self {
-        let id = DROP_ID.fetch_add(1, Ordering::SeqCst);
+        let _id = DROP_ID.fetch_add(1, Ordering::SeqCst);
         #[cfg(feature = "track-drop")]
         eprintln!("creating {id}: {}", val.info());
         Self {
             val,
-            id
+            #[cfg(feature = "track-drop")]
+            id,
         }
     }
 }
@@ -104,21 +98,26 @@ impl From<Arc<CpuAccessibleBuffer<[u8]>>> for CpuBuffer {
 }
 
 impl From<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>> for CpuBuffer {
-    fn from(buf: Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>) -> Self {
-        Self { buf: buf.clone() }
-    }
+    fn from(buf: Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>) -> Self { Self { buf } }
 }
 
 impl CpuBuffer {
     pub fn len(&self) -> usize { self.buf.len() as _ }
 
-    pub fn cpu_accessible_buffer(&self) -> Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>> { self.buf.clone() }
+    pub fn is_empty(&self) -> bool { self.buf.len() == 0 }
+
+    pub fn cpu_accessible_buffer(&self) -> Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>> {
+        self.buf.clone()
+    }
 
     pub fn as_slice<FN: FnOnce(&[u8]) -> R, R>(&self, func: FN) -> R {
         func(&*self.buf.read().unwrap())
     }
 
-    pub async fn as_slice_async<FN: for<'a> FnOnce(&'a [u8]) -> BoxFuture<'a, R>, R>(&self, func: FN) -> R {
+    pub async fn as_slice_async<FN: for<'a> FnOnce(&'a [u8]) -> BoxFuture<'a, R>, R>(
+        &self,
+        func: FN,
+    ) -> R {
         func(&*self.buf.read().unwrap()).await
     }
 
@@ -126,7 +125,10 @@ impl CpuBuffer {
         func(&mut *self.buf.write().unwrap())
     }
 
-    pub async fn as_mut_slice_async<FN: for<'a> FnOnce(&'a mut [u8]) -> BoxFuture<'a, R>, R>(&mut self, func: FN) -> R {
+    pub async fn as_mut_slice_async<FN: for<'a> FnOnce(&'a mut [u8]) -> BoxFuture<'a, R>, R>(
+        &mut self,
+        func: FN,
+    ) -> R {
         func(&mut *self.buf.write().unwrap()).await
     }
 }
@@ -136,7 +138,7 @@ pub struct ChunkedCpuBuffer<'a> {
     locks: Vec<futures::lock::Mutex<usize>>,
     n: usize,
     chunk_size: usize,
-    ptr: *mut u8
+    ptr: *mut u8,
 }
 
 unsafe impl<'a> Send for ChunkedCpuBuffer<'a> {}
@@ -145,36 +147,38 @@ unsafe impl<'a> Sync for ChunkedCpuBuffer<'a> {}
 impl<'a> ChunkedCpuBuffer<'a> {
     pub fn new(cpu_buffer: CpuBuffer, n: usize) -> Self {
         let chunk_size = cpu_buffer.len() / n;
-        let mut buf_holder = OwningHandle::new_with_fn(cpu_buffer.buf, |buf| unsafe {
-            (*buf).write().unwrap()
-        });
+        let mut buf_holder =
+            OwningHandle::new_with_fn(cpu_buffer.buf, |buf| unsafe { (*buf).write().unwrap() });
 
         let ptr = buf_holder.as_mut_ptr();
 
         let locks = (0..n).into_iter().map(futures::lock::Mutex::new).collect();
 
-        Self {
-            buf_holder,
-            n,
-            chunk_size,
-            locks,
-            ptr
-        }
+        Self { buf_holder, n, chunk_size, locks, ptr }
     }
 
-    pub async fn zip_with<O, F: for<'b> Fn(&'b mut [u8], &'b [O]) + Clone>(&self, other: &[O], fun: F) {
-        let mut futs = self.locks.iter().map(futures::lock::Mutex::lock).collect::<FuturesUnordered<_>>();
+    pub async fn zip_with<O, F: for<'b> Fn(&'b mut [u8], &'b [O]) + Clone>(
+        &self,
+        other: &[O],
+        fun: F,
+    ) {
+        let mut futs =
+            self.locks.iter().map(futures::lock::Mutex::lock).collect::<FuturesUnordered<_>>();
         let chunks = other.chunks(other.len() / self.n).collect::<Vec<_>>();
         while let Some(i) = futs.next().await {
             unsafe {
-                fun(std::slice::from_raw_parts_mut(self.ptr.add(*i * self.chunk_size), self.chunk_size), chunks[*i])
+                fun(
+                    std::slice::from_raw_parts_mut(
+                        self.ptr.add(*i * self.chunk_size),
+                        self.chunk_size,
+                    ),
+                    chunks[*i],
+                )
             }
         }
     }
 
-    pub fn unchunk(self) -> CpuBuffer {
-        self.buf_holder.into_owner().into()
-    }
+    pub fn unchunk(self) -> CpuBuffer { self.buf_holder.into_owner().into() }
 }
 
 #[derive(Clone)]

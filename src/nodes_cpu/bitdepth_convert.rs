@@ -84,7 +84,5 @@ impl ProcessingNode for BitDepthConverter {
         Ok(Payload::from(new_frame))
     }
 
-    fn get_caps(&self) -> Caps {
-        self.input.get_caps()
-    }
+    fn get_caps(&self) -> Caps { self.input.get_caps() }
 }

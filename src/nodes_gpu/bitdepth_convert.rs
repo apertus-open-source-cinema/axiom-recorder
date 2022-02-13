@@ -4,7 +4,11 @@ use crate::pipeline_processing::{
     gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
-        ParameterType, ParameterTypeDescriptor, Parameterizable, Parameters, ParametersDescriptor,
+        ParameterType,
+        ParameterTypeDescriptor,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
     },
     payload::Payload,
     processing_context::ProcessingContext,
@@ -118,7 +122,5 @@ impl ProcessingNode for GpuBitDepthConverter {
         Ok(Payload::from(Frame { interp, storage: GpuBuffer::from(sink_buffer) }))
     }
 
-    fn get_caps(&self) -> Caps {
-        self.input.get_caps()
-    }
+    fn get_caps(&self) -> Caps { self.input.get_caps() }
 }

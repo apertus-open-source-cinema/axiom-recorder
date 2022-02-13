@@ -5,17 +5,18 @@ use crate::pipeline_processing::{
 use anyhow::{Context, Result};
 use std::sync::Arc;
 
-use crate::pipeline_processing::{
-    frame::{Frame, Raw},
-    node::{Caps, ProcessingNode},
-    parametrizable::{ParameterType, ParameterTypeDescriptor},
-    processing_context::ProcessingContext,
+use crate::{
+    pipeline_processing::{
+        buffers::ChunkedCpuBuffer,
+        frame::{Frame, Raw},
+        node::{Caps, ProcessingNode},
+        parametrizable::{ParameterType, ParameterTypeDescriptor},
+        processing_context::ProcessingContext,
+    },
+    util::async_notifier::AsyncNotifier,
 };
 use async_trait::async_trait;
-use futures::stream::FuturesUnordered;
-use futures::{StreamExt, FutureExt};
-use crate::pipeline_processing::buffers::ChunkedCpuBuffer;
-use crate::util::async_notifier::AsyncNotifier;
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 
 pub struct Average {
     input: Arc<dyn ProcessingNode + Send + Sync>,
@@ -60,22 +61,31 @@ impl ProcessingNode for Average {
 
         // println!("[{frame_number}] adding {n}");
         // u32 -> 4 bytes per pixel
-        let out_buffer = unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
+        let out_buffer =
+            unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
 
         let out = Arc::new(ChunkedCpuBuffer::new(out_buffer, num_cpus::get()));
 
-        frame.storage.as_slice_async(|frame: &[u8]| {
-            let out = out.clone();
-            async move {
-                out.zip_with(frame, |out, frame| {
-                    let out: &mut [u32] = bytemuck::cast_slice_mut(out);
-                    for (out, frame) in out.chunks_exact_mut(2).zip(frame.chunks_exact(3)) {
-                        out[0] = (((frame[0] as u16) << 4) | (frame[1] as u16 >> 4)) as u32;
-                        out[1] = ((((frame[1] & 0xf) as u16) << 8) | (frame[2] as u16)) as u32;
+        frame
+            .storage
+            .as_slice_async(|frame: &[u8]| {
+                {
+                    let out = out.clone();
+                    async move {
+                        out.zip_with(frame, |out, frame| {
+                            let out: &mut [u32] = bytemuck::cast_slice_mut(out);
+                            for (out, frame) in out.chunks_exact_mut(2).zip(frame.chunks_exact(3)) {
+                                out[0] = (((frame[0] as u16) << 4) | (frame[1] as u16 >> 4)) as u32;
+                                out[1] =
+                                    ((((frame[1] & 0xf) as u16) << 8) | (frame[2] as u16)) as u32;
+                            }
+                        })
+                        .await;
                     }
-                }).await;
-            }
-        }.boxed()).await;
+                }
+                .boxed()
+            })
+            .await;
 
         macro_rules! spawn {
             ($i:expr) => {{
@@ -111,18 +121,18 @@ impl ProcessingNode for Average {
         }
 
         let to_spawn = self.num_frames.min(num_cpus::get() + 1) as u64;
-        let mut futs = (1u64..to_spawn).into_iter().map(|i| spawn!(n + i).boxed()).collect::<FuturesUnordered<_>>();
+        let mut futs = (1u64..to_spawn)
+            .into_iter()
+            .map(|i| spawn!(n + i).boxed())
+            .collect::<FuturesUnordered<_>>();
         let mut spawned = to_spawn;
         let mut limit = self.num_frames as u64;
         let mut next = n + to_spawn;
 
         while let Some(res) = futs.next().await {
-            match res {
-                Err(e) => {
-                    n += 1;
-                    limit += 1
-                },
-                _ => {}
+            if res.is_err() {
+                n += 1;
+                limit += 1
             }
 
             if spawned < limit {
@@ -139,7 +149,7 @@ impl ProcessingNode for Average {
 
         let mut out_buffer = match Arc::try_unwrap(out) {
             Ok(buf) => buf.unchunk(),
-            Err(_) => return Err(anyhow::anyhow!("could not get out_buffer back"))
+            Err(_) => return Err(anyhow::anyhow!("could not get out_buffer back")),
         };
 
         out_buffer.as_mut_slice(|out| {
@@ -160,7 +170,7 @@ impl ProcessingNode for Average {
         let caps = self.input.get_caps();
         Caps {
             frame_count: caps.frame_count.map(|v| v / self.num_frames as u64),
-            is_live: caps.is_live
+            is_live: caps.is_live,
         }
     }
 }

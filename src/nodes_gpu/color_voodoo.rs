@@ -4,7 +4,11 @@ use crate::pipeline_processing::{
     gpu_util::ensure_gpu_buffer,
     node::{Caps, ProcessingNode},
     parametrizable::{
-        ParameterType, ParameterTypeDescriptor, ParameterValue, Parameterizable, Parameters,
+        ParameterType,
+        ParameterTypeDescriptor,
+        ParameterValue,
+        Parameterizable,
+        Parameters,
         ParametersDescriptor,
     },
     payload::Payload,
@@ -151,7 +155,5 @@ impl ProcessingNode for ColorVoodoo {
         Ok(Payload::from(Frame { interp: frame.interp, storage: GpuBuffer::from(sink_buffer) }))
     }
 
-    fn get_caps(&self) -> Caps {
-        self.input.get_caps()
-    }
+    fn get_caps(&self) -> Caps { self.input.get_caps() }
 }
