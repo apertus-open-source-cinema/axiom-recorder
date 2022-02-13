@@ -3,8 +3,12 @@ use crate::{
         frame::{Frame, FrameInterpretation, Rgb},
         node::{Caps, ProcessingNode},
         parametrizable::{
-            ParameterType::IntRange, ParameterTypeDescriptor::Optional, ParameterValue,
-            Parameterizable, Parameters, ParametersDescriptor,
+            ParameterType::IntRange,
+            ParameterTypeDescriptor::Optional,
+            ParameterValue,
+            Parameterizable,
+            Parameters,
+            ParametersDescriptor,
         },
         payload::Payload,
         processing_context::ProcessingContext,
@@ -14,24 +18,25 @@ use crate::{
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::{
-    collections::VecDeque,
     mem,
-    sync::{mpsc, Arc, Mutex},
-    thread,
+    sync::{Arc, RwLock},
 };
 use v4l::{
     buffer::{Metadata, Type},
     device::Handle,
     v4l2,
     video::Capture,
-    Device, Memory,
+    Device,
+    Memory,
 };
 use v4l2_sys_mit::*;
 
 pub struct WebcamInput {
-    queue: AsyncNotifier<VecDeque<(u64, Payload)>>,
-    last_frame_last_pulled: Mutex<(u64, u64)>,
+    queue: AsyncNotifier<(u64, u64)>,
+    stream: RwLock<CpuBufferQueueManager>,
+    interp: Rgb,
 }
+
 impl Parameterizable for WebcamInput {
     const DESCRIPTION: Option<&'static str> =
         Some("read frames from a webcam (or webcam like source like a frame-grabber)");
@@ -40,83 +45,59 @@ impl Parameterizable for WebcamInput {
         ParametersDescriptor::new()
             .with("device", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
     }
-    fn from_parameters(options: &Parameters, context: &ProcessingContext) -> anyhow::Result<Self> {
+    fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self> {
         let dev =
             Device::new(options.get::<u64>("device")? as usize).expect("Failed to open device");
         let format = dev.format()?;
         let interp = Rgb { width: format.width as u64, height: format.height as u64, fps: 10000.0 };
         let mut stream = CpuBufferQueueManager::new(&dev);
         stream.start();
-        let (tx, rx) = mpsc::channel();
-        thread::spawn(move || loop {
-            let (frame, metadata) = stream.dequeue();
-            if metadata.bytesused > 0 {
-                tx.send((frame, metadata.sequence)).unwrap();
-            } else {
-                println!("we got no data from the webcam :(");
-            }
-            stream.enqueue();
-        });
 
-        let queue = AsyncNotifier::new(VecDeque::new());
-        let queue_clone = queue.clone();
-        let context = context.clone();
-        thread::spawn(move || loop {
-            let mut buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
-            let (src_buf, sequence) = rx.recv().unwrap();
-            buffer.as_mut_slice(|buffer| {
-                for (src, dst) in src_buf.chunks_exact(3).zip(buffer.chunks_exact_mut(3)) {
-                    dst[0] = src[2];
-                    dst[1] = src[1];
-                    dst[2] = src[0];
-                }
-            });
-
-            queue_clone.update(move |queue| {
-                queue
-                    .push_back((sequence as u64, Payload::from(Frame { storage: buffer, interp })));
-            });
-        });
-
-        Ok(Self { queue, last_frame_last_pulled: Default::default() })
+        Ok(Self { queue: Default::default(), stream: RwLock::new(stream), interp })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for WebcamInput {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        self.queue
-            .wait(move |queue| {
-                queue
-                    .iter()
-                    .map(|(n, _)| n)
-                    .max()
-                    .map(|latest| *latest >= frame_number)
-                    .unwrap_or(false)
-            })
-            .await;
+        self.queue.wait(move |(num, _)| *num == frame_number).await;
+        let (_, prev_seq) = self.queue.get();
+        let (frame, metadata) = {
+            let mut stream = self.stream.write().unwrap();
+            let (frame, metadata) = stream.dequeue();
+            stream.enqueue();
+            (frame, metadata)
+        };
+        self.queue.update(|(num, prev_seq)| {
+            *num = frame_number + 1;
+            *prev_seq = metadata.sequence as _
+        });
+        if metadata.bytesused == 0 {
+            return Err(anyhow!(
+                "Zero size frame from v4l2, seq = {}, frame_number = {}",
+                metadata.sequence,
+                frame_number
+            ));
+        }
+        if prev_seq + 1 != metadata.sequence as _ {
+            println!("Frame slipped for frame_number = {frame_number}, prev_seq = {prev_seq}, sequence = {}", metadata.sequence);
+        }
+        // dbg!(frame_number, metadata.sequence);
+        // frame, metadata.sequence
 
-        self.queue.update(|queue| {
-            let pos = queue.iter().position(|(n, _)| *n == frame_number).ok_or_else(|| {
-                anyhow!("Frame {} is not present anymore in webcam input buffer", frame_number)
-            })?;
-            let payload = queue.get(pos).unwrap().1.clone();
-
-            let mut last_frame_last_pulled = self.last_frame_last_pulled.lock().unwrap();
-            if last_frame_last_pulled.0 < context.frame() {
-                queue.retain(|(n, _)| n >= &last_frame_last_pulled.1)
+        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        buffer.as_mut_slice(|buffer| {
+            for (src, dst) in frame.chunks_exact(3).zip(buffer.chunks_exact_mut(3)) {
+                dst[0] = src[2];
+                dst[1] = src[1];
+                dst[2] = src[0];
             }
+        });
 
-            last_frame_last_pulled.0 = context.frame();
-            last_frame_last_pulled.1 = frame_number;
-
-            Ok(payload)
-        })
+        return Ok(Payload::from(Frame { storage: buffer, interp: self.interp }));
     }
 
-    fn get_caps(&self) -> Caps {
-        Caps { frame_count: None, is_live: true }
-    }
+    fn get_caps(&self) -> Caps { Caps { frame_count: None, is_live: true } }
 }
 
 pub struct CpuBufferQueueManager {
@@ -158,7 +139,7 @@ impl CpuBufferQueueManager {
 
         let buffers = vec![None; num_buffers];
         let mut to_return = Self { handle, buffers, buffer_size };
-        for _ in 0..(num_buffers - 1) {
+        for _ in 0..num_buffers {
             to_return.enqueue()
         }
 
