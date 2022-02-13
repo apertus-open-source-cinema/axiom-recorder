@@ -67,6 +67,7 @@ pub struct AsyncNotifierFutureInner {
     poll_count: u64,
 }
 #[derive(Debug, Clone)]
+#[must_use = "futures do nothing unless awaited"]
 pub struct AsyncNotifierFuture(Arc<Mutex<AsyncNotifierFutureInner>>);
 impl Future for AsyncNotifierFuture {
     type Output = ();
