@@ -6,7 +6,10 @@ use crate::pipeline_processing::{
         ParameterType,
         ParameterType::BoolParameter,
         ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue, Parameterizable, Parameters, ParametersDescriptor,
+        ParameterValue,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
     },
     processing_context::ProcessingContext,
     puller::OrderedPuller,
@@ -20,7 +23,9 @@ use std::{
 use vulkano::{
     buffer::BufferView,
     command_buffer::{
-        AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit, SubpassContents,
+        AutoCommandBufferBuilder,
+        CommandBufferUsage::OneTimeSubmit,
+        SubpassContents,
     },
     descriptor_set::PersistentDescriptorSet,
     format::Format::R8_UNORM,

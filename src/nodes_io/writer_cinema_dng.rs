@@ -76,9 +76,9 @@ impl SinkNode for CinemaDngWriter {
             progress_callback,
             self.input.clone(),
             self.number_of_frames,
-            move |mut input, frame_number| {
+            move |input, frame_number| {
                 let frame =
-                    context.ensure_cpu_buffer::<Raw>(&mut input).context("Wrong input format")?;
+                    context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
 
                 let cfa_pattern =
                     match (frame.interp.cfa.red_in_first_row, frame.interp.cfa.red_in_first_col) {

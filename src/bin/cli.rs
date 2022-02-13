@@ -58,7 +58,7 @@ fn work() -> Result<()> {
 
     let pipeline_raw: Vec<_> = main_app_arguments.values_of("pipeline").unwrap().collect();
     let pipeline_split = if pipeline_raw.len() == 1 {
-        shellwords::split(&pipeline_raw[0])?
+        shellwords::split(pipeline_raw[0])?
     } else {
         pipeline_raw.iter().map(|f| f.to_string()).collect()
     };
