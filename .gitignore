@@ -9,3 +9,14 @@ flamegraph*.svg
 perf.data*
 test
 tmp
+
+dhat*
+
+out8/*
+
+test.mp4
+test.out
+vulkan_gst_buffer_sharing/*
+*.avg.blob
+report.log
+measure_bw.sh

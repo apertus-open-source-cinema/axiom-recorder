@@ -12,11 +12,12 @@ use vulkano::{
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
         Device,
+        DeviceCreateInfo,
         DeviceExtensions,
         Queue,
+        QueueCreateInfo,
     },
-    instance::Instance,
-    Version,
+    instance::{Instance, InstanceCreateInfo},
 };
 
 
@@ -62,31 +63,37 @@ pub struct ProcessingContext {
 impl Default for ProcessingContext {
     fn default() -> Self {
         let threads = num_cpus::get();
-        let vk_device =
-            Instance::new(None, Version::V1_2, &vulkano_win::required_extensions(), None)
-                .ok()
-                .and_then(|instance| {
-                    PhysicalDevice::enumerate(&instance).find_map(|physical| {
-                        if physical.properties().device_type == PhysicalDeviceType::Cpu {
-                            return None;
-                        }
+        let vk_device = Instance::new(InstanceCreateInfo {
+            enabled_extensions: vulkano_win::required_extensions(),
+            ..Default::default()
+        })
+        .ok()
+        .and_then(|instance| {
+            PhysicalDevice::enumerate(&instance).find_map(|physical| {
+                if physical.properties().device_type == PhysicalDeviceType::Cpu {
+                    return None;
+                }
 
-                        let queue_family = physical.queue_families().map(|qf| (qf, 0.5)); // All queues have the same priority
-                        let device_ext = DeviceExtensions {
-                            khr_swapchain: true,
-                            khr_storage_buffer_storage_class: true,
-                            khr_8bit_storage: true,
-                            ..(*physical.required_extensions())
-                        };
-                        Device::new(
-                            physical,
-                            physical.supported_features(),
-                            &device_ext,
-                            queue_family,
-                        )
-                        .ok()
-                    })
-                });
+                let queue_family = physical.queue_families().map(QueueCreateInfo::family).collect();
+
+                let device_ext = DeviceExtensions {
+                    khr_swapchain: true,
+                    khr_storage_buffer_storage_class: true,
+                    khr_8bit_storage: true,
+                    ..(*physical.required_extensions())
+                };
+                Device::new(
+                    physical,
+                    DeviceCreateInfo {
+                        enabled_extensions: device_ext,
+                        enabled_features: physical.supported_features().clone(),
+                        queue_create_infos: queue_family,
+                        ..Default::default()
+                    },
+                )
+                .ok()
+            })
+        });
         match vk_device {
             None => {
                 println!("using cpu only processing");
@@ -120,6 +127,8 @@ impl ProcessingContext {
     }
     pub fn frame(&self) -> u64 { self.priority.get_frame() }
 
+    /// # Safety
+    /// Only safe if you initialize the memory
     pub unsafe fn get_uninit_cpu_buffer(&self, len: usize) -> CpuBuffer {
         if let Some(vulkan_context) = &self.vulkan_device {
             CpuAccessibleBuffer::uninitialized_array(

@@ -16,9 +16,11 @@ struct PrioritizedRunnable<T: Ord> {
     runnable: Runnable,
 }
 
+type CVar<T> = Arc<(Mutex<T>, Condvar)>;
+
 #[derive(Clone)]
 pub struct PrioritizedReactor<T: Ord> {
-    queue_cvar: Arc<(Mutex<BinaryHeap<Reverse<PrioritizedRunnable<T>>>>, Condvar)>,
+    queue_cvar: CVar<BinaryHeap<Reverse<PrioritizedRunnable<T>>>>,
     pub num_threads: usize,
 }
 

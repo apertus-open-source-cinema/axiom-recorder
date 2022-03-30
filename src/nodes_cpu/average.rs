@@ -42,8 +42,8 @@ impl Parameterizable for Average {
 #[async_trait]
 impl ProcessingNode for Average {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
-        let total_offset = self.last_frame_info.get().1;
+        let (_, total_offset) =
+            self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
         let mut n = (self.num_frames as u64) * frame_number + total_offset;
         let input = loop {
             let input = self.input.pull(n, context).await;
@@ -64,7 +64,7 @@ impl ProcessingNode for Average {
         let out_buffer =
             unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
 
-        let out = Arc::new(ChunkedCpuBuffer::new(out_buffer, num_cpus::get()));
+        let out = Arc::new(ChunkedCpuBuffer::new(out_buffer, context.num_threads()));
 
         frame
             .storage

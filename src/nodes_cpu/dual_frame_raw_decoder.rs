@@ -67,8 +67,8 @@ impl Parameterizable for DualFrameRawDecoder {
 #[async_trait]
 impl ProcessingNode for DualFrameRawDecoder {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
-        let (_, next_even) = self.last_frame_info.get();
+        let (_, next_even) =
+            self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
         let pulled_frames = (|| async {
             let frames = try_join!(
                 self.input.pull(next_even, context),
@@ -89,25 +89,25 @@ impl ProcessingNode for DualFrameRawDecoder {
             return Err(e);
         }
         let (frame_a, frame_b) = pulled_frames.unwrap();
-        let is_correct = frame_a.storage.as_slice(|frame_a| {
+        let (is_correct, debug_info) = frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
+                let debug_info = format!(
+                    "frame a: ctr: {}, wrsel: {}, ty: {}\n",
+                    frame_a[0], frame_a[1], frame_a[2]
+                ) + &format!(
+                    "frame b: ctr: {}, wrsel: {}, ty: {}",
+                    frame_b[0], frame_b[1], frame_b[2]
+                );
                 if self.debug {
                     println!("---------");
-                    println!(
-                        "frame a: ctr: {}, wrsel: {}, ty: {}",
-                        frame_a[0], frame_a[1], frame_a[2]
-                    );
-                    println!(
-                        "frame b: ctr: {}, wrsel: {}, ty: {}",
-                        frame_b[0], frame_b[1], frame_b[2]
-                    );
+                    println!("{}", debug_info);
                 }
                 let wrsel_matches = frame_a[1] == frame_b[1];
                 let ctr_a = frame_a[0];
                 let ctr_b = frame_b[0];
                 let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
                 let ctr_is_ok = ctr_is_ok || (ctr_b == 0);
-                wrsel_matches && ctr_is_ok
+                (wrsel_matches && ctr_is_ok, debug_info)
             })
         });
         self.last_frame_info.update(move |(next, next_next_even)| {
@@ -115,7 +115,7 @@ impl ProcessingNode for DualFrameRawDecoder {
             *next_next_even = if is_correct { next_even + 2 } else { next_even + 1 };
         });
         if !is_correct {
-            return Err(anyhow!("frame slipped in DualFrameRawDecoder"));
+            return Err(anyhow!("frame slipped in DualFrameRawDecoder:\n{}", debug_info));
         }
 
         let interp = Raw {

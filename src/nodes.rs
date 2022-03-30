@@ -29,10 +29,6 @@ use crate::{
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
-// #[cfg(feature = "gst")]
-// use crate::nodes_io::writer_gstreamer::GstWriter;
-
-
 macro_rules! generate_dynamic_node_creation_functions {
     ($($(#[$m:meta])? $x:ty),+ $(,)?) => {
         pub fn list_available_nodes() -> HashMap<String, ParameterizableDescriptor> {

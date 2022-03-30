@@ -60,8 +60,7 @@ impl Parameterizable for WebcamInput {
 #[async_trait]
 impl ProcessingNode for WebcamInput {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        self.queue.wait(move |(num, _)| *num == frame_number).await;
-        let (_, prev_seq) = self.queue.get();
+        let (_, prev_seq) = self.queue.wait(move |(num, _)| *num == frame_number).await;
         let (frame, metadata) = {
             let mut stream = self.stream.write().unwrap();
             let (frame, metadata) = stream.dequeue();

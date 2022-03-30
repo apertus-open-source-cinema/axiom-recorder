@@ -102,6 +102,7 @@ pub struct RawDirectoryReader {
     files: Vec<PathBuf>,
     interp: FrameInterpretations,
     cache_frames: bool,
+    internal_loop: bool,
     cache: Mutex<Vec<Option<Payload>>>,
 }
 impl Parameterizable for RawDirectoryReader {
@@ -113,6 +114,7 @@ impl Parameterizable for RawDirectoryReader {
             .with_interpretation()
             .with("file-pattern", Mandatory(StringParameter))
             .with("cache-frames", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
+            .with("internal-loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
     fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self>
     where
@@ -125,6 +127,7 @@ impl Parameterizable for RawDirectoryReader {
             files,
             interp: options.get_interpretation()?,
             cache_frames: options.get("cache-frames")?,
+            internal_loop: options.get("internal-loop")?,
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
         })
     }
@@ -132,7 +135,10 @@ impl Parameterizable for RawDirectoryReader {
 
 #[async_trait]
 impl ProcessingNode for RawDirectoryReader {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(&self, mut frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+        if self.internal_loop {
+            frame_number %= self.files.len() as u64;
+        }
         if frame_number >= self.files.len() as u64 {
             return Err(anyhow!(
                 "frame {} was requested but this stream only has a length of {}",
@@ -165,6 +171,9 @@ impl ProcessingNode for RawDirectoryReader {
     }
 
     fn get_caps(&self) -> Caps {
-        Caps { frame_count: Some(self.files.len() as u64), is_live: false }
+        Caps {
+            frame_count: if self.internal_loop { None } else { Some(self.files.len() as u64) },
+            is_live: false,
+        }
     }
 }
