@@ -75,7 +75,8 @@ impl InfoForTrackDrop for CpuAccessibleBuffer<[u8]> {
 
 impl<T: InfoForTrackDrop> From<T> for TrackDrop<T> {
     fn from(val: T) -> Self {
-        let _id = DROP_ID.fetch_add(1, Ordering::SeqCst);
+        #[allow(unused)]
+        let id = DROP_ID.fetch_add(1, Ordering::SeqCst);
         #[cfg(feature = "track-drop")]
         eprintln!("creating {id}: {}", val.info());
         Self {
@@ -134,6 +135,8 @@ impl CpuBuffer {
 }
 
 pub struct ChunkedCpuBuffer<'a> {
+    // what worth is it to just factor parts of this?
+    #[allow(clippy::type_complexity)]
     buf_holder: OwningHandle<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>, WriteLock<'a, [u8]>>,
     locks: Vec<futures::lock::Mutex<usize>>,
     n: usize,
@@ -195,8 +198,11 @@ impl<T: TypedBufferAccess<Content = [u8]> + Send + Sync + 'static> From<Arc<T>> 
     }
 }
 impl GpuBuffer {
-    pub fn typed(&self) -> Arc<dyn TypedBufferAccess<Content = [u8]> + Send + Sync> {
-        self.typed_buffer_access.clone()
+    // Ok, this is super weird, but we need to wrap it into a extra Arc, because
+    // vulkano now takes Arc<T> where T: TypedBufferAccess, but it wants T to be
+    // Sized
+    pub fn typed(&self) -> Arc<Arc<dyn TypedBufferAccess<Content = [u8]> + Send + Sync>> {
+        Arc::new(self.typed_buffer_access.clone())
     }
     pub fn untyped(&self) -> Arc<(dyn BufferAccess)> { self.buffer_access.clone() }
 }

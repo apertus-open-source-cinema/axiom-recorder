@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use clap::{App, AppSettings, Arg};
+use clap::{Arg, Command};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
@@ -44,9 +44,9 @@ fn main() {
 
 // used to have the convenience of ? for error handling
 fn work() -> Result<()> {
-    let main_app_arguments = App::new("Raw Image / Video Converter")
+    let main_app_arguments = Command::new("Raw Image / Video Converter")
         .about("convert raw footage from AXIOM cameras into other formats.")
-        .setting(AppSettings::TrailingVarArg)
+        .trailing_var_arg(true)
         .arg(
             Arg::new("pipeline")
                 .required(true)
@@ -109,7 +109,7 @@ fn nodes_usages_string() -> String {
                 clap_app_from_node_name(node_name)
                     .unwrap()
                     .help_template("    * {usage}")
-                    .setting(AppSettings::NoBinaryName)
+                    .no_binary_name(true)
                     .try_get_matches_from(once::<&str>("--help"))
                     .unwrap_err()
                     .to_string(),
@@ -172,7 +172,7 @@ fn processing_node_from_commandline(
         .with_context(|| format!("Error while creating Node {}", name))
 }
 
-fn clap_app_from_node_name(name: &str) -> Result<App<'static>> {
+fn clap_app_from_node_name(name: &str) -> Result<Command<'static>> {
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
     let node_descriptor: ParameterizableDescriptor = available_nodes
         .get(name)
@@ -185,7 +185,7 @@ fn clap_app_from_node_name(name: &str) -> Result<App<'static>> {
         })?
         .clone();
 
-    let mut app = App::new(node_descriptor.name);
+    let mut app = Command::new(node_descriptor.name);
     if let Some(description) = node_descriptor.description {
         app = app.about(Box::leak(Box::new(description)).as_str());
     }
