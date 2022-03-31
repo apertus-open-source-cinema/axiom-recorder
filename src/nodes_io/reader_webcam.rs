@@ -60,6 +60,7 @@ impl Parameterizable for WebcamInput {
 #[async_trait]
 impl ProcessingNode for WebcamInput {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+        // println!("pulling {frame_number}");
         let (_, prev_seq) = self.queue.wait(move |(num, _)| *num == frame_number).await;
         let (frame, metadata) = {
             let mut stream = self.stream.write().unwrap();
@@ -67,6 +68,7 @@ impl ProcessingNode for WebcamInput {
             stream.enqueue();
             (frame, metadata)
         };
+        // println!("got {frame_number}");
         self.queue.update(|(num, prev_seq)| {
             *num = frame_number + 1;
             *prev_seq = metadata.sequence as _
@@ -107,7 +109,7 @@ pub struct CpuBufferQueueManager {
 impl CpuBufferQueueManager {
     fn new(dev: &Device) -> Self {
         let handle = dev.handle();
-        let num_buffers = 4usize;
+        let num_buffers = 8usize;
 
         let mut v4l2_reqbufs: v4l2_requestbuffers;
         unsafe {

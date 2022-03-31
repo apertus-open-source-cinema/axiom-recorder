@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::{
     pipeline_processing::{
+        buffers::CpuBuffer,
         frame::{CfaDescriptor, Frame, FrameInterpretation, Raw, Rgb},
         node::{Caps, ProcessingNode},
         parametrizable::{
@@ -20,14 +21,14 @@ use crate::{
     util::async_notifier::AsyncNotifier,
 };
 use async_trait::async_trait;
-use futures::try_join;
+use futures::join;
 
 const FRAME_A_MARKER: u8 = 0xAA;
 
 pub struct DualFrameRawDecoder {
     input: Arc<dyn ProcessingNode + Send + Sync>,
     cfa_descriptor: CfaDescriptor,
-    last_frame_info: AsyncNotifier<(u64, u64)>,
+    last_frame_info: AsyncNotifier<(u64, u64, Option<Arc<Frame<Rgb, CpuBuffer>>>)>,
     debug: bool,
 }
 impl Parameterizable for DualFrameRawDecoder {
@@ -67,24 +68,38 @@ impl Parameterizable for DualFrameRawDecoder {
 #[async_trait]
 impl ProcessingNode for DualFrameRawDecoder {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        let (_, next_even) =
-            self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
-        let pulled_frames = (|| async {
-            let frames = try_join!(
-                self.input.pull(next_even, context),
-                self.input.pull(next_even + 1, context)
-            )?;
-            let frame_a =
-                context.ensure_cpu_buffer::<Rgb>(&frames.0).context("Wrong input format")?;
-            let frame_b =
-                context.ensure_cpu_buffer::<Rgb>(&frames.1).context("Wrong input format")?;
-            Result::<_>::Ok((frame_a, frame_b))
-        })()
-        .await;
+        let (_, next_even, old_frame) =
+            self.last_frame_info.wait(move |(next, _, _)| *next == frame_number).await;
+
+        let mut offset = 2;
+        let pulled_frames = (|| async { match old_frame {
+            Some(frame_a) => {
+                self.last_frame_info.update(|(_, _, old_frame)| *old_frame = None);
+
+                offset = 1;
+                let frame = self.input.pull(next_even, context).await?;
+                let frame_b =
+                    context.ensure_cpu_buffer::<Rgb>(&frame).context("Wrong input format")?;
+                Result::<_>::Ok((frame_a, frame_b))
+            },
+            None => {
+                let frames = join!(
+                    self.input.pull(next_even, context),
+                    self.input.pull(next_even + 1, context)
+                );
+                let frame_a =
+                    context.ensure_cpu_buffer::<Rgb>(&frames.0?).context("Wrong input format")?;
+                let frame_b =
+                    context.ensure_cpu_buffer::<Rgb>(&frames.1?).context("Wrong input format")?;
+                Result::<_>::Ok((frame_a, frame_b))
+            }
+        }})().await;
+
         if let Err(e) = pulled_frames {
-            self.last_frame_info.update(move |(next, next_next_even)| {
+            // println!("problem getting frame, {next_even} -> {}", next_even + offset);
+            self.last_frame_info.update(move |(next, next_next_even, _)| {
                 *next = frame_number + 1;
-                *next_next_even = next_even + 1;
+                *next_next_even = next_even + offset;
             });
             return Err(e);
         }
@@ -110,9 +125,13 @@ impl ProcessingNode for DualFrameRawDecoder {
                 (wrsel_matches && ctr_is_ok, debug_info)
             })
         });
-        self.last_frame_info.update(move |(next, next_next_even)| {
+        self.last_frame_info.update(|(next, next_next_even, old_frame)| {
             *next = frame_number + 1;
-            *next_next_even = if is_correct { next_even + 2 } else { next_even + 1 };
+            *next_next_even = next_even + offset;
+            if !is_correct {
+                // println!("slipped, offset = {offset}, next_even = {next_even}");
+                *old_frame = Some(frame_b.clone());
+            }
         });
         if !is_correct {
             return Err(anyhow!("frame slipped in DualFrameRawDecoder:\n{}", debug_info));
@@ -136,11 +155,6 @@ impl ProcessingNode for DualFrameRawDecoder {
                 } else {
                     (frame_b, frame_a)
                 };
-
-                //println!("---------");
-                //println!("frame a: ctr: {}, wrsel: {}, ty: {}", frame_a[0], frame_a[1],
-                // frame_a[2]); println!("frame b: ctr: {}, wrsel: {}, ty: {}",
-                // frame_b[0], frame_b[1], frame_b[2]);
 
                 new_buffer.as_mut_slice(|new_buffer| {
                     for ((frame_a_chunk, frame_b_chunk), output_chunk) in frame_a
