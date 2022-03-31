@@ -115,7 +115,7 @@ fn nodes_usages_string() -> String {
                     .to_string(),
             ))
         })
-        .join("\n")
+        .join("")
 }
 fn processing_node_from_commandline(
     commandline: &[String],

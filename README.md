@@ -3,63 +3,63 @@
 
 Software to record and convert moving images from Apertus° AXIOM cameras via USB3 or ethernet.
 
+This software-package features a graph-based environment for developing raw images and raw image sequences
+in real time with GPU-acceleration.
+
 ## Get It!
 ```shell script
-sudo apt install cmake
 git clone https://github.com/apertus-open-source-cinema/axiom-recorder
 cd axiom-recorder
 cargo build --release --all
 ```
 
-If you want to be able to use the gstreamer integration, add `--features gst`
-to your `cargo` commands. This requires you to install the following packages
-(on ubuntu): `libgstreamer1.0-dev`, `libgstreamer-plugins-base1.0-dev`, `gstreamer1.0-plugins-base`, `gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-bad`, `gstreamer1.0-plugins-ugly`, `gstreamer1.0-libav`, `libgstrtspserver-1.0-dev`, `libges-1.0-dev`, `libgstreamer-plugins-bad1.0-dev`
-
 ## Usage
-Currently, this project only exposes a cli tool with which you can create and run Image processing pipelines.
-A GUI tool for doing recording in a more convenient way is planned.
+Currently, this project only exposes a cli tool with which you can create and run image processing pipelines.
+A GUI tool for doing recording in a more convenient way is planned but not implemented yet.
 
-```shell
-$ target/release/converter --help
+```sh
+$ target/release/cli --help
 Raw Image / Video Converter 
 convert raw footage from AXIOM cameras into other formats.
 
 USAGE:
-    converter [--app-args] ! <VideoSource> --source arg ! <VideoSink> --sink arg
+    cli <pipeline>...
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+ARGS:
+    <pipeline>...    example: <Node1> --source-arg ! <Node2> --sink-arg
+
+OPTIONS:
+    -h, --help    Print help information
 
 NODES:
-    * RawDirectoryWriter --path <path>
-    * BitDepthConverter
-    * FfmpegWriter [OPTIONS] --fps <fps> --output <output>
-    * RawDirectoryReader [OPTIONS] --bit-depth <bit-depth> --file-pattern <file-pattern> --height <height> --width <width> --red-in-first-col <true/false> --red-in-first-row <true/false>
-    * Usb3Reader [OPTIONS] --bit-depth <bit-depth> --height <height> --width <width>
+    * TcpReader [OPTIONS] --width <width> --height <height> --address <address>
     * Debayer
-    * RawBlobWriter --path <path>
-    * CinemaDngWriter --fps <fps> --path <path>
-    * RawBlobReader [OPTIONS] --bit-depth <bit-depth> --file <file> --height <height> --width <width>
-    * GstWriter --pipeline <pipeline>
+    * WebcamInput [OPTIONS]
+    * DualFrameRawDecoder [OPTIONS]
+    * RawBlobWriter [OPTIONS] --path <path>
+    * Lut3d --file <file>
+    * GpuBitDepthConverter
     * Display [OPTIONS]
+    * BenchmarkSink
+    * RawDirectoryReader [OPTIONS] --file-pattern <file-pattern> --width <width> --height <height>
+    * RawBlobReader [OPTIONS] --file <file> --width <width> --height <height>
+    * RawDirectoryWriter [OPTIONS] --path <path>
+    * BitDepthConverter
+    * CinemaDngWriter [OPTIONS] --path <path>
+    * ColorVoodoo [OPTIONS]
+    * Average --n <n>
 ```
 
 ## Examples
 
 Record a cinema dng sequence via usb3 from the micro:
 ```shell
-$ target/release/converter ! Usb3Reader --bit-depth 8 --height 1296 --width 2304 --red-in-first-col false ! CinemaDngWriter --fps 30 --path cinema_dng_folder'
-```
-
-Display Live Video from the micro via usb3:
-```shell
-$ target/release/converter ! Usb3Reader --bit-depth 8 --height 1296 --width 2304 --red-in-first-col false ! Debayer ! Display'
+$ target/release/converter Usb3Reader --bit-depth 8 --height 1296 --width 2304 --red-in-first-col false --fps 30 ! CinemaDngWriter --path cinema_dng_folder'
 ```
 
 Convert a raw directory to mp4 (h264) from the Beta using FFmpeg:
 ```shell
-$ target/release/converter  ! RawDirectoryReader --file-pattern '~/Darkbox-Timelapse-Clock-Sequence/*.raw12' --bit-depth 12 --height 3072 --width 4096 --loop true ! BitDepthConverter ! Debayer ! FfmpegWriter --output darkbox.mp4
+$ target/release/converter RawDirectoryReader --file-pattern '~/Darkbox-Timelapse-Clock-Sequence/*.raw12' --bit-depth 12 --height 3072 --width 4096 --loop true --fps 30 ! BitDepthConverter ! Debayer ! FfmpegWriter --output darkbox.mp4
 ```
 
 
