@@ -63,6 +63,7 @@ pub struct ProcessingContext {
 impl Default for ProcessingContext {
     fn default() -> Self {
         let threads = std::env::var("RECORDER_NUM_THREADS").map_err(|_| ()).and_then(|v| v.parse::<usize>().map_err(|_| ())).unwrap_or_else(|_| num_cpus::get());
+        println!("using {threads} threads");
         let vk_device = Instance::new(InstanceCreateInfo {
             enabled_extensions: vulkano_win::required_extensions(),
             ..Default::default()

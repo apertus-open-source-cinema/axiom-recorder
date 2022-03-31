@@ -28,7 +28,7 @@ const FRAME_A_MARKER: u8 = 0xAA;
 pub struct DualFrameRawDecoder {
     input: Arc<dyn ProcessingNode + Send + Sync>,
     cfa_descriptor: CfaDescriptor,
-    last_frame_info: AsyncNotifier<(u64, u64, Option<Arc<Frame<Rgb, CpuBuffer>>>)>,
+    last_frame_info: AsyncNotifier<(u64, u64, u8, Option<Arc<Frame<Rgb, CpuBuffer>>>)>,
     debug: bool,
 }
 impl Parameterizable for DualFrameRawDecoder {
@@ -68,13 +68,13 @@ impl Parameterizable for DualFrameRawDecoder {
 #[async_trait]
 impl ProcessingNode for DualFrameRawDecoder {
     async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        let (_, next_even, old_frame) =
-            self.last_frame_info.wait(move |(next, _, _)| *next == frame_number).await;
+        let (_, next_even, last_wrsel, old_frame) =
+            self.last_frame_info.wait(move |(next, _, _, _)| *next == frame_number).await;
 
         let mut offset = 2;
         let pulled_frames = (|| async { match old_frame {
             Some(frame_a) => {
-                self.last_frame_info.update(|(_, _, old_frame)| *old_frame = None);
+                self.last_frame_info.update(|(_, _, _, old_frame)| *old_frame = None);
 
                 offset = 1;
                 let frame = self.input.pull(next_even, context).await?;
@@ -97,14 +97,14 @@ impl ProcessingNode for DualFrameRawDecoder {
 
         if let Err(e) = pulled_frames {
             // println!("problem getting frame, {next_even} -> {}", next_even + offset);
-            self.last_frame_info.update(move |(next, next_next_even, _)| {
+            self.last_frame_info.update(move |(next, next_next_even, _, _)| {
                 *next = frame_number + 1;
                 *next_next_even = next_even + offset;
             });
             return Err(e);
         }
         let (frame_a, frame_b) = pulled_frames.unwrap();
-        let (is_correct, debug_info) = frame_a.storage.as_slice(|frame_a| {
+        let (is_correct, debug_info, wrsel) = frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
                 let debug_info = format!(
                     "frame a: ctr: {}, wrsel: {}, ty: {}\n",
@@ -122,12 +122,13 @@ impl ProcessingNode for DualFrameRawDecoder {
                 let ctr_b = frame_b[0];
                 let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
                 let ctr_is_ok = ctr_is_ok || (ctr_b == 0);
-                (wrsel_matches && ctr_is_ok, debug_info)
+                (wrsel_matches && ctr_is_ok && (frame_a[1] != last_wrsel), debug_info, frame_a[1])
             })
         });
-        self.last_frame_info.update(|(next, next_next_even, old_frame)| {
+        self.last_frame_info.update(|(next, next_next_even, last_wrsel, old_frame)| {
             *next = frame_number + 1;
             *next_next_even = next_even + offset;
+            *last_wrsel = wrsel;
             if !is_correct {
                 // println!("slipped, offset = {offset}, next_even = {next_even}");
                 *old_frame = Some(frame_b.clone());

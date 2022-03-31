@@ -68,7 +68,7 @@ impl ProcessingNode for WebcamInput {
             stream.enqueue();
             (frame, metadata)
         };
-        // println!("got {frame_number}");
+        // println!("got {frame_number}, {}", metadata.sequence);
         self.queue.update(|(num, prev_seq)| {
             *num = frame_number + 1;
             *prev_seq = metadata.sequence as _
