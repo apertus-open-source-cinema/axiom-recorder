@@ -1,20 +1,21 @@
 use crate::pipeline_processing::{
+    node::InputProcessingNode,
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
 };
 use anyhow::{Context, Result};
-use std::sync::Arc;
+
 
 use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, Raw},
-    node::{Caps, ProcessingNode},
+    node::{Caps, NodeID, ProcessingNode},
     parametrizable::{ParameterType, ParameterTypeDescriptor},
     processing_context::ProcessingContext,
 };
 use async_trait::async_trait;
 
 pub struct BitDepthConverter {
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
 }
 impl Parameterizable for BitDepthConverter {
     fn describe_parameters() -> ParametersDescriptor {
@@ -22,14 +23,23 @@ impl Parameterizable for BitDepthConverter {
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self> {
         Ok(Self { input: parameters.get("input")? })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for BitDepthConverter {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         let input = self.input.pull(frame_number, context).await?;
         let frame = context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
         let interp = Raw { bit_depth: 8, ..frame.interp };

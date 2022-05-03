@@ -5,19 +5,22 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::pipeline_processing::parametrizable::{
-    ParameterType::StringParameter,
-    ParameterTypeDescriptor::Mandatory,
-    ParameterValue,
-    Parameterizable,
-    Parameters,
-    ParametersDescriptor,
+use crate::pipeline_processing::{
+    node::InputProcessingNode,
+    parametrizable::{
+        ParameterType::StringParameter,
+        ParameterTypeDescriptor::Mandatory,
+        ParameterValue,
+        Parameterizable,
+        Parameters,
+        ParametersDescriptor,
+    },
 };
 use anyhow::{anyhow, Result};
 
 use crate::pipeline_processing::{
     frame::{Raw, Rgb},
-    node::{ProcessingNode, ProgressUpdate, SinkNode},
+    node::{NodeID, ProgressUpdate, SinkNode},
     parametrizable::{
         ParameterType::{IntRange, NodeInput},
         ParameterTypeDescriptor::Optional,
@@ -29,7 +32,7 @@ use crate::pipeline_processing::{
 
 pub struct RawBlobWriter {
     file: Arc<Mutex<File>>,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     number_of_frames: u64,
 }
 impl Parameterizable for RawBlobWriter {
@@ -39,7 +42,11 @@ impl Parameterizable for RawBlobWriter {
             .with("input", Mandatory(NodeInput))
             .with("number-of-frames", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
     }
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -58,7 +65,12 @@ impl SinkNode for RawBlobWriter {
         context: &ProcessingContext,
         _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let puller = OrderedPuller::new(context, self.input.clone(), false, self.number_of_frames);
+        let puller = OrderedPuller::new(
+            context,
+            self.input.clone_for_same_puller(),
+            false,
+            self.number_of_frames,
+        );
         while let Ok(payload) = puller.recv() {
             if let Ok(frame) = context.ensure_cpu_buffer::<Rgb>(&payload) {
                 frame.storage.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
@@ -75,7 +87,7 @@ impl SinkNode for RawBlobWriter {
 
 pub struct RawDirectoryWriter {
     dir_path: String,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     number_of_frames: u64,
 }
 impl Parameterizable for RawDirectoryWriter {
@@ -86,7 +98,11 @@ impl Parameterizable for RawDirectoryWriter {
             .with("number-of-frames", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -111,7 +127,7 @@ impl SinkNode for RawDirectoryWriter {
         pull_unordered(
             context,
             progress_callback,
-            self.input.clone(),
+            self.input.clone_for_same_puller(),
             self.number_of_frames,
             move |payload, frame_number| {
                 let mut file = File::create(format!("{}/{:06}.data", &dir_path, frame_number))?;

@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     frame::Rgb,
-    node::{ProcessingNode, ProgressUpdate, SinkNode},
+    node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
     parametrizable::{
         ParameterType::{FloatRange, NodeInput, StringParameter},
         ParameterTypeDescriptor::{Mandatory, Optional},
@@ -24,7 +24,7 @@ pub struct FfmpegWriter {
     output: String,
     input_options: String,
     fps: f64,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
 }
 impl Parameterizable for FfmpegWriter {
     fn describe_parameters() -> ParametersDescriptor {
@@ -37,7 +37,11 @@ impl Parameterizable for FfmpegWriter {
             )
             .with("input", Mandatory(NodeInput))
     }
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -57,7 +61,7 @@ impl SinkNode for FfmpegWriter {
         context: &ProcessingContext,
         _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let puller = OrderedPuller::new(context, self.input.clone(), false, 0);
+        let puller = OrderedPuller::new(context, self.input.clone_for_same_puller(), false, 0);
         let mut frame = context
             .ensure_cpu_buffer::<Rgb>(&puller.recv().unwrap())
             .context("Wrong input format")?;

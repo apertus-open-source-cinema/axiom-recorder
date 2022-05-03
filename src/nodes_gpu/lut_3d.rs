@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, FrameInterpretation, Rgb},
     gpu_util::ensure_gpu_buffer,
-    node::{Caps, ProcessingNode},
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode},
     parametrizable::{
         ParameterType,
         ParameterTypeDescriptor,
@@ -45,7 +45,7 @@ pub struct Lut3d {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     lut_image_view: Arc<dyn ImageViewAbstract>,
     lut_sampler: Arc<Sampler>,
 }
@@ -57,7 +57,11 @@ impl Parameterizable for Lut3d {
             .with("file", ParameterTypeDescriptor::Mandatory(ParameterType::StringParameter))
     }
 
-    fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -196,7 +200,12 @@ fn read_lut_texture_from_cube_file(path: String, queue: Arc<Queue>) -> Result<Ar
 
 #[async_trait]
 impl ProcessingNode for Lut3d {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         let input = self.input.pull(frame_number, context).await?;
 
         let (frame, fut) =

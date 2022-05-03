@@ -23,11 +23,7 @@ impl<T: Clone> AsyncNotifier<T> {
         predicate: impl Fn(&T) -> bool + 'static + Send + Sync,
     ) -> AsyncNotifierFuture<T> {
         let mut lock = self.0.lock().unwrap();
-        let data = if predicate(&lock.data) {
-            Some(lock.data.clone())
-        } else {
-            None
-        };
+        let data = if predicate(&lock.data) { Some(lock.data.clone()) } else { None };
 
         let fut = AsyncNotifierFuture(Arc::new(Mutex::new(AsyncNotifierFutureInner {
             waker: None,

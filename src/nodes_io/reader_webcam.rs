@@ -1,7 +1,7 @@
 use crate::{
     pipeline_processing::{
         frame::{Frame, FrameInterpretation, Rgb},
-        node::{Caps, ProcessingNode},
+        node::{Caps, NodeID, ProcessingNode},
         parametrizable::{
             ParameterType::IntRange,
             ParameterTypeDescriptor::Optional,
@@ -45,7 +45,11 @@ impl Parameterizable for WebcamInput {
         ParametersDescriptor::new()
             .with("device", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
     }
-    fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self> {
+    fn from_parameters(
+        mut options: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> anyhow::Result<Self> {
         let dev =
             Device::new(options.get::<u64>("device")? as usize).expect("Failed to open device");
         let format = dev.format()?;
@@ -59,7 +63,12 @@ impl Parameterizable for WebcamInput {
 
 #[async_trait]
 impl ProcessingNode for WebcamInput {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         // println!("pulling {frame_number}");
         let (_, prev_seq) = self.queue.wait(move |(num, _)| *num == frame_number).await;
         let (frame, metadata) = {

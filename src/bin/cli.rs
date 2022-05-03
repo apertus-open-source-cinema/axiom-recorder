@@ -4,24 +4,23 @@ use clap::{Arg, Command};
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use recorder::{
-    nodes::{create_node_from_name, list_available_nodes},
+    nodes::list_available_nodes,
     pipeline_processing::{
-        node::Node,
+        node::NodeID,
         parametrizable::{
             ParameterType,
             ParameterTypeDescriptor,
             ParameterTypeDescriptor::{Mandatory, Optional},
-            ParameterValue,
             ParameterizableDescriptor,
             Parameters,
         },
         processing_context::ProcessingContext,
+        processing_graph::{ProcessingGraph, ProcessingNodeConfig},
     },
 };
 use std::{
     collections::HashMap,
     iter::once,
-    mem,
     sync::{Arc, Mutex},
 };
 
@@ -66,22 +65,21 @@ fn work() -> Result<()> {
 
     let processing_context = ProcessingContext::default();
 
+    let mut processing_graph = ProcessingGraph::new();
     let mut last_element = None;
+
     for node_cmd in node_commandlines {
-        let last_taken = mem::take(&mut last_element);
-        let node = processing_node_from_commandline(node_cmd, &processing_context, last_taken)?;
-        last_element = Some(node);
+        last_element = Some(processing_graph.add(processing_node_from_commandline(
+            node_cmd,
+            last_element,
+            &processing_context,
+        )?));
     }
 
-    let sink = if let Node::Sink(sink) = last_element.unwrap() {
-        sink
-    } else {
-        return Err(anyhow!("the last processing element needs to be a sink!"));
-    };
-
     let progressbar: Arc<Mutex<Option<ProgressBar>>> = Default::default();
+    let processing_graph = processing_graph.build(&processing_context)?;
 
-    pollster::block_on(sink.run(&processing_context, Arc::new(move |progress| {
+    processing_graph.run(&processing_context, move |progress| {
         let mut lock = progressbar.lock().unwrap();
         if lock.is_none() {
             let progressbar = if let Some(total_frames) = progress.total_frames {
@@ -96,7 +94,7 @@ fn work() -> Result<()> {
             *lock = Some(progressbar)
         }
         lock.as_ref().unwrap().set_position(progress.latest_frame);
-    })))?;
+    })?;
 
     Ok(())
 }
@@ -119,9 +117,9 @@ fn nodes_usages_string() -> String {
 }
 fn processing_node_from_commandline(
     commandline: &[String],
-    context: &ProcessingContext,
-    last_node: Option<Node>,
-) -> Result<Node> {
+    input: Option<NodeID>,
+    _context: &ProcessingContext,
+) -> Result<ProcessingNodeConfig> {
     let name = &commandline[0];
 
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
@@ -140,7 +138,7 @@ fn processing_node_from_commandline(
     let results = app
         .try_get_matches_from(commandline)
         .with_context(|| format!("Wrong Parameters for Node {}", name))?;
-    let mut parameters: HashMap<_, _> = parameters_description
+    let parameters: HashMap<_, _> = parameters_description
         .0
         .iter()
         .filter(|(_, descriptor)| {
@@ -160,6 +158,13 @@ fn processing_node_from_commandline(
         })
         .collect::<Result<_, anyhow::Error>>()?;
 
+    Ok(ProcessingNodeConfig::single_input_node(
+        name.to_string(),
+        Parameters::new(parameters),
+        input,
+    ))
+
+    /*
     if let Some(last_node) = last_node {
         if let Node::Node(last_node) = last_node {
             parameters.insert("input".to_string(), ParameterValue::NodeInput(last_node));
@@ -170,27 +175,29 @@ fn processing_node_from_commandline(
 
     create_node_from_name(name, &Parameters(parameters), context)
         .with_context(|| format!("Error while creating Node {}", name))
+        */
 }
+
+fn leaked_thing<T: Clone>(s: &T) -> &'static T { Box::leak(Box::new(s.clone())) }
 
 fn clap_app_from_node_name(name: &str) -> Result<Command<'static>> {
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
-    let node_descriptor: ParameterizableDescriptor = available_nodes
-        .get(name)
-        .ok_or_else(|| {
+    let node_descriptor: &ParameterizableDescriptor =
+        available_nodes.get(name).ok_or_else(|| {
             anyhow!(
                 "cant find node with name {}. avalable nodes are: {:?}",
                 name,
                 available_nodes.keys()
             )
-        })?
-        .clone();
+        })?;
 
-    let mut app = Command::new(node_descriptor.name);
-    if let Some(description) = node_descriptor.description {
-        app = app.about(Box::leak(Box::new(description)).as_str());
+    let mut app = Command::new(node_descriptor.name.clone());
+    if let Some(description) = node_descriptor.description.clone() {
+        app = app.about(leaked_thing(&description).as_str());
     }
-    let parameters_description = node_descriptor.parameters_descriptor;
-    for (key, parameter_type) in Box::leak(Box::new(parameters_description.0)).iter() {
+    let parameters_description = leaked_thing(&node_descriptor.parameters_descriptor);
+    for (key, parameter_type) in parameters_description.0.iter() {
+        let parameter_type = leaked_thing(parameter_type);
         if let ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput)
         | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _) = parameter_type
         {
@@ -198,7 +205,7 @@ fn clap_app_from_node_name(name: &str) -> Result<Command<'static>> {
         };
         let parameter_type_for_closure = parameter_type.clone();
         app = app.arg(match parameter_type {
-            Mandatory(_) => Arg::new(key.as_str())
+            Mandatory(_) => Arg::new(leaked_thing(&key).as_str())
                 .long(key)
                 .takes_value(true)
                 .allow_hyphen_values(true)

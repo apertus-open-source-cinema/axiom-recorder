@@ -1,7 +1,7 @@
 use crate::{
     pipeline_processing::{
         frame::{Frame, FrameInterpretation, FrameInterpretations},
-        node::{Caps, ProcessingNode},
+        node::{Caps, NodeID, ProcessingNode},
         parametrizable::{
             ParameterType::StringParameter,
             ParameterTypeDescriptor::Mandatory,
@@ -30,7 +30,11 @@ impl Parameterizable for TcpReader {
             .with_interpretation()
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -44,7 +48,12 @@ impl Parameterizable for TcpReader {
 
 #[async_trait]
 impl ProcessingNode for TcpReader {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         self.notifier.wait(move |x| *x >= frame_number).await;
 
         let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };

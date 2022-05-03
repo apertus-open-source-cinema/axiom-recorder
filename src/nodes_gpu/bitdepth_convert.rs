@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, FrameInterpretation, Raw},
     gpu_util::ensure_gpu_buffer,
-    node::{Caps, ProcessingNode},
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode},
     parametrizable::{
         ParameterType,
         ParameterTypeDescriptor,
@@ -39,7 +39,7 @@ pub struct GpuBitDepthConverter {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
 }
 
 impl Parameterizable for GpuBitDepthConverter {
@@ -47,7 +47,11 @@ impl Parameterizable for GpuBitDepthConverter {
         ParametersDescriptor::new()
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
     }
-    fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -70,7 +74,12 @@ impl Parameterizable for GpuBitDepthConverter {
 
 #[async_trait]
 impl ProcessingNode for GpuBitDepthConverter {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         let input = self.input.pull(frame_number, context).await?;
 
         let (frame, fut) =

@@ -1,7 +1,7 @@
 use crate::pipeline_processing::{
     frame::Rgb,
     gpu_util::ensure_gpu_buffer,
-    node::{ProcessingNode, ProgressUpdate, SinkNode},
+    node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
     parametrizable::{
         ParameterType,
         ParameterType::BoolParameter,
@@ -138,7 +138,7 @@ pub struct Display {
     mailbox: bool,
     live: bool,
     do_loop: bool,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
 }
 
 impl Parameterizable for Display {
@@ -150,7 +150,11 @@ impl Parameterizable for Display {
             .with("input", Mandatory(ParameterType::NodeInput))
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self> {
         Ok(Self {
             mailbox: parameters.get("mailbox")?,
             live: parameters.get("live")?,
@@ -167,7 +171,8 @@ impl SinkNode for Display {
         context: &ProcessingContext,
         _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let puller = OrderedPuller::new(context, self.input.clone(), self.do_loop, 0);
+        let puller =
+            OrderedPuller::new(context, self.input.clone_for_same_puller(), self.do_loop, 0);
         let (device, queues) = context.require_vulkan()?;
         let live = self.live;
 

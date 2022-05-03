@@ -1,4 +1,5 @@
 use crate::pipeline_processing::{
+    node::NodeID,
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
 };
@@ -9,7 +10,7 @@ use crate::{
     pipeline_processing::{
         buffers::ChunkedCpuBuffer,
         frame::{Frame, Raw},
-        node::{Caps, ProcessingNode},
+        node::{Caps, InputProcessingNode, ProcessingNode},
         parametrizable::{ParameterType, ParameterTypeDescriptor},
         processing_context::ProcessingContext,
     },
@@ -19,7 +20,7 @@ use async_trait::async_trait;
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 
 pub struct Average {
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     num_frames: usize,
     last_frame_info: AsyncNotifier<(u64, u64)>,
 }
@@ -30,7 +31,11 @@ impl Parameterizable for Average {
             .with("n", ParameterTypeDescriptor::Mandatory(ParameterType::IntRange(1, 1_000_000)))
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self> {
         Ok(Self {
             input: parameters.get("input")?,
             num_frames: parameters.get::<i64>("n")? as usize,
@@ -41,7 +46,12 @@ impl Parameterizable for Average {
 
 #[async_trait]
 impl ProcessingNode for Average {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         let (_, total_offset) =
             self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
         let mut n = (self.num_frames as u64) * frame_number + total_offset;
@@ -89,7 +99,7 @@ impl ProcessingNode for Average {
 
         macro_rules! spawn {
             ($i:expr) => {{
-                let input = self.input.clone();
+                let input = self.input.clone_for_same_puller();
                 let context_copy = context.clone();
                 let out = out.clone();
                 context.spawn(async move {

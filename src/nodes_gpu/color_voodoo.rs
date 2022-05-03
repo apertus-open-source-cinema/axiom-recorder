@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, FrameInterpretation, Rgb},
     gpu_util::ensure_gpu_buffer,
-    node::{Caps, ProcessingNode},
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode},
     parametrizable::{
         ParameterType,
         ParameterTypeDescriptor,
@@ -40,7 +40,7 @@ pub struct ColorVoodoo {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     pedestal: u8,
     s_gamma: f64,
     v_gamma: f64,
@@ -72,7 +72,11 @@ impl Parameterizable for ColorVoodoo {
                 ),
             )
     }
-    fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -103,7 +107,12 @@ impl Parameterizable for ColorVoodoo {
 
 #[async_trait]
 impl ProcessingNode for ColorVoodoo {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         let input = self.input.pull(frame_number, context).await?;
 
         let (frame, fut) =

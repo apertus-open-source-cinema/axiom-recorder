@@ -1,25 +1,34 @@
 use self::ParameterTypeDescriptor::{Mandatory, Optional};
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 use std::{any::type_name, convert::TryInto};
 
 use crate::pipeline_processing::{
     frame::{CfaDescriptor, FrameInterpretations, Raw, Rgb},
-    node::ProcessingNode,
+    node::{InputProcessingNode, Node, NodeID},
     processing_context::ProcessingContext,
 };
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
-    sync::Arc,
 };
 
-#[derive(Clone)]
 pub enum ParameterValue {
     FloatRange(f64),
     IntRange(i64),
     StringParameter(String),
     BoolParameter(bool),
-    NodeInput(Arc<dyn ProcessingNode + Send + Sync>),
+    NodeInput(InputProcessingNode),
+}
+impl ParameterValue {
+    fn clone_for_same_puller(&self) -> Self {
+        match self {
+            Self::FloatRange(f) => Self::FloatRange(*f),
+            Self::IntRange(i) => Self::IntRange(*i),
+            Self::BoolParameter(b) => Self::BoolParameter(*b),
+            Self::StringParameter(s) => Self::StringParameter(s.clone()),
+            Self::NodeInput(n) => Self::NodeInput(n.clone_for_same_puller()),
+        }
+    }
 }
 
 impl ToString for ParameterValue {
@@ -95,10 +104,10 @@ impl TryInto<bool> for ParameterValue {
     }
 }
 
-impl TryInto<Arc<dyn ProcessingNode + Send + Sync>> for ParameterValue {
+impl TryInto<InputProcessingNode> for ParameterValue {
     type Error = Error;
 
-    fn try_into(self) -> Result<Arc<dyn ProcessingNode + Send + Sync>, Self::Error> {
+    fn try_into(self) -> Result<InputProcessingNode, Self::Error> {
         match self {
             Self::NodeInput(v) => Ok(v),
             _ => Err(anyhow!("cant convert a non NodeInput ParameterValue to ProcessingNode")),
@@ -106,22 +115,42 @@ impl TryInto<Arc<dyn ProcessingNode + Send + Sync>> for ParameterValue {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Parameters(pub HashMap<String, ParameterValue>);
+#[derive(Debug)]
+pub struct Parameters {
+    values: HashMap<String, ParameterValue>,
+}
 
 impl Parameters {
-    pub fn get<T>(&self, key: &str) -> Result<T>
+    pub fn new(values: HashMap<String, ParameterValue>) -> Self { Self { values } }
+
+    pub fn get<T>(&mut self, key: &str) -> Result<T>
     where
         ParameterValue: TryInto<T, Error = anyhow::Error>,
     {
         let parameter_value = self
-            .0
-            .get(key)
+            .values
+            .remove(key)
             .ok_or_else(|| anyhow!("key {} not present in parameter storage", key))?;
-        parameter_value.clone().try_into()
+        parameter_value.try_into()
     }
 
-    pub fn get_interpretation(&self) -> Result<FrameInterpretations> {
+    pub fn add_inputs(mut self, puller_id: NodeID, inputs: HashMap<String, Node>) -> Result<Self> {
+        for (name, node) in inputs {
+            self.values.insert(
+                name.clone(),
+                ParameterValue::NodeInput(InputProcessingNode::new(
+                    puller_id,
+                    node.assert_input_node().with_context(|| {
+                        format!("could not convert input {name} to a input node")
+                    })?,
+                )),
+            );
+        }
+
+        Ok(self)
+    }
+
+    pub fn get_interpretation(&mut self) -> Result<FrameInterpretations> {
         let width = self.get("width")?;
         let height = self.get("height")?;
         let bit_depth = self.get("bit-depth")?;
@@ -184,18 +213,27 @@ impl ParameterType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ParameterTypeDescriptor {
     Optional(ParameterType, ParameterValue),
     Mandatory(ParameterType),
 }
 
+impl Clone for ParameterTypeDescriptor {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Optional(ty, v) => Self::Optional(ty.clone(), v.clone_for_same_puller()),
+            Self::Mandatory(ty) => Self::Mandatory(ty.clone()),
+        }
+    }
+}
+
 impl ParameterTypeDescriptor {
     pub fn parse(&self, string: Option<&str>) -> Result<ParameterValue> {
         match self {
-            Self::Optional(parameter_type, default_value) => {
-                string.map(|s| parameter_type.parse(s)).unwrap_or_else(|| Ok(default_value.clone()))
-            }
+            Self::Optional(parameter_type, default_value) => string
+                .map(|s| parameter_type.parse(s))
+                .unwrap_or_else(|| Ok(default_value.clone_for_same_puller())),
             Self::Mandatory(parameter_type) => {
                 string.map(|s| parameter_type.parse(s)).unwrap_or_else(|| {
                     Err(anyhow!("parameter was not supplied but is mandatory (no default value)"))
@@ -241,7 +279,7 @@ impl ParametersDescriptor {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ParameterizableDescriptor {
     pub name: String,
     pub description: Option<String>,
@@ -253,7 +291,11 @@ pub trait Parameterizable {
     const DESCRIPTION: Option<&'static str> = None;
 
     fn describe_parameters() -> ParametersDescriptor;
-    fn from_parameters(parameters: &Parameters, context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        parameters: Parameters,
+        is_input_to: &[NodeID],
+        context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized;
 
@@ -268,45 +310,5 @@ pub trait Parameterizable {
             description: Self::DESCRIPTION.map(|s| s.to_string()),
             parameters_descriptor: Self::describe_parameters(),
         }
-    }
-
-    fn new(parameters: &Parameters) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let mut input_parameters = parameters.0.clone();
-        let parameters_description: ParametersDescriptor = Self::describe_parameters();
-
-        let parameters: Result<HashMap<_, _>> = parameters_description
-            .0
-            .into_iter()
-            .map(|(key, parameter_type)| {
-                Ok((
-                    key.to_string(),
-                    match parameter_type {
-                        Optional(parameter_type, default_value) => {
-                            match input_parameters.remove(&key) {
-                                None => parameter_type.value_is_of_type(default_value)?,
-                                Some(v) => parameter_type.value_is_of_type(v)?,
-                            }
-                        }
-                        Mandatory(parameter_type) => match input_parameters.remove(&key) {
-                            None => {
-                                return Err(anyhow!(
-                                "parameter {} was not supplied but is mandatory (no default value)",
-                                key));
-                            }
-                            Some(v) => parameter_type.value_is_of_type(v)?,
-                        },
-                    },
-                ))
-            })
-            .collect();
-
-        if !input_parameters.len() == 0 {
-            return Err(anyhow!("bogous input parameters were supplied!"));
-        }
-
-        Self::new(&Parameters(parameters?))
     }
 }

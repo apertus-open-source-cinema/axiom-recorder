@@ -1,5 +1,5 @@
 use crate::pipeline_processing::{
-    node::{ProcessingNode, ProgressUpdate},
+    node::{InputProcessingNode, ProgressUpdate},
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -21,7 +21,7 @@ use std::{
 pub async fn pull_unordered(
     context: &ProcessingContext,
     progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     number_of_frames: u64,
     on_payload: impl Fn(Payload, u64) -> Result<()> + Send + Sync + Clone + 'static,
 ) -> Result<()> {
@@ -47,7 +47,7 @@ pub async fn pull_unordered(
         }
         if let Some(frame) = range.next() {
             let context_clone = context.clone();
-            let input = input.clone();
+            let input = input.clone_for_same_puller();
             let on_payload = on_payload.clone();
             let progress_callback = progress_callback.clone();
             let latest_frame = latest_frame.clone();
@@ -76,7 +76,7 @@ pub struct OrderedPuller {
 impl OrderedPuller {
     pub fn new(
         context: &ProcessingContext,
-        input: Arc<dyn ProcessingNode + Send + Sync>,
+        input: InputProcessingNode,
         do_loop: bool,
         number_of_frames: u64,
     ) -> Self {
@@ -98,7 +98,7 @@ impl OrderedPuller {
                 while todo.len() < 10 {
                     if let Some(frame) = range.next() {
                         let context = context.for_frame(frame);
-                        let input = input.clone();
+                        let input = input.clone_for_same_puller();
                         todo.push_front(
                             context.clone().spawn(async move { input.pull(frame, &context).await }),
                         );

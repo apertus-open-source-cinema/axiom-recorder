@@ -1,7 +1,7 @@
 use crate::pipeline_processing::{
     buffers::CpuBuffer,
     frame::Raw,
-    node::{ProcessingNode, SinkNode},
+    node::{InputProcessingNode, NodeID, SinkNode},
     parametrizable::{
         ParameterType::{NodeInput, StringParameter},
         ParameterTypeDescriptor::Mandatory,
@@ -35,7 +35,7 @@ use tiff_encoder::{
 /// A writer, that writes cinemaDNG (a folder with DNG files)
 pub struct CinemaDngWriter {
     dir_path: String,
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     number_of_frames: u64,
 }
 
@@ -47,7 +47,11 @@ impl Parameterizable for CinemaDngWriter {
             .with("number-of-frames", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self>
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -74,7 +78,7 @@ impl SinkNode for CinemaDngWriter {
         pull_unordered(
             &context.clone(),
             progress_callback,
-            self.input.clone(),
+            self.input.clone_for_same_puller(),
             self.number_of_frames,
             move |input, frame_number| {
                 let frame =

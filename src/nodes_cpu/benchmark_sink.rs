@@ -1,5 +1,5 @@
 use crate::pipeline_processing::{
-    node::{ProcessingNode, SinkNode},
+    node::{InputProcessingNode, NodeID, SinkNode},
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     processing_context::ProcessingContext,
     puller::pull_unordered,
@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub struct BenchmarkSink {
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
 }
 
 impl Parameterizable for BenchmarkSink {
@@ -29,7 +29,11 @@ impl Parameterizable for BenchmarkSink {
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self> {
         Ok(Self { input: parameters.get("input")? })
     }
 }
@@ -50,7 +54,7 @@ impl SinkNode for BenchmarkSink {
             let res = pull_unordered(
                 &context.clone(),
                 progress_callback.clone(),
-                self.input.clone(),
+                self.input.clone_for_same_puller(),
                 0,
                 move |_input, _frame_number| Ok(()),
             )
@@ -61,7 +65,7 @@ impl SinkNode for BenchmarkSink {
             let res = pull_unordered(
                 &context.clone(),
                 progress_callback.clone(),
-                self.input.clone(),
+                self.input.clone_for_same_puller(),
                 0,
                 move |_input, _frame_number| Ok(()),
             )
@@ -77,7 +81,7 @@ impl SinkNode for BenchmarkSink {
 
             Ok(())
         } else {
-            let puller = OrderedPuller::new(context, self.input.clone(), false, 0);
+            let puller = OrderedPuller::new(context, self.input.clone_for_same_puller(), false, 0);
             let reporter = FPSReporter::new("pipeline");
             loop {
                 puller.recv().unwrap();

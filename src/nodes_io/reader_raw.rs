@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, FrameInterpretations},
-    node::{Caps, ProcessingNode},
+    node::{Caps, NodeID, ProcessingNode},
     parametrizable::{
         ParameterType::{BoolParameter, StringParameter},
         ParameterTypeDescriptor::{Mandatory, Optional},
@@ -40,7 +40,11 @@ impl Parameterizable for RawBlobReader {
             .with("file", Mandatory(StringParameter))
             .with("cache-frames", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
-    fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self>
+    fn from_parameters(
+        mut options: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
@@ -60,7 +64,12 @@ impl Parameterizable for RawBlobReader {
 }
 #[async_trait]
 impl ProcessingNode for RawBlobReader {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         if frame_number >= self.frame_count as u64 {
             return Err(anyhow!(
                 "frame {} was requested but this stream only has a length of {}",
@@ -116,7 +125,11 @@ impl Parameterizable for RawDirectoryReader {
             .with("cache-frames", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
             .with("internal-loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
     }
-    fn from_parameters(options: &Parameters, _context: &ProcessingContext) -> anyhow::Result<Self>
+    fn from_parameters(
+        mut options: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
@@ -135,7 +148,12 @@ impl Parameterizable for RawDirectoryReader {
 
 #[async_trait]
 impl ProcessingNode for RawDirectoryReader {
-    async fn pull(&self, mut frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        mut frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         if self.internal_loop {
             frame_number %= self.files.len() as u64;
         }

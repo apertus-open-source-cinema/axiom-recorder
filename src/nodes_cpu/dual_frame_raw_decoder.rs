@@ -1,4 +1,5 @@
 use crate::pipeline_processing::{
+    node::InputProcessingNode,
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
 };
@@ -9,7 +10,7 @@ use crate::{
     pipeline_processing::{
         buffers::CpuBuffer,
         frame::{CfaDescriptor, Frame, FrameInterpretation, Raw, Rgb},
-        node::{Caps, ProcessingNode},
+        node::{Caps, NodeID, ProcessingNode},
         parametrizable::{
             ParameterType,
             ParameterTypeDescriptor,
@@ -26,7 +27,7 @@ use futures::join;
 const FRAME_A_MARKER: u8 = 0xAA;
 
 pub struct DualFrameRawDecoder {
-    input: Arc<dyn ProcessingNode + Send + Sync>,
+    input: InputProcessingNode,
     cfa_descriptor: CfaDescriptor,
     last_frame_info: AsyncNotifier<(u64, u64, u8, Option<Arc<Frame<Rgb, CpuBuffer>>>)>,
     debug: bool,
@@ -52,7 +53,11 @@ impl Parameterizable for DualFrameRawDecoder {
             )
     }
 
-    fn from_parameters(parameters: &Parameters, _context: &ProcessingContext) -> Result<Self> {
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self> {
         Ok(Self {
             input: parameters.get("input")?,
             cfa_descriptor: CfaDescriptor {
@@ -67,37 +72,47 @@ impl Parameterizable for DualFrameRawDecoder {
 
 #[async_trait]
 impl ProcessingNode for DualFrameRawDecoder {
-    async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
         let (_, next_even, last_wrsel, old_frame) =
-            self.last_frame_info.wait(move |(next, _, _, _)| *next == frame_number).await;
+            self.last_frame_info.wait(move |(next, ..)| *next == frame_number).await;
 
         let mut offset = 2;
-        let pulled_frames = (|| async { match old_frame {
-            Some(frame_a) => {
-                self.last_frame_info.update(|(_, _, _, old_frame)| *old_frame = None);
+        let pulled_frames = (|| async {
+            match old_frame {
+                Some(frame_a) => {
+                    self.last_frame_info.update(|(_, _, _, old_frame)| *old_frame = None);
 
-                offset = 1;
-                let frame = self.input.pull(next_even, context).await?;
-                let frame_b =
-                    context.ensure_cpu_buffer::<Rgb>(&frame).context("Wrong input format")?;
-                Result::<_>::Ok((frame_a, frame_b))
-            },
-            None => {
-                let frames = join!(
-                    self.input.pull(next_even, context),
-                    self.input.pull(next_even + 1, context)
-                );
-                let frame_a =
-                    context.ensure_cpu_buffer::<Rgb>(&frames.0?).context("Wrong input format")?;
-                let frame_b =
-                    context.ensure_cpu_buffer::<Rgb>(&frames.1?).context("Wrong input format")?;
-                Result::<_>::Ok((frame_a, frame_b))
+                    offset = 1;
+                    let frame = self.input.pull(next_even, context).await?;
+                    let frame_b =
+                        context.ensure_cpu_buffer::<Rgb>(&frame).context("Wrong input format")?;
+                    Result::<_>::Ok((frame_a, frame_b))
+                }
+                None => {
+                    let frames = join!(
+                        self.input.pull(next_even, context),
+                        self.input.pull(next_even + 1, context)
+                    );
+                    let frame_a = context
+                        .ensure_cpu_buffer::<Rgb>(&frames.0?)
+                        .context("Wrong input format")?;
+                    let frame_b = context
+                        .ensure_cpu_buffer::<Rgb>(&frames.1?)
+                        .context("Wrong input format")?;
+                    Result::<_>::Ok((frame_a, frame_b))
+                }
             }
-        }})().await;
+        })()
+        .await;
 
         if let Err(e) = pulled_frames {
             // println!("problem getting frame, {next_even} -> {}", next_even + offset);
-            self.last_frame_info.update(move |(next, next_next_even, _, _)| {
+            self.last_frame_info.update(move |(next, next_next_even, ..)| {
                 *next = frame_number + 1;
                 *next_next_even = next_even + offset;
             });

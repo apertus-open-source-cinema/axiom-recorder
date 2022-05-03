@@ -21,14 +21,13 @@ use crate::{
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
     pipeline_processing::{
-        node::{Node, ProcessingNodeIntoNode, SinkNodeIntoNode},
+        node::{Node, NodeID, ProcessingNodeIntoNode, SinkNodeIntoNode},
         parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
         processing_context::ProcessingContext,
     },
 };
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
-
 macro_rules! generate_dynamic_node_creation_functions {
     ($($(#[$m:meta])? $x:ty),+ $(,)?) => {
         pub fn list_available_nodes() -> HashMap<String, ParameterizableDescriptor> {
@@ -40,11 +39,12 @@ macro_rules! generate_dynamic_node_creation_functions {
             to_return
         }
 
-        pub fn create_node_from_name(name: &str, parameters: &Parameters, context: &ProcessingContext) -> Result<Node> {
+        pub fn create_node_from_name(name: &str, node_id: NodeID, parameters: Parameters, inputs: HashMap<String, Node>, is_input_to: &[NodeID], context: &ProcessingContext) -> Result<Node> {
             $(
                 $(#[$m])?
                 if name == <$x>::get_name() {
-                    return Ok(<$x>::from_parameters(parameters, &context)?.into_processing_element())
+                    let parameters = parameters.add_inputs(node_id, inputs)?;
+                    return Ok(<$x>::from_parameters(parameters, is_input_to, &context)?.into_processing_element())
                 };
             )+
 
