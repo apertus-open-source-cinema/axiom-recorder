@@ -10,7 +10,7 @@ use crate::pipeline_processing::{
         ParametersDescriptor,
     },
     processing_context::ProcessingContext,
-    puller::OrderedPuller,
+    puller::pull_ordered,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -59,11 +59,11 @@ impl SinkNode for FfmpegWriter {
     async fn run(
         &self,
         context: &ProcessingContext,
-        _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
+        progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let puller = OrderedPuller::new(context, self.input.clone_for_same_puller(), false, 0);
+        let rx = pull_ordered(context, progress_callback, self.input.clone_for_same_puller(), 0);
         let mut frame = context
-            .ensure_cpu_buffer::<Rgb>(&puller.recv().unwrap())
+            .ensure_cpu_buffer::<Rgb>(&rx.recv_async().await.unwrap())
             .context("Wrong input format")?;
 
         let mut child = Command::new("ffmpeg")
@@ -84,7 +84,7 @@ impl SinkNode for FfmpegWriter {
         loop {
             frame.storage.as_slice(|slice| child.stdin.as_mut().unwrap().write_all(slice))?;
 
-            if let Ok(payload) = puller.recv() {
+            if let Ok(payload) = rx.recv_async().await {
                 frame = context.ensure_cpu_buffer::<Rgb>(&payload).context("Wrong input format")?;
             } else {
                 break;

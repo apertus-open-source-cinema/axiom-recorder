@@ -166,8 +166,8 @@ impl ProcessingNode for RawDirectoryReader {
         }
 
         if self.cache_frames {
-            if let Some(cached) = self.cache.lock().unwrap()[frame_number as usize].clone() {
-                return Ok(cached);
+            if let Some(cached) = &self.cache.lock().unwrap()[frame_number as usize] {
+                return Ok(cached.clone());
             }
         }
 
@@ -184,7 +184,9 @@ impl ProcessingNode for RawDirectoryReader {
             FrameInterpretations::Rgba(interp) => Payload::from(Frame { storage: buffer, interp }),
         };
 
-        self.cache.lock().unwrap()[frame_number as usize] = Some(payload.clone());
+        if self.cache_frames {
+            self.cache.lock().unwrap()[frame_number as usize] = Some(payload.clone());
+        }
         Ok(payload)
     }
 

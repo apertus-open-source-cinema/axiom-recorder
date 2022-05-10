@@ -13,7 +13,7 @@ dhat-heap = ["dhat"]
 track-drop = ["backtrace"]
 
 [dependencies]
-clap = "3.1.15"
+clap = { version = "3.1.18", features = ["default", "derive"] }
 indicatif = "0.16.2"
 tiff-encoder = "0.3.2"
 glob = "0.3.0"
@@ -30,11 +30,15 @@ async-trait = "0.1.53"
 futures = "0.3.21"
 async-task = "4.2.0"
 derivative = "2.2.0"
-pollster = "0.2.5"
 shellwords = "1.1.0"
 num_cpus = "1.13.1"
 dhat = { version = "0.3.0", optional = true }
 backtrace = { version = "0.3.65", optional = true }
+serde = { version = "1.0.137", features = ["std", "derive"] }
+serde_yaml = "0.8.24"
+flume = "0.10.12"
+tokio = { version = "1.18.2", features = ["full"] }
+console-subscriber = "0.1.5"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.12.1"

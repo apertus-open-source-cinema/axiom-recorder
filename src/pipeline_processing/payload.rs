@@ -7,16 +7,16 @@ use std::{
 #[derive(Clone, Debug)]
 pub struct Payload {
     data: Arc<dyn Any + Send + Sync>,
-    pub type_name: String,
+    pub type_name: &'static str,
 }
 
 impl Payload {
     pub fn empty() -> Self { Payload::from(()) }
     pub fn from<T: Send + Sync + 'static>(payload: T) -> Self {
-        Payload { data: Arc::new(payload), type_name: type_name::<T>().to_string() }
+        Payload { data: Arc::new(payload), type_name: type_name::<T>() }
     }
     pub fn from_arc<T: Send + Sync + 'static>(payload: Arc<T>) -> Self {
-        Payload { data: payload, type_name: type_name::<T>().to_string() }
+        Payload { data: payload, type_name: type_name::<T>() }
     }
     pub fn downcast<T: Send + Sync + 'static>(&self) -> anyhow::Result<Arc<T>> {
         let downcast_result = self.data.clone().downcast::<T>();

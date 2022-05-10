@@ -85,8 +85,8 @@ mod prioritized_future_test {
         task::{Context, Poll},
     };
 
-    #[test]
-    fn test_smoke() {
+    #[tokio::test]
+    async fn test_smoke() {
         for _ in 0..100 {
             let pr = PrioritizedReactor::new(1);
 
@@ -94,25 +94,25 @@ mod prioritized_future_test {
 
             let fut_3 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().unwrap().push(3) }, 3)
+                pr.spawn_with_priority(async move { output.lock().push(3) }, 3)
             };
             let fut_1 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().unwrap().push(1) }, 1)
+                pr.spawn_with_priority(async move { output.lock().push(1) }, 1)
             };
             let fut_2 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().unwrap().push(2) }, 2)
+                pr.spawn_with_priority(async move { output.lock().push(2) }, 2)
             };
 
             pr.start_inner();
-            pollster::block_on(async { join!(fut_3, fut_1, fut_2) });
-            assert_eq!(&*output.lock().unwrap(), &vec![1, 2, 3]);
+            let _res = join!(fut_3, fut_1, fut_2);
+            assert_eq!(&*output.lock(), &vec![1, 2, 3]);
         }
     }
 
-    #[test]
-    fn test_step_future() {
+    #[tokio::test]
+    async fn test_step_future() {
         struct StepFuture {
             current: AtomicU64,
         }
@@ -133,7 +133,6 @@ mod prioritized_future_test {
 
         let pr = PrioritizedReactor::new(1);
         pr.start_inner();
-        let fut = pr.spawn_with_priority(StepFuture { current: Default::default() }, 1);
-        pollster::block_on(fut);
+        pr.spawn_with_priority(StepFuture { current: Default::default() }, 1).await;
     }
 }
