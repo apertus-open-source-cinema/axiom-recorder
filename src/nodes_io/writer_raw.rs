@@ -26,7 +26,7 @@ use crate::pipeline_processing::{
         ParameterTypeDescriptor::Optional,
     },
     processing_context::ProcessingContext,
-    puller::{pull_unordered, OrderedPuller},
+    puller::{pull_ordered, pull_unordered},
 };
 
 
@@ -63,15 +63,15 @@ impl SinkNode for RawBlobWriter {
     async fn run(
         &self,
         context: &ProcessingContext,
-        _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
+        progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let puller = OrderedPuller::new(
+        let rx = pull_ordered(
             context,
+            progress_callback,
             self.input.clone_for_same_puller(),
-            false,
             self.number_of_frames,
         );
-        while let Ok(payload) = puller.recv() {
+        while let Ok(payload) = rx.recv_async().await {
             if let Ok(frame) = context.ensure_cpu_buffer::<Rgb>(&payload) {
                 frame.storage.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
             } else if let Ok(frame) = context.ensure_cpu_buffer::<Raw>(&payload) {

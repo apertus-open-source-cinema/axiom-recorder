@@ -59,6 +59,7 @@ pub struct ProcessingContext {
 
     priority: Priority,
     prioritized_reactor: PrioritizedReactor<Priority>,
+    tokio_rt_handle: tokio::runtime::Handle,
 }
 impl Default for ProcessingContext {
     fn default() -> Self {
@@ -71,6 +72,7 @@ impl Default for ProcessingContext {
             enabled_extensions: vulkano_win::required_extensions(),
             ..Default::default()
         })
+        .map_err(|e| eprintln!("error creating vulkan instance: {e}"))
         .ok()
         .and_then(|instance| {
             PhysicalDevice::enumerate(&instance).find_map(|physical| {
@@ -98,6 +100,7 @@ impl Default for ProcessingContext {
                 .ok()
             })
         });
+        let runtime = tokio::runtime::Runtime::new().unwrap();
         match vk_device {
             None => {
                 println!("using cpu only processing");
@@ -105,6 +108,7 @@ impl Default for ProcessingContext {
                     vulkan_device: None,
                     priority: Default::default(),
                     prioritized_reactor: PrioritizedReactor::start(threads),
+                    tokio_rt_handle: runtime.handle().clone(),
                 }
             }
             Some((device, queues)) => {
@@ -113,6 +117,7 @@ impl Default for ProcessingContext {
                     vulkan_device: Some(VulkanContext { device, queues: queues.collect() }),
                     priority: Default::default(),
                     prioritized_reactor: PrioritizedReactor::start(threads),
+                    tokio_rt_handle: runtime.handle().clone(),
                 }
             }
         }
@@ -124,6 +129,7 @@ impl ProcessingContext {
             vulkan_device: self.vulkan_device.clone(),
             priority,
             prioritized_reactor: self.prioritized_reactor.clone(),
+            tokio_rt_handle: self.tokio_rt_handle.clone(),
         }
     }
     pub fn for_frame(&self, frame: u64) -> Self {
@@ -218,6 +224,16 @@ impl ProcessingContext {
         fut: impl Future<Output = O> + Send + 'static,
     ) -> impl Future<Output = O> {
         self.prioritized_reactor.spawn_with_priority(fut, self.priority)
+    }
+    pub fn spawn_tokio<O: Send + 'static>(
+        &self,
+        fut: impl Future<Output = O> + Send + 'static,
+    ) -> impl Future<Output = Result<O, tokio::task::JoinError>> {
+        self.tokio_rt_handle.spawn(fut)
+    }
+
+    pub fn block_on<O>(&self, fut: impl Future<Output = O>) -> O {
+        self.tokio_rt_handle.block_on(fut)
     }
 
     pub fn num_threads(&self) -> usize { self.prioritized_reactor.num_threads }

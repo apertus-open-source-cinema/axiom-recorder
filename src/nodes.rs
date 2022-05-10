@@ -44,6 +44,7 @@ macro_rules! generate_dynamic_node_creation_functions {
                 $(#[$m])?
                 if name == <$x>::get_name() {
                     let parameters = parameters.add_inputs(node_id, inputs)?;
+                    let parameters = parameters.add_defaults(<$x>::describe_parameters());
                     return Ok(<$x>::from_parameters(parameters, is_input_to, &context)?.into_processing_element())
                 };
             )+

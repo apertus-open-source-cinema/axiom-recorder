@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     node::{InputProcessingNode, NodeID, SinkNode},
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     processing_context::ProcessingContext,
-    puller::pull_unordered,
+    puller::{pull_ordered, pull_unordered},
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -12,10 +12,7 @@ use std::{sync::Arc, time::Instant};
 
 
 use crate::{
-    pipeline_processing::{
-        parametrizable::{ParameterType, ParameterTypeDescriptor},
-        puller::OrderedPuller,
-    },
+    pipeline_processing::parametrizable::{ParameterType, ParameterTypeDescriptor},
     util::fps_report::FPSReporter,
 };
 
@@ -38,16 +35,30 @@ impl Parameterizable for BenchmarkSink {
     }
 }
 
+fn mean_and_std(data: &[f64]) -> (f64, f64) {
+    let mean = data.iter().sum::<f64>() / (data.len() as f64);
+    let var = data
+        .iter()
+        .map(|v| {
+            let diff = v - mean;
+            diff * diff
+        })
+        .sum::<f64>()
+        / (data.len() as f64 - 1.0);
+
+    (mean, var.sqrt())
+}
+
 
 #[async_trait]
 impl SinkNode for BenchmarkSink {
     async fn run(
         &self,
         context: &ProcessingContext,
-        _progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
+        progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
         if let Some(frame_count) = self.input.get_caps().frame_count {
-            let progress_callback = Arc::new(|_| {});
+            // let progress_callback = Arc::new(|_| {});
 
             println!("starting benchmark with {} frames...", frame_count);
             println!("warming cache...");
@@ -61,30 +72,36 @@ impl SinkNode for BenchmarkSink {
             .await;
             println!("res = {:?}", res);
             println!("starting benchmark...");
-            let start_time = Instant::now();
-            let res = pull_unordered(
-                &context.clone(),
-                progress_callback.clone(),
-                self.input.clone_for_same_puller(),
-                0,
-                move |_input, _frame_number| Ok(()),
-            )
-            .await;
-            println!("res = {:?}", res);
-            let elapsed = (Instant::now() - start_time).as_secs_f64();
+
+            let mut durations = vec![];
+            for _ in 0..10 {
+                let start_time = Instant::now();
+                pull_unordered(
+                    &context.clone(),
+                    progress_callback.clone(),
+                    self.input.clone_for_same_puller(),
+                    0,
+                    move |_input, _frame_number| Ok(()),
+                )
+                .await?;
+                durations.push((Instant::now() - start_time).as_secs_f64());
+            }
+            let (mean, std) = mean_and_std(&durations);
             println!(
-                "time elapsed: {:.2}s for {:.2} frames. {:.2} fps",
-                elapsed,
+                "time elapsed: ({:.2} +- {:.2})ms for {:.2} frames. {:.2} fps",
+                mean * 1000.,
+                std * 1000.,
                 frame_count,
-                frame_count as f64 / elapsed
+                frame_count as f64 / mean
             );
 
             Ok(())
         } else {
-            let puller = OrderedPuller::new(context, self.input.clone_for_same_puller(), false, 0);
+            let rx =
+                pull_ordered(context, progress_callback, self.input.clone_for_same_puller(), 0);
             let reporter = FPSReporter::new("pipeline");
             loop {
-                puller.recv().unwrap();
+                rx.recv_async().await?;
                 reporter.frame();
             }
         }

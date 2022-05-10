@@ -134,7 +134,11 @@ impl Parameters {
         parameter_value.try_into()
     }
 
-    pub fn add_inputs(mut self, puller_id: NodeID, inputs: HashMap<String, Node>) -> Result<Self> {
+    pub(crate) fn add_inputs(
+        mut self,
+        puller_id: NodeID,
+        inputs: HashMap<String, Node>,
+    ) -> Result<Self> {
         for (name, node) in inputs {
             self.values.insert(
                 name.clone(),
@@ -148,6 +152,16 @@ impl Parameters {
         }
 
         Ok(self)
+    }
+
+    pub(crate) fn add_defaults(mut self, description: ParametersDescriptor) -> Self {
+        for (name, value) in description.0 {
+            if let Optional(_, value) = value {
+                self.values.entry(name).or_insert(value);
+            }
+        }
+
+        self
     }
 
     pub fn get_interpretation(&mut self) -> Result<FrameInterpretations> {

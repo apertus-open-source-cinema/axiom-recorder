@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+#[derive(Clone)]
 pub struct FPSReporter {
     tx: SyncSender<()>,
 }
