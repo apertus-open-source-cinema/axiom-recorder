@@ -20,6 +20,7 @@ use crate::{
         writer_cinema_dng::CinemaDngWriter,
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
+    nodes_util::cache::Cache,
     pipeline_processing::{
         node::{Node, NodeID, ProcessingNodeIntoNode, SinkNodeIntoNode},
         parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
@@ -70,6 +71,7 @@ generate_dynamic_node_creation_functions![
     Lut3d,
     Average,
     TcpReader,
+    Cache,
     #[cfg(target_os = "linux")]
     WebcamInput,
 ];
