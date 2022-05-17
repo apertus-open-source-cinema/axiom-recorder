@@ -94,20 +94,20 @@ mod prioritized_future_test {
 
             let fut_3 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().push(3) }, 3)
+                pr.spawn_with_priority(async move { output.lock().unwrap().push(3) }, 3)
             };
             let fut_1 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().push(1) }, 1)
+                pr.spawn_with_priority(async move { output.lock().unwrap().push(1) }, 1)
             };
             let fut_2 = {
                 let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().push(2) }, 2)
+                pr.spawn_with_priority(async move { output.lock().unwrap().push(2) }, 2)
             };
 
             pr.start_inner();
             let _res = join!(fut_3, fut_1, fut_2);
-            assert_eq!(&*output.lock(), &vec![1, 2, 3]);
+            assert_eq!(&*output.lock().unwrap(), &vec![1, 2, 3]);
         }
     }
 
