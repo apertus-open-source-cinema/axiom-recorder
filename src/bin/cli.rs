@@ -113,6 +113,7 @@ struct PipelineConfig {
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn main() {
+    #[cfg(tokio_unstable)]
     console_subscriber::init();
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
