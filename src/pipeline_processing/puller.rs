@@ -1,3 +1,4 @@
+// TODO(robin): make pullers pull the actual amount specified, requesting more if there are errors
 use crate::pipeline_processing::{
     node::{InputProcessingNode, ProgressUpdate},
     payload::Payload,

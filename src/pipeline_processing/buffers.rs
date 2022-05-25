@@ -1,6 +1,7 @@
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use owning_ref::OwningHandle;
 use std::{
+    mem::MaybeUninit,
     ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -134,33 +135,50 @@ impl CpuBuffer {
     }
 }
 
-pub struct ChunkedCpuBuffer<'a> {
-    // what worth is it to just factor parts of this?
-    #[allow(clippy::type_complexity)]
-    buf_holder: OwningHandle<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>, WriteLock<'a, [u8]>>,
-    locks: Vec<futures::lock::Mutex<usize>>,
+type BufHolder<'a> = OwningHandle<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>, WriteLock<'a, [u8]>>;
+
+pub struct ChunkedCpuBuffer<'a, Extra, const N: usize> {
+    buf_holders: [BufHolder<'a>; N],
+    locks: Vec<futures::lock::Mutex<(usize, Extra)>>,
     n: usize,
-    chunk_size: usize,
-    ptr: *mut u8,
+    chunk_sizes: [usize; N],
+    ptrs: [*mut u8; N],
 }
 
-unsafe impl<'a> Send for ChunkedCpuBuffer<'a> {}
-unsafe impl<'a> Sync for ChunkedCpuBuffer<'a> {}
+unsafe impl<'a, Extra, const N: usize> Send for ChunkedCpuBuffer<'a, Extra, N> {}
+unsafe impl<'a, Extra, const N: usize> Sync for ChunkedCpuBuffer<'a, Extra, N> {}
 
-impl<'a> ChunkedCpuBuffer<'a> {
-    pub fn new(cpu_buffer: CpuBuffer, n: usize) -> Self {
-        let chunk_size = cpu_buffer.len() / n;
-        let mut buf_holder =
-            OwningHandle::new_with_fn(cpu_buffer.buf, |buf| unsafe { (*buf).write().unwrap() });
+impl<'a, Extra, const N: usize> ChunkedCpuBuffer<'a, Extra, N>
+where
+    Extra: Default,
+{
+    pub fn new(cpu_buffers: [CpuBuffer; N], n: usize) -> Self {
+        let (buf_holders, ptrs, chunk_sizes) = unsafe {
+            let mut buf_holders: [MaybeUninit<BufHolder<'_>>; N] = MaybeUninit::uninit().assume_init();
+            let mut ptrs = [std::ptr::null_mut::<u8>(); N];
+            let mut chunk_sizes = [0; N];
+            for (i, cpu_buffer) in cpu_buffers.into_iter().enumerate() {
+                chunk_sizes[i] = cpu_buffer.len() / n;
 
-        let ptr = buf_holder.as_mut_ptr();
+                let mut buf_holder =
+                    OwningHandle::new_with_fn(cpu_buffer.buf, |buf| (*buf).write().unwrap());
+                ptrs[i] = buf_holder.as_mut_ptr();
+                buf_holders[i].write(buf_holder);
+            }
 
-        let locks = (0..n).into_iter().map(futures::lock::Mutex::new).collect();
+            (buf_holders.as_ptr().cast::<[BufHolder<'_>; N]>().read(), ptrs, chunk_sizes)
+        };
 
-        Self { buf_holder, n, chunk_size, locks, ptr }
+
+        let locks = (0..n)
+            .into_iter()
+            .map(|i| futures::lock::Mutex::new((i, Default::default())))
+            .collect();
+
+        Self { buf_holders, n, chunk_sizes, locks, ptrs }
     }
 
-    pub async fn zip_with<O, F: for<'b> Fn(&'b mut [u8], &'b [O]) + Clone>(
+    pub async fn zip_with<O, F: for<'b> Fn([&'b mut [u8]; N], &'b [O], &'b mut Extra) + Clone>(
         &self,
         other: &[O],
         fun: F,
@@ -168,20 +186,27 @@ impl<'a> ChunkedCpuBuffer<'a> {
         let mut futs =
             self.locks.iter().map(futures::lock::Mutex::lock).collect::<FuturesUnordered<_>>();
         let chunks = other.chunks(other.len() / self.n).collect::<Vec<_>>();
-        while let Some(i) = futs.next().await {
+        while let Some(mut guard) = futs.next().await {
+            let (i, extra) = &mut *guard;
             unsafe {
-                fun(
-                    std::slice::from_raw_parts_mut(
-                        self.ptr.add(*i * self.chunk_size),
-                        self.chunk_size,
-                    ),
-                    chunks[*i],
-                )
+                let our_chunks = self
+                    .ptrs
+                    .iter()
+                    .zip(self.chunk_sizes)
+                    .map(|(ptr, chunk_size)| {
+                        std::slice::from_raw_parts_mut(ptr.add(*i * chunk_size), chunk_size)
+                    })
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap();
+                fun(our_chunks, chunks[*i], extra)
             }
         }
     }
 
-    pub fn unchunk(self) -> CpuBuffer { self.buf_holder.into_owner().into() }
+    pub fn unchunk(self) -> [CpuBuffer; N] {
+        self.buf_holders.map(|holder| holder.into_owner().into())
+    }
 }
 
 #[derive(Clone)]

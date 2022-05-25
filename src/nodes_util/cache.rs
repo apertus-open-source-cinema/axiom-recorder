@@ -1,3 +1,5 @@
+// TODO(robin): explicit cache + drop signaling
+// signaling of sinks that are done before others
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
@@ -121,7 +123,6 @@ impl ProcessingNode for Cache {
             let (fut, insert) = {
                 let (tracker, futs) = cache.get_mut(&puller_id).unwrap();
                 let (fut, insert) = if let Some(fut) = futs.get(&frame_number) {
-                    eprintln!("had cached {frame_number} for puller {puller_id:?}");
                     (fut.clone(), false)
                 } else {
                     let input = self.input.clone_for_same_puller();
@@ -132,26 +133,21 @@ impl ProcessingNode for Cache {
                     }
                     .boxed()
                     .shared();
-                    eprintln!("pulling {frame_number} for puller {puller_id:?}");
                     (fut, true)
                 };
 
                 let highest_consecutive = tracker.push(frame_number);
                 if (frame_number >= highest_consecutive) && insert {
-                    eprintln!("inserting {frame_number} for {puller_id:?}");
                     futs.insert(frame_number, fut.clone());
                 }
                 while let Some(v) = futs.keys().cloned().next() {
                     if v < highest_consecutive {
-                        eprintln!("removing cache frame {v} for puller {puller_id:?}");
+                        // eprintln!("removing cache frame {v} for puller {puller_id:?}");
                         futs.remove(&v);
                     } else {
                         break;
                     }
                 }
-
-                let alive = futs.keys().cloned().collect::<Vec<_>>();
-                eprintln!("alive for {puller_id:?}: {alive:?}");
 
                 (fut, insert)
             };
@@ -159,7 +155,7 @@ impl ProcessingNode for Cache {
             if insert {
                 for (id, (_, futs)) in cache.iter_mut() {
                     if *id != puller_id {
-                        eprintln!("inserting {frame_number} for {id:?}");
+                        // eprintln!("inserting {frame_number} for {id:?}");
                         futs.insert(frame_number, fut.clone());
                     }
                 }

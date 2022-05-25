@@ -151,7 +151,6 @@ impl BuiltProcessingGraph {
         ctx: ProcessingContext,
         progress_update_cb: FUNC,
     ) -> Result<()> {
-        dbg!(&self.sinks);
         let ctx = Arc::new(ctx);
         if self.sinks.is_empty() {
             Err(anyhow::anyhow!("processing graph should contain atleast one sink"))
