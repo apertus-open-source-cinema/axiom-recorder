@@ -1,0 +1,60 @@
+dir_input:
+  type: RawDirectoryReader
+  internal-loop: true
+  cache-frames: true
+  file-pattern: test/24fps-bubbles/*
+  width: 1920
+  height: 1080
+  rgb: true
+
+dual_frame_decoder:
+  type: DualFrameRawDecoder
+  input: <dir_input
+
+
+dual_frame_decoder_cache:
+  type: Cache
+  input: <dual_frame_decoder
+
+average:
+  type: Average
+  input: <dual_frame_decoder_cache
+  std: true
+  n: 10
+
+average_cache:
+  type: Cache
+  input: <average
+
+average_frame:
+  type: Split
+  input: <average_cache
+  element: 0
+
+std_frame:
+  type: Split
+  input: <average_cache
+  element: 1
+
+std_out:
+  type: RawBlobWriter
+  number-of-frames: 1
+  path: std.blob
+  input: <std_frame
+
+avg_frame:
+  type: Split
+  input: <average_cache
+  element: 0
+
+avg_out:
+  type: RawBlobWriter
+  number-of-frames: 1
+  path: avg.blob
+  input: <avg_frame
+
+raw_out:
+  type: RawBlobWriter
+  number-of-frames: 11
+  path: raw.blob
+  input: <dual_frame_decoder_cache

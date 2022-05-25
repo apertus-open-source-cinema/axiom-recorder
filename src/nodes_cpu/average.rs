@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     node::NodeID,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
+    parametrizable::{ParameterValue, Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
 };
 use anyhow::{Context, Result};
@@ -23,12 +23,20 @@ pub struct Average {
     input: InputProcessingNode,
     num_frames: usize,
     last_frame_info: AsyncNotifier<(u64, u64)>,
+    produce_std: bool,
 }
 impl Parameterizable for Average {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
             .with("n", ParameterTypeDescriptor::Mandatory(ParameterType::IntRange(1, 1_000_000)))
+            .with(
+                "std",
+                ParameterTypeDescriptor::Optional(
+                    ParameterType::BoolParameter,
+                    ParameterValue::BoolParameter(false),
+                ),
+            )
     }
 
     fn from_parameters(
@@ -39,6 +47,7 @@ impl Parameterizable for Average {
         Ok(Self {
             input: parameters.get("input")?,
             num_frames: parameters.get::<i64>("n")? as usize,
+            produce_std: parameters.get("std")?,
             last_frame_info: Default::default(),
         })
     }
@@ -70,11 +79,18 @@ impl ProcessingNode for Average {
         assert_eq!(frame.interp.bit_depth, 12);
 
         // println!("[{frame_number}] adding {n}");
-        // u32 -> 4 bytes per pixel
-        let out_buffer =
+
+        // f32 -> 4 bytes per pixel
+        let out_buffer_avg =
             unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
 
-        let out = Arc::new(ChunkedCpuBuffer::new(out_buffer, context.num_threads()));
+        let out_buffer_std =
+            unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
+
+        let out = Arc::new(ChunkedCpuBuffer::<usize, 2>::new(
+            [out_buffer_avg, out_buffer_std],
+            context.num_threads(),
+        ));
 
         frame
             .storage
@@ -82,13 +98,22 @@ impl ProcessingNode for Average {
                 {
                     let out = out.clone();
                     async move {
-                        out.zip_with(frame, |out, frame| {
-                            let out: &mut [u32] = bytemuck::cast_slice_mut(out);
-                            for (out, frame) in out.chunks_exact_mut(2).zip(frame.chunks_exact(3)) {
-                                out[0] = (((frame[0] as u16) << 4) | (frame[1] as u16 >> 4)) as u32;
-                                out[1] =
-                                    ((((frame[1] & 0xf) as u16) << 8) | (frame[2] as u16)) as u32;
+                        out.zip_with(frame, |[avg, std], frame, count| {
+                            let avg: &mut [f32] = bytemuck::cast_slice_mut(avg);
+                            let std: &mut [f32] = bytemuck::cast_slice_mut(std);
+
+                            for ((avg, std), frame) in avg
+                                .chunks_exact_mut(2)
+                                .zip(std.chunks_exact_mut(2))
+                                .zip(frame.chunks_exact(3))
+                            {
+                                avg[0] = (((frame[0] as u16) << 4) | (frame[1] as u16 >> 4)) as f32;
+                                avg[1] =
+                                    ((((frame[1] & 0xf) as u16) << 8) | (frame[2] as u16)) as f32;
+                                std[0] = 0.;
+                                std[1] = 0.;
                             }
+                            *count = 1;
                         })
                         .await;
                     }
@@ -115,11 +140,24 @@ impl ProcessingNode for Average {
                     assert_eq!(interp.bit_depth, 12);
 
                     frame.storage.as_slice_async(|frame: &[u8]| async move {
-                        out.zip_with(frame, |out, frame| {
-                            let out: &mut [u32] = bytemuck::cast_slice_mut(out);
-                            for (out, frame) in out.chunks_exact_mut(2).zip(frame.chunks_exact(3)) {
-                                out[0] += (((frame[0] as u16) << 4) | (frame[1] as u16 >> 4)) as u32;
-                                out[1] += ((((frame[1] & 0xf) as u16) << 8) | (frame[2] as u16)) as u32;
+                        out.zip_with(frame, |[avg, std], frame, count| {
+                            let avg: &mut [f32] = bytemuck::cast_slice_mut(avg);
+                            let std: &mut [f32] = bytemuck::cast_slice_mut(std);
+
+                            *count += 1;
+                            let count = *count as f32;
+
+                            for ((avg, std), frame) in avg.chunks_exact_mut(2).zip(std.chunks_exact_mut(2)).zip(frame.chunks_exact(3)) {
+                                let value = (((frame[0] as u16) << 4) | (frame[1] as u16 >> 4)) as f32;
+                                let delta = value - avg[0];
+                                avg[0] += delta / count;
+                                std[0] += (value - avg[0]) * delta;
+
+
+                                let value = ((((frame[1] & 0xf) as u16) << 8) | (frame[2] as u16)) as f32;
+                                let delta = value - avg[1];
+                                avg[1] += delta / count;
+                                std[1] += (value - avg[1]) * delta;
                             }
                         }).await;
                     }.boxed()).await;
@@ -157,23 +195,28 @@ impl ProcessingNode for Average {
             *total_offset = n - (self.num_frames as u64) * frame_number;
         });
 
-        let mut out_buffer = match Arc::try_unwrap(out) {
+        let [avg_buffer, mut std_buffer] = match Arc::try_unwrap(out) {
             Ok(buf) => buf.unchunk(),
             Err(_) => return Err(anyhow::anyhow!("could not get out_buffer back")),
         };
 
-        out_buffer.as_mut_slice(|out| {
-            let out: &mut [u32] = bytemuck::cast_slice_mut(out);
-            for val in out {
-                *val = bytemuck::cast((*val as f32) / (self.num_frames as f32));
+        std_buffer.as_mut_slice(move |buf| {
+            let buf: &mut [f32] = bytemuck::cast_slice_mut(buf);
+            for i in buf {
+                *i /= self.num_frames as f32;
             }
         });
 
         let mut interp = interp;
         interp.bit_depth = 32;
-        let new_frame = Frame { storage: out_buffer, interp };
+        let avg_frame = Frame { storage: avg_buffer, interp };
+        let std_frame = Frame { storage: std_buffer, interp };
 
-        Ok(Payload::from(new_frame))
+        if self.produce_std {
+            Ok(Payload::from(vec![Payload::from(avg_frame), Payload::from(std_frame)]))
+        } else {
+            Ok(Payload::from(avg_frame))
+        }
     }
 
     fn get_caps(&self) -> Caps {
