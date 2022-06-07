@@ -88,7 +88,8 @@ impl ProcessingNode for DualFrameRawDecoder {
         let pulled_frames = (|| async {
             match old_frame {
                 Some(frame_a) => {
-                    self.last_frame_info.update(|LastFrameInfo(_, _, _, old_frame)| *old_frame = None);
+                    self.last_frame_info
+                        .update(|LastFrameInfo(_, _, _, old_frame)| *old_frame = None);
 
                     offset = 1;
                     let frame = self.input.pull(next_even, context).await?;
@@ -122,6 +123,15 @@ impl ProcessingNode for DualFrameRawDecoder {
             return Err(e);
         }
         let (frame_a, frame_b) = pulled_frames.unwrap();
+        let swap = frame_a.storage.as_slice(|frame_a| {
+            frame_b.storage.as_slice(|frame_b| {
+                let ctr_a = frame_a[0];
+                let ctr_b = frame_b[0];
+                (ctr_a > ctr_b) || ((ctr_a == 0) && (ctr_b >= 14))
+            })
+        });
+        let (frame_a, frame_b) = if swap { (frame_b, frame_a) } else { (frame_a, frame_b) };
+
         let (is_correct, debug_info, wrsel) = frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
                 let debug_info = format!(
@@ -143,15 +153,17 @@ impl ProcessingNode for DualFrameRawDecoder {
                 (wrsel_matches && ctr_is_ok && (frame_a[1] != last_wrsel), debug_info, frame_a[1])
             })
         });
-        self.last_frame_info.update(|LastFrameInfo(next, next_next_even, last_wrsel, old_frame)| {
-            *next = frame_number + 1;
-            *next_next_even = next_even + offset;
-            *last_wrsel = wrsel;
-            if !is_correct {
-                // println!("slipped, offset = {offset}, next_even = {next_even}");
-                *old_frame = Some(frame_b.clone());
-            }
-        });
+        self.last_frame_info.update(
+            |LastFrameInfo(next, next_next_even, last_wrsel, old_frame)| {
+                *next = frame_number + 1;
+                *next_next_even = next_even + offset;
+                *last_wrsel = wrsel;
+                if !is_correct {
+                    // println!("slipped, offset = {offset}, next_even = {next_even}");
+                    *old_frame = Some(frame_b.clone());
+                }
+            },
+        );
         if !is_correct {
             return Err(anyhow!("frame slipped in DualFrameRawDecoder:\n{}", debug_info));
         }
