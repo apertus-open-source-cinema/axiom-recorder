@@ -15,7 +15,7 @@ use recorder::{
             Parameters,
         },
         processing_context::ProcessingContext,
-        processing_graph::{ProcessingGraph, ProcessingNodeConfig},
+        processing_graph::{ProcessingGraphBuilder, ProcessingNodeConfig},
     },
 };
 use serde::{Deserialize, Deserializer};
@@ -147,7 +147,7 @@ fn main() {
 #[derive(clap::Subcommand, Debug)]
 enum Command {
     /// specify the processing pipeline directly on the cli
-    #[clap(after_help = leaked_thing(&format!("NODES:\n{}", nodes_usages_string())).as_str())]
+    #[clap(after_help = leak(&format!("NODES:\n{}", nodes_usages_string())).as_str())]
     FromCli {
         #[clap(
             help = "example: <Node1> --source-arg ! <Node2> --sink-arg",
@@ -195,7 +195,7 @@ fn work() -> Result<()> {
     let processing_graph = match args.command {
         Command::FromCli { pipeline } => {
             let node_commandlines = pipeline.split(|element| element == "!").collect::<Vec<_>>();
-            let mut processing_graph = ProcessingGraph::new();
+            let mut processing_graph = ProcessingGraphBuilder::new();
 
             for (i, node_cmd) in node_commandlines.iter().enumerate() {
                 processing_graph.add(
@@ -203,7 +203,6 @@ fn work() -> Result<()> {
                     processing_node_from_commandline(
                         node_cmd,
                         if i > 0 { Some(i - 1) } else { None },
-                        &processing_context,
                     )?,
                 )?;
             }
@@ -223,7 +222,7 @@ fn work() -> Result<()> {
                 &handlebars.render_template(&std::fs::read_to_string(file)?, &vars)?,
             )?;
 
-            let mut processing_graph = ProcessingGraph::new();
+            let mut processing_graph = ProcessingGraphBuilder::new();
 
             for (name, node) in config.nodes {
                 processing_graph.add(name, node.into())?;
@@ -278,7 +277,6 @@ fn nodes_usages_string() -> String {
 fn processing_node_from_commandline(
     commandline: &[String],
     input: Option<usize>,
-    _context: &ProcessingContext,
 ) -> Result<ProcessingNodeConfig<usize>> {
     let name = &commandline[0];
 
@@ -325,7 +323,7 @@ fn processing_node_from_commandline(
     ))
 }
 
-fn leaked_thing<T: Clone>(s: &T) -> &'static T { Box::leak(Box::new(s.clone())) }
+fn leak<T: Clone>(s: &T) -> &'static T { Box::leak(Box::new(s.clone())) }
 
 fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
@@ -340,11 +338,11 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
 
     let mut app = clap::Command::new(node_descriptor.name.clone());
     if let Some(description) = node_descriptor.description.clone() {
-        app = app.about(leaked_thing(&description).as_str());
+        app = app.about(leak(&description).as_str());
     }
-    let parameters_description = leaked_thing(&node_descriptor.parameters_descriptor);
+    let parameters_description = leak(&node_descriptor.parameters_descriptor);
     for (key, parameter_type) in parameters_description.0.iter() {
-        let parameter_type = leaked_thing(parameter_type);
+        let parameter_type = leak(parameter_type);
         if let ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput)
         | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _) = parameter_type
         {
@@ -352,7 +350,7 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
         };
         let parameter_type_for_closure = parameter_type.clone();
         app = app.arg(match parameter_type {
-            Mandatory(_) => Arg::new(leaked_thing(&key).as_str())
+            Mandatory(_) => Arg::new(leak(&key).as_str())
                 .long(key)
                 .takes_value(true)
                 .allow_hyphen_values(true)

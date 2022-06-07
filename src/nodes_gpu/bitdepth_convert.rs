@@ -68,7 +68,7 @@ impl Parameterizable for GpuBitDepthConverter {
         )
         .unwrap();
 
-        Ok(GpuBitDepthConverter { device, pipeline, queue, input: parameters.get("input")? })
+        Ok(GpuBitDepthConverter { device, pipeline, queue, input: parameters.take("input")? })
     }
 }
 

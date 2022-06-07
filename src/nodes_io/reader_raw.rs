@@ -48,7 +48,7 @@ impl Parameterizable for RawBlobReader {
     where
         Self: Sized,
     {
-        let path: String = options.get("file")?;
+        let path: String = options.take("file")?;
         let file = File::open(path)?;
 
         let interp = options.get_interpretation()?;
@@ -57,7 +57,7 @@ impl Parameterizable for RawBlobReader {
             file: Mutex::new(file),
             interp,
             frame_count,
-            cache_frames: options.get("cache-frames")?,
+            cache_frames: options.take("cache-frames")?,
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
         })
     }
@@ -133,14 +133,14 @@ impl Parameterizable for RawDirectoryReader {
     where
         Self: Sized,
     {
-        let file_pattern: String = options.get("file-pattern")?;
+        let file_pattern: String = options.take("file-pattern")?;
         let files = glob(&file_pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
         let frame_count = files.len();
         Ok(Self {
             files,
             interp: options.get_interpretation()?,
-            cache_frames: options.get("cache-frames")?,
-            internal_loop: options.get("internal-loop")?,
+            cache_frames: options.take("cache-frames")?,
+            internal_loop: options.take("internal-loop")?,
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
         })
     }

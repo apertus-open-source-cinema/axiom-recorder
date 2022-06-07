@@ -30,17 +30,17 @@ pub trait ProcessingNode {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct NodeID(u16);
 
-pub struct InputProcessingNode {
-    node: Arc<dyn ProcessingNode + Send + Sync>,
-    puller_id: NodeID,
+impl From<NodeID> for usize {
+    fn from(value: NodeID) -> Self { value.0 as _ }
 }
 
 impl From<usize> for NodeID {
     fn from(value: usize) -> Self { NodeID(value as _) }
 }
 
-impl From<NodeID> for usize {
-    fn from(value: NodeID) -> Self { value.0 as _ }
+pub struct InputProcessingNode {
+    node: Arc<dyn ProcessingNode + Send + Sync>,
+    puller_id: NodeID,
 }
 
 impl InputProcessingNode {

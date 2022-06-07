@@ -46,10 +46,10 @@ impl Parameterizable for FfmpegWriter {
         Self: Sized,
     {
         Ok(Self {
-            output: parameters.get("output")?,
-            input_options: parameters.get("input-options")?,
-            fps: parameters.get("fps")?,
-            input: parameters.get("input")?,
+            output: parameters.take("output")?,
+            input_options: parameters.take("input-options")?,
+            fps: parameters.take("fps")?,
+            input: parameters.take("input")?,
         })
     }
 }

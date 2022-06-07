@@ -68,7 +68,7 @@ impl Parameterizable for Debayer {
         )
         .unwrap();
 
-        Ok(Debayer { device, pipeline, queue, input: parameters.get("input")? })
+        Ok(Debayer { device, pipeline, queue, input: parameters.take("input")? })
     }
 }
 

@@ -45,9 +45,9 @@ impl Parameterizable for Average {
         _context: &ProcessingContext,
     ) -> Result<Self> {
         Ok(Self {
-            input: parameters.get("input")?,
-            num_frames: parameters.get::<i64>("n")? as usize,
-            produce_std: parameters.get("std")?,
+            input: parameters.take("input")?,
+            num_frames: parameters.take::<i64>("n")? as usize,
+            produce_std: parameters.take("std")?,
             last_frame_info: Default::default(),
         })
     }

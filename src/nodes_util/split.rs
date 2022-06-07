@@ -34,7 +34,7 @@ impl Parameterizable for Split {
         _is_input_to: &[NodeID],
         _context: &ProcessingContext,
     ) -> Result<Self> {
-        Ok(Self { input: parameters.get("input")?, elem: parameters.get("element")? })
+        Ok(Self { input: parameters.take("input")?, elem: parameters.take("element")? })
     }
 }
 

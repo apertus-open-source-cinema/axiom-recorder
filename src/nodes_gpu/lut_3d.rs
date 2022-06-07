@@ -78,7 +78,7 @@ impl Parameterizable for Lut3d {
         )
         .unwrap();
 
-        let lut_image = read_lut_texture_from_cube_file(parameters.get("file")?, queue.clone())?;
+        let lut_image = read_lut_texture_from_cube_file(parameters.take("file")?, queue.clone())?;
         let lut_sampler = Sampler::new(
             device.clone(),
             SamplerCreateInfo {
@@ -98,7 +98,7 @@ impl Parameterizable for Lut3d {
             device,
             pipeline,
             queue,
-            input: parameters.get("input")?,
+            input: parameters.take("input")?,
             lut_image_view: ImageView::new_default(lut_image).unwrap(),
             lut_sampler,
         })

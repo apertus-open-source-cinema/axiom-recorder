@@ -57,8 +57,8 @@ impl Parameterizable for SZ3Compress {
         _is_input_to: &[NodeID],
         _context: &ProcessingContext,
     ) -> Result<Self> {
-        let tolerance = parameters.get("tolerance")?;
-        let error_bound = match &*parameters.get::<String>("error_control")?.to_lowercase() {
+        let tolerance = parameters.take("tolerance")?;
+        let error_bound = match &*parameters.take::<String>("error_control")?.to_lowercase() {
             "abs" => Ok(sz3::ErrorBound::Absolute(tolerance)),
             "rel" => Ok(sz3::ErrorBound::Relative(tolerance)),
             "l2norm" => Ok(sz3::ErrorBound::L2Norm(tolerance)),
@@ -66,7 +66,7 @@ impl Parameterizable for SZ3Compress {
             other => Err(anyhow::anyhow!("unknown error control {other}")),
         }?;
 
-        let data_type = match &*parameters.get::<String>("data_type")?.to_lowercase() {
+        let data_type = match &*parameters.take::<String>("data_type")?.to_lowercase() {
             "float" | "f32" => Ok(DataType::F32),
             "double" | "f64" => Ok(DataType::F64),
             "int" | "i32" => Ok(DataType::I32),
@@ -74,7 +74,7 @@ impl Parameterizable for SZ3Compress {
             other => Err(anyhow::anyhow!("unknown data type {other}")),
         }?;
 
-        let dims = parameters.get_vec("dims")?;
+        let dims = parameters.take_vec("dims")?;
         if let Some(pos) = dims.iter().position(|v| *v == -1) {
             if pos + 1 != dims.len() {
                 return Err(anyhow::anyhow!(
@@ -84,7 +84,7 @@ impl Parameterizable for SZ3Compress {
         }
 
         let dims = if dims.is_empty() { None } else { Some(dims) };
-        Ok(Self { input: parameters.get("input")?, dims, error_bound, data_type })
+        Ok(Self { input: parameters.take("input")?, dims, error_bound, data_type })
     }
 }
 

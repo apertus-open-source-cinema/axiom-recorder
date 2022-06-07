@@ -50,9 +50,9 @@ impl Parameterizable for RawBlobWriter {
         Self: Sized,
     {
         Ok(Self {
-            file: Arc::new(Mutex::new(File::create(parameters.get::<String>("path")?)?)),
-            input: parameters.get("input")?,
-            number_of_frames: parameters.get("number-of-frames")?,
+            file: Arc::new(Mutex::new(File::create(parameters.take::<String>("path")?)?)),
+            input: parameters.take("input")?,
+            number_of_frames: parameters.take("number-of-frames")?,
         })
     }
 }
@@ -100,12 +100,12 @@ impl Parameterizable for RawDirectoryWriter {
     where
         Self: Sized,
     {
-        let filename = parameters.get("path")?;
+        let filename = parameters.take("path")?;
         create_dir(&filename)?;
         Ok(Self {
             dir_path: filename,
-            input: parameters.get("input")?,
-            number_of_frames: parameters.get("number-of-frames")?,
+            input: parameters.take("input")?,
+            number_of_frames: parameters.take("number-of-frames")?,
         })
     }
 }

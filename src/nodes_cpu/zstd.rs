@@ -6,9 +6,8 @@ use std::{
 use crate::{
     pipeline_processing::{
         frame::{FrameInterpretation, FrameInterpretations},
-        node::EOFError,
         parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
-        payload::Payload,
+        payload::Payload, node::EOFError,
     },
     util::async_notifier::AsyncNotifier,
 };
@@ -44,7 +43,7 @@ impl Parameterizable for ZstdBlobReader {
     where
         Self: Sized,
     {
-        let path: String = options.get("file")?;
+        let path: String = options.take("file")?;
         let file = std::fs::File::open(path)?;
 
         let interp = options.get_interpretation()?;
@@ -66,11 +65,10 @@ impl ProcessingNode for ZstdBlobReader {
         _puller_id: NodeID,
         context: &ProcessingContext,
     ) -> Result<Payload> {
-        // TODO(robin): this is probably unsafe, because we can get multiple threads
-        // waiting for the same frame_number, so then one will acquire the mutex
-        // and the other will wait, but produce a frame for the same frame
-        // number with different data, because it acquires the mutex after the
-        // first thread is done
+        // TODO(robin): this is probably unsafe, because we can get multiple threads waiting for
+        // the same frame_number, so then one will acquire the mutex and the other will wait, but
+        // produce a frame for the same frame number with different data, because it acquires the
+        // mutex after the first thread is done
         let (_, decoder) =
             self.frame_and_file.wait(move |(frame_no, _)| *frame_no == frame_number).await;
         let mut decoder = decoder.lock().unwrap();

@@ -34,15 +34,15 @@ impl<IdTy> ProcessingNodeConfig<IdTy> {
     }
 }
 
-pub struct ProcessingGraph<IdTy> {
+pub struct ProcessingGraphBuilder<IdTy> {
     nodes: HashMap<IdTy, Option<ProcessingNodeConfig<IdTy>>>,
 }
 
-impl<IdTy> Default for ProcessingGraph<IdTy> {
+impl<IdTy> Default for ProcessingGraphBuilder<IdTy> {
     fn default() -> Self { Self { nodes: HashMap::new() } }
 }
 
-impl<IdTy> ProcessingGraph<IdTy>
+impl<IdTy> ProcessingGraphBuilder<IdTy>
 where
     IdTy: std::cmp::Eq + std::hash::Hash + std::fmt::Debug + Clone,
 {
@@ -64,9 +64,9 @@ where
         }
     }
 
-    pub fn build(mut self, ctx: &ProcessingContext) -> Result<BuiltProcessingGraph> {
+    pub fn build(mut self, ctx: &ProcessingContext) -> Result<ProcessingGraph> {
         if self.nodes.is_empty() {
-            Ok(BuiltProcessingGraph { nodes: HashMap::new(), sinks: vec![] })
+            Ok(ProcessingGraph { nodes: HashMap::new(), sinks: vec![] })
         } else {
             let mut id_to_nodeid = HashMap::<IdTy, NodeID>::new();
             let mut is_input_to = HashMap::<_, Vec<_>>::new();
@@ -135,17 +135,17 @@ where
                 }
             }
 
-            Ok(BuiltProcessingGraph { nodes: built_nodes, sinks })
+            Ok(ProcessingGraph { nodes: built_nodes, sinks })
         }
     }
 }
 
-pub struct BuiltProcessingGraph {
+pub struct ProcessingGraph {
     nodes: HashMap<NodeID, Node>,
     sinks: Vec<NodeID>,
 }
 
-impl BuiltProcessingGraph {
+impl ProcessingGraph {
     pub fn run<FUNC: Fn(ProgressUpdate) + Send + Sync + Clone + 'static>(
         &self,
         ctx: ProcessingContext,

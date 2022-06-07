@@ -55,12 +55,12 @@ impl Parameterizable for CinemaDngWriter {
     where
         Self: Sized,
     {
-        let filename = parameters.get("path")?;
+        let filename = parameters.take("path")?;
         create_dir(&filename).context("Error while creating target directory")?;
         Ok(Self {
             dir_path: filename,
-            input: parameters.get("input")?,
-            number_of_frames: parameters.get("number-of-frames")?,
+            input: parameters.take("input")?,
+            number_of_frames: parameters.take("number-of-frames")?,
         })
     }
 }

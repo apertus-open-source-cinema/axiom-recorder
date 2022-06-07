@@ -97,10 +97,10 @@ impl Parameterizable for ColorVoodoo {
             device,
             pipeline,
             queue,
-            input: parameters.get("input")?,
-            pedestal: parameters.get::<u64>("pedestal")? as u8,
-            s_gamma: parameters.get("s_gamma")?,
-            v_gamma: parameters.get("v_gamma")?,
+            input: parameters.take("input")?,
+            pedestal: parameters.take::<u64>("pedestal")? as u8,
+            s_gamma: parameters.take("s_gamma")?,
+            v_gamma: parameters.take("v_gamma")?,
         })
     }
 }

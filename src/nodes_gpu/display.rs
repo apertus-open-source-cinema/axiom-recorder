@@ -158,10 +158,10 @@ impl Parameterizable for Display {
         _context: &ProcessingContext,
     ) -> Result<Self> {
         Ok(Self {
-            mailbox: parameters.get("mailbox")?,
-            live: parameters.get("live")?,
-            do_loop: parameters.get("loop")?,
-            input: parameters.get("input")?,
+            mailbox: parameters.take("mailbox")?,
+            live: parameters.take("live")?,
+            do_loop: parameters.take("loop")?,
+            input: parameters.take("input")?,
         })
     }
 }

@@ -106,7 +106,7 @@ impl Parameterizable for Cache {
         for id in is_input_to {
             cache.insert(*id, Default::default());
         }
-        Ok(Self { input: parameters.get("input")?, cache: Arc::new(Mutex::new(cache)) })
+        Ok(Self { input: parameters.take("input")?, cache: Arc::new(Mutex::new(cache)) })
     }
 }
 

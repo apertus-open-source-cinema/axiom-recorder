@@ -62,13 +62,13 @@ impl Parameterizable for DualFrameRawDecoder {
         _context: &ProcessingContext,
     ) -> Result<Self> {
         Ok(Self {
-            input: parameters.get("input")?,
+            input: parameters.take("input")?,
             cfa_descriptor: CfaDescriptor {
-                red_in_first_col: parameters.get("red-in-first-col")?,
-                red_in_first_row: parameters.get("red-in-first-row")?,
+                red_in_first_col: parameters.take("red-in-first-col")?,
+                red_in_first_row: parameters.take("red-in-first-row")?,
             },
             last_frame_info: Default::default(),
-            debug: parameters.get("debug")?,
+            debug: parameters.take("debug")?,
         })
     }
 }
@@ -236,7 +236,7 @@ impl Parameterizable for ReverseDualFrameRawDecoder {
         _is_input_to: &[NodeID],
         _context: &ProcessingContext,
     ) -> Result<Self> {
-        Ok(Self { input: parameters.get("input")?, flip: parameters.get("flip")? })
+        Ok(Self { input: parameters.take("input")?, flip: parameters.take("flip")? })
     }
 }
 

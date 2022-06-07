@@ -39,7 +39,7 @@ impl Parameterizable for TcpReader {
         Self: Sized,
     {
         Ok(Self {
-            tcp_connection: Mutex::new(TcpStream::connect(parameters.get::<String>("address")?)?),
+            tcp_connection: Mutex::new(TcpStream::connect(parameters.take::<String>("address")?)?),
             interp: parameters.get_interpretation()?,
             notifier: Default::default(),
         })

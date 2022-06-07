@@ -51,7 +51,7 @@ impl Parameterizable for WebcamInput {
         _context: &ProcessingContext,
     ) -> anyhow::Result<Self> {
         let dev =
-            Device::new(options.get::<u64>("device")? as usize).expect("Failed to open device");
+            Device::new(options.take::<u64>("device")? as usize).expect("Failed to open device");
         let format = dev.format()?;
         let interp = Rgb { width: format.width as u64, height: format.height as u64, fps: 10000.0 };
         let mut stream = CpuBufferQueueManager::new(&dev);

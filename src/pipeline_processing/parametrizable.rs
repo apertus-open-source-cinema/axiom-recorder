@@ -147,7 +147,7 @@ pub struct Parameters {
 impl Parameters {
     pub fn new(values: HashMap<String, ParameterValue>) -> Self { Self { values } }
 
-    pub fn get<T>(&mut self, key: &str) -> Result<T>
+    pub fn take<T>(&mut self, key: &str) -> Result<T>
     where
         ParameterValue: TryInto<T, Error = anyhow::Error>,
     {
@@ -159,7 +159,7 @@ impl Parameters {
     }
 
     // FIXME(robin): workaround to https://github.com/rust-lang/rust/issues/96634
-    pub fn get_vec<T>(&mut self, key: &str) -> Result<Vec<T>>
+    pub fn take_vec<T>(&mut self, key: &str) -> Result<Vec<T>>
     where
         ParameterValue: TryInto<T, Error = anyhow::Error>,
     {
@@ -206,16 +206,16 @@ impl Parameters {
     }
 
     pub fn get_interpretation(&mut self) -> Result<FrameInterpretations> {
-        let width = self.get("width")?;
-        let height = self.get("height")?;
-        let bit_depth = self.get("bit-depth")?;
+        let width = self.take("width")?;
+        let height = self.take("height")?;
+        let bit_depth = self.take("bit-depth")?;
         let cfa = CfaDescriptor::from_first_red(
-            self.get("red-in-first-col")?,
-            self.get("red-in-first-row")?,
+            self.take("red-in-first-col")?,
+            self.take("red-in-first-row")?,
         );
-        let fps = self.get("fps")?;
+        let fps = self.take("fps")?;
 
-        if self.get("rgb")? {
+        if self.take("rgb")? {
             Ok(FrameInterpretations::Rgb(Rgb { width, height, fps }))
         } else {
             Ok(FrameInterpretations::Raw(Raw { bit_depth, width, height, cfa, fps }))

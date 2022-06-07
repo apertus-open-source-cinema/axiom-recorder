@@ -31,7 +31,7 @@ impl Parameterizable for BenchmarkSink {
         _is_input_to: &[NodeID],
         _context: &ProcessingContext,
     ) -> Result<Self> {
-        Ok(Self { input: parameters.get("input")? })
+        Ok(Self { input: parameters.take("input")? })
     }
 }
 
