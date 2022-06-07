@@ -45,7 +45,7 @@ pub async fn pull_unordered(
             }
         }
         if let Some(frame) = range.next() {
-            let context_clone = context.clone();
+            let context_clone = context.for_frame(frame as _);
             let input = input.clone_for_same_puller();
             let on_payload = on_payload.clone();
             let progress_callback = progress_callback.clone();
@@ -136,7 +136,7 @@ pub fn pull_ordered(
                     }
                 }
                 if let Some(frame) = range.next() {
-                    let context_clone = context.clone();
+                    let context_clone = context.for_frame(frame as _);
                     let input = input.clone_for_same_puller();
                     let progress_callback = progress_callback.clone();
                     let latest_frame = latest_frame.clone();
