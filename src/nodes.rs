@@ -5,7 +5,9 @@ use crate::{
         average::Average,
         benchmark_sink::BenchmarkSink,
         bitdepth_convert::BitDepthConverter,
-        dual_frame_raw_decoder::DualFrameRawDecoder,
+        dual_frame_raw_decoder::{DualFrameRawDecoder, ReverseDualFrameRawDecoder},
+        sz3::SZ3Compress,
+        zstd::ZstdBlobReader,
     },
     nodes_gpu::{
         bitdepth_convert::GpuBitDepthConverter,
@@ -64,6 +66,7 @@ generate_dynamic_node_creation_functions![
     Display,
     BitDepthConverter,
     DualFrameRawDecoder,
+    ReverseDualFrameRawDecoder,
     BenchmarkSink,
     ColorVoodoo,
     RawDirectoryWriter,
@@ -73,6 +76,8 @@ generate_dynamic_node_creation_functions![
     TcpReader,
     Cache,
     Split,
+    SZ3Compress,
+    ZstdBlobReader,
     #[cfg(target_os = "linux")]
     WebcamInput,
 ];

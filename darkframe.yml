@@ -1,26 +1,37 @@
-dir_input:
-  type: RawDirectoryReader
-  internal-loop: true
-  cache-frames: true
-  file-pattern: test/24fps-bubbles/*
-  width: 1920
-  height: 1080
-  rgb: true
+# dir_input:
+#   type: RawDirectoryReader
+#   internal-loop: true
+#   cache-frames: true
+#   file-pattern: test/24fps-bubbles/*
+#   width: 1920
+#   height: 1080
+#   rgb: true
 
-dual_frame_decoder:
-  type: DualFrameRawDecoder
-  input: <dir_input
+input:
+  type: ZstdBlobReader
+  file: {{in-file}}
+  width: 3840
+  height: 2160
+  rgb: false
 
-
-dual_frame_decoder_cache:
+input_cache:
   type: Cache
-  input: <dual_frame_decoder
+  input: <input
+
+unpack:
+  type: ReverseDualFrameRawDecoder
+  input: <input_cache
+  flip: false
+
+repack:
+  type: DualFrameRawDecoder
+  input: <unpack
 
 average:
   type: Average
-  input: <dual_frame_decoder_cache
+  input: <repack
   std: true
-  n: 10
+  n: 128
 
 average_cache:
   type: Cache
@@ -47,14 +58,22 @@ avg_frame:
   input: <average_cache
   element: 0
 
+avg_frame_compressed:
+  type: SZ3Compress
+  input: <avg_frame
+  tolerance: 0.1
+  error_control: abs
+  data_type: f32
+  dims: [540, 128, 120]
+
+avg_out_compressed:
+  type: RawBlobWriter
+  number-of-frames: 1
+  path: avg.blob.sz3
+  input: <avg_frame_compressed
+
 avg_out:
   type: RawBlobWriter
   number-of-frames: 1
   path: avg.blob
   input: <avg_frame
-
-raw_out:
-  type: RawBlobWriter
-  number-of-frames: 11
-  path: raw.blob
-  input: <dual_frame_decoder_cache
