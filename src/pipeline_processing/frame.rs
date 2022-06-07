@@ -80,6 +80,26 @@ impl FrameInterpretation for Rgba {
     fn fps(&self) -> Option<f64> { Some(self.fps) }
 }
 
+#[derive(Clone)]
+pub struct SZ3Compressed {
+    inner: Arc<dyn FrameInterpretation + Send + Sync>,
+    compressed_size: usize,
+}
+impl SZ3Compressed {
+    pub fn new(inner: Arc<dyn FrameInterpretation + Send + Sync>, compressed_size: usize) -> Self {
+        Self { inner, compressed_size }
+    }
+    pub fn downcast_inner<T: 'static>(&self) -> Option<&T> {
+        let v: &dyn std::any::Any = self.inner.as_any();
+        v.downcast_ref()
+    }
+}
+impl FrameInterpretation for SZ3Compressed {
+    fn required_bytes(&self) -> usize { self.compressed_size }
+    fn width(&self) -> u64 { self.inner.width() }
+    fn height(&self) -> u64 { self.inner.height() }
+    fn fps(&self) -> Option<f64> { self.inner.fps() }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum FrameInterpretations {
