@@ -50,6 +50,7 @@ display4:
   input: <cache
   mailbox: true
   live: true
+  fullscreen: true
 
 # bench_sink:
 #   type: BenchmarkSink
