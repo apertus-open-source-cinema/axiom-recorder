@@ -154,7 +154,8 @@ where
 {
     pub fn new(cpu_buffers: [CpuBuffer; N], n: usize) -> Self {
         let (buf_holders, ptrs, chunk_sizes) = unsafe {
-            let mut buf_holders: [MaybeUninit<BufHolder<'_>>; N] = MaybeUninit::uninit().assume_init();
+            let mut buf_holders: [MaybeUninit<BufHolder<'_>>; N] =
+                MaybeUninit::uninit().assume_init();
             let mut ptrs = [std::ptr::null_mut::<u8>(); N];
             let mut chunk_sizes = [0; N];
             for (i, cpu_buffer) in cpu_buffers.into_iter().enumerate() {

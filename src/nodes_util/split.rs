@@ -1,12 +1,9 @@
-
-
 use crate::pipeline_processing::{
     node::InputProcessingNode,
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
 };
 use anyhow::Result;
-
 
 
 use crate::pipeline_processing::{
@@ -53,10 +50,12 @@ impl ProcessingNode for Split {
         let payloads = frame.downcast::<Vec<Payload>>()?;
         Ok(payloads
             .get(self.elem as usize)
-            .ok_or_else(|| anyhow::anyhow!(
-                "tried to get element {} of {payloads:?} but it did not exists",
-                self.elem
-            ))?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "tried to get element {} of {payloads:?} but it did not exists",
+                    self.elem
+                )
+            })?
             .clone())
     }
 

@@ -190,29 +190,6 @@ struct Args {
 // used to have the convenience of ? for error handling
 fn work() -> Result<()> {
     let args = Args::parse();
-    /*
-    let main_app_arguments = clap::Command::new("Raw Image / Video Converter")
-        .about("convert raw footage from AXIOM cameras into other formats.")
-        .subcommand(clap::Command::new("from-cli")
-            .about("specify the pipeline directly on the cli")
-            .trailing_var_arg(true)
-            .arg(
-                Arg::new("pipeline")
-                    .required(true)
-                    .multiple_values(true)
-                    .help("example: <Node1> --source-arg ! <Node2> --sink-arg"),
-            )
-            .after_help(format!("NODES:\n{}", nodes_usages_string()).as_str()))
-        .subcommand(clap::Command::new("from-file")
-            .about("specify the pipeline configuration from a (yaml) file")
-            .arg(Arg::new("file")
-                 .number_of_values(1)
-                 .required(true)
-                 .help("config.yaml")))
-        .get_matches();
-        */
-
-
     let processing_context = ProcessingContext::default();
 
     let processing_graph = match args.command {

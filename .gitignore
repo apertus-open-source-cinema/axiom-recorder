@@ -21,3 +21,5 @@ vulkan_gst_buffer_sharing/*
 report.log
 measure_bw.sh
 *.blob
+*.blob.sz3
+*.ipynb
