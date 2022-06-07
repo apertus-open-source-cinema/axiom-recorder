@@ -209,3 +209,81 @@ impl ProcessingNode for DualFrameRawDecoder {
         Caps { frame_count: upstream.frame_count.map(|x| x / 2), ..upstream }
     }
 }
+
+
+pub struct ReverseDualFrameRawDecoder {
+    input: InputProcessingNode,
+    flip: bool,
+}
+impl Parameterizable for ReverseDualFrameRawDecoder {
+    fn describe_parameters() -> ParametersDescriptor {
+        ParametersDescriptor::new()
+            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+            // For use with old recording, where we sometimes fucked up the A/B decoding,
+            // and produced files with the lines swapped.
+            // Should also be transparently fixed by DualFrameRawDecoder
+            .with(
+                "flip",
+                ParameterTypeDescriptor::Optional(
+                    ParameterType::BoolParameter,
+                    ParameterValue::BoolParameter(false),
+                ),
+            )
+    }
+
+    fn from_parameters(
+        mut parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self> {
+        Ok(Self { input: parameters.get("input")?, flip: parameters.get("flip")? })
+    }
+}
+
+#[async_trait]
+impl ProcessingNode for ReverseDualFrameRawDecoder {
+    async fn pull(
+        &self,
+        frame_number: u64,
+        _puller_id: NodeID,
+        context: &ProcessingContext,
+    ) -> Result<Payload> {
+        let downstream = frame_number / 2;
+        let frame = self.input.pull(downstream, context).await?;
+        let frame = context.ensure_cpu_buffer::<Raw>(&frame)?;
+        let offset = if self.flip { 1 } else { 0 };
+        let offset = ((frame_number + offset) % 2) as usize;
+
+        let line_bytes = (frame.interp.width * 3 / 2) as usize;
+        let out_buffer = unsafe {
+            let mut buffer =
+                context.get_uninit_cpu_buffer(line_bytes * frame.interp.height as usize / 2);
+            buffer.as_mut_slice(|buffer| {
+                frame.storage.as_slice(|input| {
+                    for (out, input) in buffer
+                        .chunks_exact_mut(line_bytes)
+                        .zip(input.chunks_exact(line_bytes).skip(offset).step_by(2))
+                    {
+                        out.copy_from_slice(input)
+                    }
+                });
+            });
+
+            buffer
+        };
+
+        Ok(Payload::from(Frame {
+            interp: Rgb {
+                width: frame.interp.width / 2,
+                height: frame.interp.height / 2,
+                fps: frame.interp.fps,
+            },
+            storage: out_buffer,
+        }))
+    }
+
+    fn get_caps(&self) -> Caps {
+        let upstream = self.input.get_caps();
+        Caps { frame_count: upstream.frame_count.map(|x| x * 2), ..upstream }
+    }
+}
