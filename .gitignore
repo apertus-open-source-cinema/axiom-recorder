@@ -20,3 +20,4 @@ vulkan_gst_buffer_sharing/*
 *.avg.blob
 report.log
 measure_bw.sh
+*.blob
