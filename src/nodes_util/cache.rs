@@ -164,7 +164,7 @@ impl ProcessingNode for Cache {
             fut
         };
 
-        fut.await.map_err(|e| anyhow::anyhow!("error from cache: {e}"))
+        fut.await.map_err(|e| anyhow::anyhow!("error from cache: {e}").context(e))
     }
 
     fn get_caps(&self) -> Caps { self.input.get_caps() }
