@@ -1,5 +1,18 @@
-pub trait FrameInterpretation {
+use std::sync::Arc;
+
+pub trait ToAny: 'static {
+    fn as_any(&self) -> &dyn std::any::Any;
+}
+impl<T: 'static> ToAny for T {
+    fn as_any(&self) -> &dyn std::any::Any { self }
+}
+
+
+pub trait FrameInterpretation: ToAny {
     fn required_bytes(&self) -> usize;
+    fn width(&self) -> u64;
+    fn height(&self) -> u64;
+    fn fps(&self) -> Option<f64>;
 }
 
 /// The main data structure for transferring and representing single raw frames
@@ -34,6 +47,9 @@ impl FrameInterpretation for Raw {
     fn required_bytes(&self) -> usize {
         self.width as usize * self.height as usize * self.bit_depth as usize / 8
     }
+    fn width(&self) -> u64 { self.width }
+    fn height(&self) -> u64 { self.height }
+    fn fps(&self) -> Option<f64> { Some(self.fps) }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -45,6 +61,9 @@ pub struct Rgb {
 
 impl FrameInterpretation for Rgb {
     fn required_bytes(&self) -> usize { self.width as usize * self.height as usize * 3 }
+    fn width(&self) -> u64 { self.width }
+    fn height(&self) -> u64 { self.height }
+    fn fps(&self) -> Option<f64> { Some(self.fps) }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -55,7 +74,10 @@ pub struct Rgba {
 }
 
 impl FrameInterpretation for Rgba {
-    fn required_bytes(&self) -> usize { self.width as usize * self.height as usize * 3 }
+    fn required_bytes(&self) -> usize { self.width as usize * self.height as usize * 4 }
+    fn width(&self) -> u64 { self.width }
+    fn height(&self) -> u64 { self.height }
+    fn fps(&self) -> Option<f64> { Some(self.fps) }
 }
 
 
@@ -71,6 +93,27 @@ impl FrameInterpretation for FrameInterpretations {
             FrameInterpretations::Raw(interp) => interp.required_bytes(),
             FrameInterpretations::Rgb(interp) => interp.required_bytes(),
             FrameInterpretations::Rgba(interp) => interp.required_bytes(),
+        }
+    }
+    fn width(&self) -> u64 {
+        match self {
+            FrameInterpretations::Raw(interp) => interp.width(),
+            FrameInterpretations::Rgb(interp) => interp.width(),
+            FrameInterpretations::Rgba(interp) => interp.width(),
+        }
+    }
+    fn height(&self) -> u64 {
+        match self {
+            FrameInterpretations::Raw(interp) => interp.height(),
+            FrameInterpretations::Rgb(interp) => interp.height(),
+            FrameInterpretations::Rgba(interp) => interp.height(),
+        }
+    }
+    fn fps(&self) -> Option<f64> {
+        match self {
+            FrameInterpretations::Raw(interp) => interp.fps(),
+            FrameInterpretations::Rgb(interp) => interp.fps(),
+            FrameInterpretations::Rgba(interp) => interp.fps(),
         }
     }
 }
