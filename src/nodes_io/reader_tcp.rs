@@ -1,7 +1,7 @@
 use crate::{
     pipeline_processing::{
         frame::{Frame, FrameInterpretation, FrameInterpretations},
-        node::{Caps, NodeID, ProcessingNode},
+        node::{Caps, EOFError, NodeID, ProcessingNode},
         parametrizable::{
             ParameterType::StringParameter,
             ParameterTypeDescriptor::Mandatory,
@@ -14,7 +14,7 @@ use crate::{
     },
     util::async_notifier::AsyncNotifier,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::{io::Read, net::TcpStream, sync::Mutex};
 
@@ -57,7 +57,9 @@ impl ProcessingNode for TcpReader {
         self.notifier.wait(move |x| *x >= frame_number).await;
 
         let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
-        buffer.as_mut_slice(|slice| self.tcp_connection.lock().unwrap().read_exact(slice))?;
+        buffer
+            .as_mut_slice(|slice| self.tcp_connection.lock().unwrap().read_exact(slice))
+            .context(EOFError)?;
 
         self.notifier.update(|x| *x = frame_number + 1);
 

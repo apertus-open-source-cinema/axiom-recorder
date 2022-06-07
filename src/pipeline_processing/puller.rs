@@ -1,6 +1,7 @@
-// TODO(robin): make pullers pull the actual amount specified, requesting more if there are errors
+// TODO(robin): make pullers pull the actual amount specified, requesting more
+// if there are errors
 use crate::pipeline_processing::{
-    node::{InputProcessingNode, ProgressUpdate},
+    node::{EOFError, InputProcessingNode, ProgressUpdate},
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -10,10 +11,9 @@ use futures::{
     StreamExt,
 };
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
 };
-
 
 pub async fn pull_unordered(
     context: &ProcessingContext,
@@ -32,6 +32,7 @@ pub async fn pull_unordered(
     let total_frames = if range.end == u32::MAX { None } else { Some(range.end as _) };
 
     let latest_frame = Arc::new(AtomicU64::new(0));
+    let should_stop = Arc::new(AtomicBool::new(false));
     let mut futures_unordered = FuturesUnordered::new();
 
     loop {
@@ -49,17 +50,36 @@ pub async fn pull_unordered(
             let on_payload = on_payload.clone();
             let progress_callback = progress_callback.clone();
             let latest_frame = latest_frame.clone();
-            futures_unordered.push(context.spawn(async move {
+            let should_stop_fut = should_stop.clone();
+            let res = futures_unordered.push(context.spawn(async move {
                 match input.pull(frame as _, &context_clone).await {
                     Ok(pulled) => on_payload(pulled, frame as _)?,
-                    Err(e) => eprintln!("frame {} dropped. error:\n{:?}\n\n", frame, e),
+                    Err(e) => {
+                        // TODO(robin): clean up into own trait?
+                        eprintln!("error pulling frame {frame}: {e:#}");
+                        if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
+                            eprintln!("end of file, exiting");
+                            should_stop_fut.store(true, Ordering::SeqCst);
+                        } else if let Some(e) = e.downcast_ref::<Arc<anyhow::Error>>() {
+                            if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
+                                eprintln!("end of file, exiting");
+                                should_stop_fut.store(true, Ordering::SeqCst);
+                            }
+                        }
+                    }
                 }
 
                 let latest_frame = latest_frame.fetch_max(frame as _, Ordering::Relaxed);
                 progress_callback(ProgressUpdate { latest_frame, total_frames });
 
                 Ok::<(), anyhow::Error>(())
-            }))
+            }));
+
+            if should_stop.load(Ordering::SeqCst) {
+                break;
+            }
+
+            res
         }
     }
 
@@ -96,9 +116,22 @@ pub fn pull_ordered(
                 }
                 if range.is_empty() || futures_ordered.len() >= context.num_threads() {
                     if let Some(input) = futures_ordered.next().await {
+                        let input: (Result<_, anyhow::Error>, _) = input;
                         match input {
                             (Ok(input), _) => tx.send_async(input).await.unwrap(),
-                            (Err(e), frame) => eprintln!("error pulling frame {frame}: {e}"),
+                            (Err(e), frame) => {
+                                // TODO(robin): clean up into own trait?
+                                eprintln!("error pulling frame {frame}: {e:#}");
+                                if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
+                                    eprintln!("end of file, exiting");
+                                    break;
+                                } else if let Some(e) = e.downcast_ref::<Arc<anyhow::Error>>() {
+                                    if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
+                                        eprintln!("end of file, exiting");
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
                 }

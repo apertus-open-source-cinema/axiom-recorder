@@ -6,6 +6,10 @@ use std::{
     sync::Arc,
 };
 
+#[derive(thiserror::Error, Debug)]
+#[error("end of file")]
+pub struct EOFError;
+
 #[derive(Clone, Copy, Default)]
 pub struct Caps {
     pub frame_count: Option<u64>,
