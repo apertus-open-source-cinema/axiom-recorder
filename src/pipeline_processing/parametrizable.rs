@@ -18,6 +18,7 @@ pub enum ParameterValue {
     StringParameter(String),
     BoolParameter(bool),
     NodeInput(InputProcessingNode),
+    ListParameter(Vec<ParameterValue>),
 }
 impl ParameterValue {
     fn clone_for_same_puller(&self) -> Self {
@@ -26,6 +27,9 @@ impl ParameterValue {
             Self::IntRange(i) => Self::IntRange(*i),
             Self::BoolParameter(b) => Self::BoolParameter(*b),
             Self::StringParameter(s) => Self::StringParameter(s.clone()),
+            Self::ListParameter(l) => {
+                Self::ListParameter(l.iter().map(ParameterValue::clone_for_same_puller).collect())
+            }
             Self::NodeInput(n) => Self::NodeInput(n.clone_for_same_puller()),
         }
     }
@@ -38,6 +42,9 @@ impl ToString for ParameterValue {
             Self::IntRange(v) => v.to_string(),
             Self::StringParameter(v) => v.to_string(),
             Self::BoolParameter(v) => v.to_string(),
+            Self::ListParameter(v) => {
+                v.iter().map(ParameterValue::to_string).collect::<Vec<_>>().join(",")
+            }
             Self::NodeInput(_) => "<NodeInput>".to_string(),
         }
     }
@@ -115,6 +122,23 @@ impl TryInto<InputProcessingNode> for ParameterValue {
     }
 }
 
+/*
+impl<T> TryInto<Vec<T>> for ParameterValue
+where ParameterValue: TryInto<T, Error = anyhow::Error>
+{
+    type Error = Error;
+
+    fn try_into(self) -> Result<Vec<T>, Self::Error> {
+        match self {
+            Self::ListParameter(v) => {
+                Ok(v.into_iter().map(ParameterValue::try_into).collect::<Result<_, _>>()?)
+            },
+            _ => Err(anyhow!("cant convert a non NodeInput ParameterValue to ProcessingNode")),
+        }
+    }
+}
+*/
+
 #[derive(Debug)]
 pub struct Parameters {
     values: HashMap<String, ParameterValue>,
@@ -132,6 +156,23 @@ impl Parameters {
             .remove(key)
             .ok_or_else(|| anyhow!("key {} not present in parameter storage", key))?;
         parameter_value.try_into()
+    }
+
+    // FIXME(robin): workaround to https://github.com/rust-lang/rust/issues/96634
+    pub fn get_vec<T>(&mut self, key: &str) -> Result<Vec<T>>
+    where
+        ParameterValue: TryInto<T, Error = anyhow::Error>,
+    {
+        let parameter_value = self
+            .values
+            .remove(key)
+            .ok_or_else(|| anyhow!("key {} not present in parameter storage", key))?;
+        match parameter_value {
+            ParameterValue::ListParameter(v) => {
+                Ok(v.into_iter().map(ParameterValue::try_into).collect::<Result<_, _>>()?)
+            }
+            _ => Err(anyhow!("cant convert a non ListParameter ParameterValue to Vec")),
+        }
     }
 
     pub(crate) fn add_inputs(
@@ -186,6 +227,7 @@ impl Parameters {
 pub enum ParameterType {
     FloatRange(f64, f64),
     IntRange(i64, i64),
+    ListParameter(Box<ParameterType>),
     StringParameter,
     BoolParameter,
     NodeInput,
@@ -223,6 +265,14 @@ impl ParameterType {
                 self.value_is_of_type(ParameterValue::FloatRange(string.parse()?))
             }
             Self::NodeInput => Err(anyhow!("cant parse node input from string")),
+            Self::ListParameter(ty) => {
+                let values = if string.trim().is_empty() {
+                    vec![]
+                } else {
+                    string.split(',').map(|part| ty.parse(part)).collect::<Result<_>>()?
+                };
+                Ok(ParameterValue::ListParameter(values))
+            }
         }
     }
 }

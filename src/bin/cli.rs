@@ -32,6 +32,7 @@ enum NodeParam {
     Bool(bool),
     String(String),
     NodeInput(String),
+    List(Vec<NodeParam>),
 }
 
 impl<'de> Deserialize<'de> for NodeParam {
@@ -46,6 +47,7 @@ impl<'de> Deserialize<'de> for NodeParam {
             Float(f64),
             Bool(bool),
             String(String),
+            List(Vec<NodeParam>),
         }
 
         let param = NodeParamSimple::deserialize(deserializer)?;
@@ -60,7 +62,25 @@ impl<'de> Deserialize<'de> for NodeParam {
                 }
             }
             NodeParamSimple::Bool(b) => NodeParam::Bool(b),
+            NodeParamSimple::List(l) => NodeParam::List(l),
         })
+    }
+}
+
+impl TryFrom<NodeParam> for ParameterValue {
+    type Error = ();
+
+    fn try_from(value: NodeParam) -> Result<Self, Self::Error> {
+        match value {
+            NodeParam::Float(f) => Ok(ParameterValue::FloatRange(f)),
+            NodeParam::Int(i) => Ok(ParameterValue::IntRange(i)),
+            NodeParam::String(s) => Ok(ParameterValue::StringParameter(s)),
+            NodeParam::Bool(b) => Ok(ParameterValue::BoolParameter(b)),
+            NodeParam::NodeInput(_) => Err(()),
+            NodeParam::List(l) => Ok(ParameterValue::ListParameter(
+                l.into_iter().map(ParameterValue::try_from).collect::<Result<_, Self::Error>>()?,
+            )),
+        }
     }
 }
 
@@ -82,11 +102,8 @@ impl From<NodeConfig> for ProcessingNodeConfig<String> {
                     .clone()
                     .into_iter()
                     .filter_map(|(name, param)| match param {
-                        NodeParam::Float(f) => Some((name, ParameterValue::FloatRange(f))),
-                        NodeParam::Int(i) => Some((name, ParameterValue::IntRange(i))),
-                        NodeParam::String(s) => Some((name, ParameterValue::StringParameter(s))),
-                        NodeParam::Bool(b) => Some((name, ParameterValue::BoolParameter(b))),
                         NodeParam::NodeInput(_) => None,
+                        param => param.try_into().ok().map(|v| (name, v)),
                     })
                     .collect(),
             ),
