@@ -16,10 +16,9 @@ use crate::pipeline_processing::{
         ParametersDescriptor,
     },
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use crate::pipeline_processing::{
-    frame::{Raw, Rgb},
     node::{NodeID, ProgressUpdate, SinkNode},
     parametrizable::{
         ParameterType::{IntRange, NodeInput},
@@ -72,13 +71,8 @@ impl SinkNode for RawBlobWriter {
             self.number_of_frames,
         );
         while let Ok(payload) = rx.recv_async().await {
-            if let Ok(frame) = context.ensure_cpu_buffer::<Rgb>(&payload) {
-                frame.storage.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
-            } else if let Ok(frame) = context.ensure_cpu_buffer::<Raw>(&payload) {
-                frame.storage.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
-            } else {
-                return Err(anyhow!("unknown input format {}", payload.type_name));
-            }
+            let buffer = context.ensure_any_cpu_buffer(&payload)?;
+            buffer.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
         }
 
         Ok(())
@@ -130,14 +124,9 @@ impl SinkNode for RawDirectoryWriter {
             self.input.clone_for_same_puller(),
             self.number_of_frames,
             move |payload, frame_number| {
+                let buffer = context_clone.ensure_any_cpu_buffer(&payload)?;
                 let mut file = File::create(format!("{}/{:06}.data", &dir_path, frame_number))?;
-                if let Ok(frame) = context_clone.ensure_cpu_buffer::<Rgb>(&payload) {
-                    frame.storage.as_slice(|slice| file.write_all(slice))?;
-                } else if let Ok(frame) = context_clone.ensure_cpu_buffer::<Raw>(&payload) {
-                    frame.storage.as_slice(|slice| file.write_all(slice))?;
-                } else {
-                    return Err(anyhow!("unknown input format {}", payload.type_name));
-                }
+                buffer.as_slice(|slice| file.write_all(slice))?;
                 Ok(())
             },
         )

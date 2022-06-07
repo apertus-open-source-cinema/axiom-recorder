@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     buffers::{CpuBuffer, GpuBuffer},
-    frame::Frame,
+    frame::{Frame, Raw, Rgb, Rgba, SZ3Compressed},
     payload::Payload,
     prioritized_executor::PrioritizedReactor,
 };
@@ -209,6 +209,25 @@ impl ProcessingContext {
                 payload.type_name
             ))
         }
+    }
+    pub fn ensure_any_cpu_buffer(&self, payload: &Payload) -> anyhow::Result<CpuBuffer> {
+        macro_rules! conv {
+            ($($ty:ty),*) => {
+                $(
+                    if let Ok(frame) = payload.downcast::<Frame<$ty, CpuBuffer>>() {
+                        return Ok(frame.storage.clone());
+                    } else if let Ok(frame) = payload.downcast::<Frame<$ty, GpuBuffer>>() {
+                        return Ok(self.to_cpu_buffer(frame)?.storage);
+                    }
+                )*
+            };
+        }
+        conv!(Raw, Rgb, Rgba, SZ3Compressed);
+
+        return Err(anyhow!(
+            "wanted to convert frame {} to a byte array, but this was not possible",
+            payload.type_name
+        ));
     }
 
     pub fn require_vulkan(&self) -> Result<(Arc<Device>, Vec<Arc<Queue>>)> {
