@@ -26,7 +26,7 @@ vulkano-win = "0.29.0"
 owning_ref = "0.4.1"
 shlex = "1.1.0"
 winit = "0.26.1"
-async-trait = "0.1.53"
+async-trait = "0.1.56"
 futures = "0.3.21"
 async-task = "4.2.0"
 derivative = "2.2.0"
@@ -37,11 +37,15 @@ backtrace = { version = "0.3.65", optional = true }
 serde = { version = "1.0.137", features = ["std", "derive"] }
 serde_yaml = "0.8.24"
 flume = "0.10.12"
-tokio = { version = "1.18.2", features = ["full"] }
-console-subscriber = "0.1.5"
+tokio = { version = "1.19.2", features = ["full"] }
+console-subscriber = "0.1.6"
+sz3 = { git = "https://github.com/apertus-open-source-cinema/sz3-rs" }
+zstd = "0.11.2"
+handlebars = "4.3.0"
+thiserror = "1.0.31"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-v4l = "0.12.1"
+v4l = "0.13.0"
 v4l2-sys-mit = "0.2.0"
 
 [profile.release]

@@ -20,7 +20,7 @@ use recorder::{
 };
 use serde::{Deserialize, Deserializer};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     iter::once,
     sync::{Arc, Mutex},
 };
@@ -159,6 +159,15 @@ enum Command {
     FromFile {
         /// path to the configuration file
         file: std::path::PathBuf,
+        /// variables to substitute in the config file
+        #[clap(
+            short = 's',
+            long = "set",
+            name = "key=value",
+            allow_hyphen_values(true),
+            takes_value = true
+        )]
+        vars: Vec<String>,
     },
 }
 
@@ -224,8 +233,18 @@ fn work() -> Result<()> {
 
             processing_graph.build(&processing_context)?
         }
-        Command::FromFile { file } => {
-            let config: PipelineConfig = serde_yaml::from_str(&std::fs::read_to_string(file)?)?;
+        Command::FromFile { file, vars } => {
+            let vars = vars.into_iter().map(|v| {
+                let mut split = v.splitn(2, '=');
+                let name = split.next().unwrap();
+                let value = split.next().ok_or_else(|| anyhow::anyhow!("expected variable name value pair `{v}` to contain atleast one equals (=) sign"))?;
+                Ok((name.to_owned(), value.to_owned()))
+            }).collect::<Result<BTreeMap<_, _>>>()?;
+            let mut handlebars = handlebars::Handlebars::new();
+            handlebars.set_strict_mode(true);
+            let config: PipelineConfig = serde_yaml::from_str(
+                &handlebars.render_template(&std::fs::read_to_string(file)?, &vars)?,
+            )?;
 
             let mut processing_graph = ProcessingGraph::new();
 
