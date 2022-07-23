@@ -91,6 +91,11 @@ Convert a raw directory to mp4 (h264) from the Beta using FFmpeg:
 $ target/release/cli from-cli RawDirectoryReader --file-pattern '~/Darkbox-Timelapse-Clock-Sequence/*.raw12' --bit-depth 12 --height 3072 --width 4096 --loop true --fps 30 ! BitDepthConverter ! Debayer ! FfmpegWriter --output darkbox.mp4
 ```
 
+Display help for a particular node (WebcamInput in this example) and display its supported OPTIONS:
+```shell
+target/release/cli from-cli WebcamInput --help
+```
+
 ## Technology
 
 This project is written in Rust making heavy use of Vulkan via vulkano.rs.
