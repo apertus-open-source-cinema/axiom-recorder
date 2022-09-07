@@ -17,8 +17,7 @@ use vulkano::{
         CpuAccessibleBuffer,
         TypedBufferAccess,
     },
-    device::Queue,
-    sync::AccessError,
+    memory::pool::{PotentialDedicatedAllocation, StdMemoryPoolAlloc},
     DeviceSize,
 };
 
@@ -43,16 +42,6 @@ unsafe impl<T: BufferAccess> BufferAccess for TrackDrop<T> {
     fn inner(&self) -> BufferInner { self.val.inner() }
 
     fn size(&self) -> DeviceSize { self.val.size() }
-
-    fn conflict_key(&self) -> (u64, u64) { self.val.conflict_key() }
-
-    fn try_gpu_lock(&self, exclusive_access: bool, queue: &Queue) -> Result<(), AccessError> {
-        self.val.try_gpu_lock(exclusive_access, queue)
-    }
-
-    unsafe fn increase_gpu_lock(&self) { self.val.increase_gpu_lock() }
-
-    unsafe fn unlock(&self) { self.val.unlock() }
 }
 
 impl<T> DerefMut for TrackDrop<T> {
@@ -135,7 +124,10 @@ impl CpuBuffer {
     }
 }
 
-type BufHolder<'a> = OwningHandle<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>, WriteLock<'a, [u8]>>;
+type BufHolder<'a> = OwningHandle<
+    Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>,
+    WriteLock<'a, [u8], PotentialDedicatedAllocation<StdMemoryPoolAlloc>>,
+>;
 
 pub struct ChunkedCpuBuffer<'a, Extra, const N: usize> {
     buf_holders: [BufHolder<'a>; N],
