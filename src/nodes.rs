@@ -1,4 +1,6 @@
 #[cfg(target_os = "linux")]
+use crate::nodes_gpu::display::Display;
+#[cfg(target_os = "linux")]
 use crate::nodes_io::reader_webcam::WebcamInput;
 use crate::{
     nodes_cpu::{
@@ -13,7 +15,6 @@ use crate::{
         bitdepth_convert::GpuBitDepthConverter,
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
-        display::Display,
         lut_3d::Lut3d,
     },
     nodes_io::{
@@ -63,6 +64,7 @@ generate_dynamic_node_creation_functions![
     CinemaDngWriter,
     GpuBitDepthConverter,
     Debayer,
+    #[cfg(target_os = "linux")]
     Display,
     BitDepthConverter,
     DualFrameRawDecoder,
