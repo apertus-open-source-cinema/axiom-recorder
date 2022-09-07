@@ -9,7 +9,12 @@ use crate::pipeline_processing::{
 use std::sync::Arc;
 use vulkano::{
     buffer::{BufferUsage, ImmutableBuffer},
-    command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryCommandBuffer},
+    command_buffer::{
+        AutoCommandBufferBuilder,
+        CommandBufferUsage,
+        CopyBufferInfo,
+        PrimaryCommandBuffer,
+    },
     device::Queue,
     sync::GpuFuture,
 };
@@ -27,7 +32,7 @@ pub fn to_immutable_buffer<Interpretation: Clone + Send + Sync + 'static>(
             BufferUsage {
                 storage_buffer: true,
                 storage_texel_buffer: true,
-                transfer_destination: true,
+                transfer_dst: true,
                 ..BufferUsage::none()
             },
         )
@@ -40,7 +45,8 @@ pub fn to_immutable_buffer<Interpretation: Clone + Send + Sync + 'static>(
         )
         .unwrap();
 
-        cbb.copy_buffer(frame.storage.cpu_accessible_buffer(), init).unwrap();
+        cbb.copy_buffer(CopyBufferInfo::buffers(frame.storage.cpu_accessible_buffer(), init))
+            .unwrap();
         let cb = cbb.build().unwrap();
         let future = match cb.execute(queue) {
             Ok(f) => f,
