@@ -8,7 +8,12 @@ use anyhow::{anyhow, Result};
 use std::{future::Future, sync::Arc};
 use vulkano::{
     buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer},
-    command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryCommandBuffer},
+    command_buffer::{
+        AutoCommandBufferBuilder,
+        CommandBufferUsage,
+        CopyBufferInfo,
+        PrimaryCommandBuffer,
+    },
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
         Device,
@@ -86,7 +91,7 @@ impl Default for ProcessingContext {
                     khr_swapchain: true,
                     khr_storage_buffer_storage_class: true,
                     khr_8bit_storage: true,
-                    ..(*physical.required_extensions())
+                    ..DeviceExtensions::none()
                 };
                 Device::new(
                     physical,
@@ -147,8 +152,8 @@ impl ProcessingContext {
                 BufferUsage {
                     storage_buffer: true,
                     storage_texel_buffer: true,
-                    transfer_source: true,
-                    transfer_destination: true,
+                    transfer_src: true,
+                    transfer_dst: true,
                     ..BufferUsage::none()
                 },
                 true,
@@ -182,7 +187,11 @@ impl ProcessingContext {
             queue.family(),
             CommandBufferUsage::MultipleSubmit,
         )?;
-        cbb.copy_buffer(frame.storage.typed(), buffer.cpu_accessible_buffer()).unwrap();
+        cbb.copy_buffer(CopyBufferInfo::buffers(
+            frame.storage.typed(),
+            buffer.cpu_accessible_buffer(),
+        ))
+        .unwrap();
         let cb = cbb.build().unwrap();
         let future = match cb.execute(queue) {
             Ok(f) => f,

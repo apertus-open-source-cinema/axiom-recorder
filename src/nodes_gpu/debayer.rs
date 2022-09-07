@@ -99,7 +99,7 @@ impl ProcessingNode for Debayer {
             BufferUsage {
                 storage_buffer: true,
                 storage_texel_buffer: true,
-                transfer_source: true,
+                transfer_src: true,
                 ..BufferUsage::none()
             },
             std::iter::once(self.queue.family()),

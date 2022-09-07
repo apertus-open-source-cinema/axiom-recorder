@@ -242,6 +242,7 @@ fn work() -> Result<()> {
                     let bar = ProgressBar::new(total_frames);
                     bar.set_style(ProgressStyle::default_bar()
                         .template("{wide_bar} | {pos}/{len} frames | elapsed: {elapsed_precise} | remaining: {eta} | {msg} ")
+                        .unwrap()
                         .progress_chars("#>-"));
                     bar
                 } else {

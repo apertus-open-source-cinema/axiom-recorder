@@ -140,7 +140,7 @@ pub fn pull_ordered(
                     let input = input.clone_for_same_puller();
                     let progress_callback = progress_callback.clone();
                     let latest_frame = latest_frame.clone();
-                    futures_ordered.push(context.spawn(async move {
+                    futures_ordered.push_back(context.spawn(async move {
                         let input = input.pull(frame as _, &context_clone).await;
                         let latest_frame = latest_frame.fetch_max(frame as _, Ordering::Relaxed);
                         progress_callback(ProgressUpdate { latest_frame, total_frames });

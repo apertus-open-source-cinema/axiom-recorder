@@ -26,6 +26,7 @@ use vulkano::{
     command_buffer::{
         AutoCommandBufferBuilder,
         CommandBufferUsage::OneTimeSubmit,
+        RenderPassBeginInfo,
         SubpassContents,
     },
     descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet},
@@ -369,7 +370,7 @@ impl SinkNode for Display {
                         window_height: dimensions[1],
                     };
 
-                    let clear_values = vec![[0.0, 0.0, 0.0, 1.0].into()];
+                    let clear_values = vec![Some([0.0, 0.0, 0.0, 1.0].into())];
                     let mut builder = AutoCommandBufferBuilder::primary(
                         device.clone(),
                         queue.family(),
@@ -379,9 +380,11 @@ impl SinkNode for Display {
                     builder
                         .bind_pipeline_graphics(pipeline.clone())
                         .begin_render_pass(
-                            framebuffers[image_num].clone(),
+                            RenderPassBeginInfo {
+                                clear_values,
+                                ..RenderPassBeginInfo::framebuffer(framebuffers[image_num].clone())
+                            },
                             SubpassContents::Inline,
-                            clear_values,
                         )
                         .unwrap()
                         .set_viewport(0, viewport.clone())
