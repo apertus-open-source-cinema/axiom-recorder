@@ -64,7 +64,6 @@ pub struct ProcessingContext {
 
     priority: Priority,
     prioritized_reactor: PrioritizedReactor<Priority>,
-    tokio_rt_handle: tokio::runtime::Handle,
 }
 impl Default for ProcessingContext {
     fn default() -> Self {
@@ -129,12 +128,10 @@ impl ProcessingContext {
             println!("using cpu only processing");
         }
 
-        let runtime = tokio::runtime::Runtime::new().unwrap();
         Self {
             vulkan_device: vulkan_context,
             priority: Default::default(),
             prioritized_reactor: PrioritizedReactor::start(threads),
-            tokio_rt_handle: runtime.handle().clone(),
         }
     }
 
@@ -143,7 +140,6 @@ impl ProcessingContext {
             vulkan_device: self.vulkan_device.clone(),
             priority,
             prioritized_reactor: self.prioritized_reactor.clone(),
-            tokio_rt_handle: self.tokio_rt_handle.clone(),
         }
     }
 
@@ -263,16 +259,8 @@ impl ProcessingContext {
     ) -> impl Future<Output = O> {
         self.prioritized_reactor.spawn_with_priority(fut, self.priority)
     }
-    pub fn spawn_tokio<O: Send + 'static>(
-        &self,
-        fut: impl Future<Output = O> + Send + 'static,
-    ) -> impl Future<Output = Result<O, tokio::task::JoinError>> {
-        self.tokio_rt_handle.spawn(fut)
-    }
 
-    pub fn block_on<O>(&self, fut: impl Future<Output = O>) -> O {
-        self.tokio_rt_handle.block_on(fut)
-    }
+    pub fn block_on<O>(&self, fut: impl Future<Output = O>) -> O { pollster::block_on(fut) }
 
     pub fn num_threads(&self) -> usize { self.prioritized_reactor.num_threads }
 }

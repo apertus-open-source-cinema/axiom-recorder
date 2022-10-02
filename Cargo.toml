@@ -36,13 +36,12 @@ backtrace = { version = "0.3.65", optional = true }
 serde = { version = "1.0.137", features = ["std", "derive"] }
 serde_yaml = "0.9.10"
 flume = "0.10.12"
-tokio = { version = "1.19.2", features = ["full"] }
-console-subscriber = "0.1.6"
 sz3 = { git = "https://github.com/apertus-open-source-cinema/sz3-rs" }
 zstd = "0.11.2"
 handlebars = "4.3.0"
 thiserror = "1.0.31"
 narui = { git = "https://github.com/apertus-open-source-cinema/narui" }
+pollster = "0.2.5"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.13.0"
