@@ -277,8 +277,7 @@ impl ProcessingGraph {
                 r?
             }
 
-
-            anyhow::Result::Ok(())
+            Ok(())
         }
     }
 

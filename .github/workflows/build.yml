@@ -26,4 +26,3 @@ jobs:
 
       - run: cargo build --all-targets
       - run: cargo test
-
