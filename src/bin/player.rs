@@ -1,58 +1,27 @@
-use futures::executor::block_on;
+use futures::{executor::block_on, FutureExt, StreamExt};
 use narui::*;
 use recorder::{
     gui::image::{image, ArcPartialEqHelper},
     pipeline_processing::{
-        buffers::GpuBuffer,
-        frame::{Frame, Rgb},
         node::NodeID,
+        payload::Payload,
         processing_context::ProcessingContext,
         processing_graph::{ProcessingGraph, ProcessingGraphBuilder, SerdeNodeConfig},
     },
 };
 use std::{
-    sync::{
-        mpsc::{sync_channel, Receiver},
-        Arc,
-        Mutex,
-    },
+    sync::{Arc, Mutex},
     thread::spawn,
 };
-
-
-fn listenable_from_channel_handle<T: Send + Sync + PartialEq + 'static>(
-    context: &mut WidgetContext,
-    channel_handle: Arc<Mutex<Receiver<T>>>,
-) -> Listenable<Option<T>> {
-    // this dummy listenable gets updated to ensure that we get called again, even
-    // if no new frame was available
-    let dummy_listenable = context.listenable(0);
-    context.listen(dummy_listenable);
-
-    let current_frame = context.listenable(None);
-
-    let rx = channel_handle.clone();
-    context.after_frame(move |context: &CallbackContext| {
-        let lock = rx.try_lock().unwrap();
-        if let Ok(frame) = lock.try_recv() {
-            context.shout(current_frame, Some(frame));
-        } else {
-            let old = context.spy(dummy_listenable);
-            context.shout(dummy_listenable, old + 1);
-        }
-    });
-
-    current_frame
-}
 
 
 #[widget]
 pub fn player(context: &mut WidgetContext) -> Fragment {
     let vulkan_context = context.vulkan_context.clone();
-
+    let frame = context.listenable(None);
 
     let handle = context.effect(
-        move |_| {
+        move |context| {
             let processing_context = ProcessingContext::from_vk_device_queues(
                 vulkan_context.device.clone(),
                 vulkan_context.queues.clone(),
@@ -76,7 +45,7 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                     "converter".to_string(),
                     serde_yaml::from_str::<SerdeNodeConfig>(
                         "
-                    type: GpuBitDepthConverter
+                    type: BitDepthConverter
                     input: <reader
                 ",
                     )?
@@ -100,34 +69,72 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
             let debayer = graph.get_node(debayer).assert_input_node().unwrap();
             let caps = debayer.get_caps();
 
-            let (request_sender, request_receiver) = sync_channel::<u64>(3);
-            let (response_sender, response_receiver) =
-                sync_channel::<(u64, ArcPartialEqHelper<Frame<Rgb, GpuBuffer>>)>(3);
+            let (request_sender, request_receiver) = flume::unbounded::<u64>();
             request_sender.send(0).unwrap();
+
+            let context = context.thread_context();
             spawn(move || {
-                for i in request_receiver {
-                    let image =
-                        block_on(debayer.pull(i, NodeID::from(usize::MAX), &processing_context))
-                            .unwrap();
-                    response_sender
-                        .send((i, ArcPartialEqHelper(image.downcast().unwrap())))
-                        .unwrap();
-                }
+                block_on(async {
+                    let mut todo = futures::stream::FuturesOrdered::new();
+                    loop {
+                        if todo.len() > 0 {
+                            futures::select! {
+                                (image, i) = todo.select_next_some() => {
+                                    let image: anyhow::Result<Payload> = image;
+                                    let image = image.unwrap();
+                                    context.shout(frame, Some((i, ArcPartialEqHelper(image.downcast().unwrap()))));
+                                },
+                                to_pull = request_receiver.recv_async() => {
+                                    let processing_context_inner = processing_context.clone();
+                                    let debayer = debayer.clone();
+                                    todo.push_back(processing_context.spawn(async move {
+                                        let to_pull = to_pull.unwrap();
+                                        let frame = debayer.pull(to_pull, NodeID::from(usize::MAX), &processing_context_inner).await;
+                                        (frame, to_pull)
+                                    }.boxed()));
+                                }
+                            };
+                        } else {
+                            futures::select! {
+                                to_pull = request_receiver.recv_async() => {
+                                    let processing_context_inner = processing_context.clone();
+                                    let debayer = debayer.clone();
+                                    todo.push_back(processing_context.spawn(async move {
+                                        let to_pull = to_pull.unwrap();
+                                        let frame = debayer.pull(to_pull, NodeID::from(usize::MAX), &processing_context_inner).await;
+                                        (frame, to_pull)
+                                    }.boxed()));
+                                }
+                            };
+                        }
+                    }
+                });
             });
 
-            (caps, Arc::new(Mutex::new(response_receiver)), Arc::new(Mutex::new(request_sender)))
+            (caps, Arc::new(Mutex::new(request_sender)))
         },
         (),
     );
 
-    let caps = handle.read().0;
+    let (caps, request_sender) = (&*handle.read()).clone();
     let frame_count = caps.frame_count.unwrap_or(1);
-    let response_receiver = handle.read().1.clone();
-    let request_sender = handle.read().2.clone();
 
-    let frame_listenable = listenable_from_channel_handle(context, response_receiver.clone());
-    let frame_with_number = context.listen(frame_listenable);
+    let frame_with_number = context.listen(frame);
     let frame_number = frame_with_number.clone().map_or(0, |(number, _)| number);
+
+    let old_frame_pos = context.listenable(0);
+    let frame_pos = context.listenable(0);
+    let _frame_pos_v = context.listen(frame_pos);
+
+    context.after_frame(move |context| {
+        let frame_pos_v = context.spy(frame_pos);
+        let old_frame_pos_v = context.spy(old_frame_pos);
+        context.shout(old_frame_pos, frame_pos_v);
+        if frame_pos_v != old_frame_pos_v {
+            request_sender.lock().unwrap().send(frame_pos_v as u64).unwrap()
+        }
+    });
+
     rsx! {
         <stack>
             <aspect_ratio aspect_ratio={4. / 3.}>
@@ -137,8 +144,8 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                 <padding>
                     <slider
                         val=(frame_number as f32)
-                        on_change={move |context: &CallbackContext, new_val| {
-                            request_sender.lock().unwrap().send(new_val as u64).unwrap()
+                        on_change={move |context, new_val| {
+                            context.shout(frame_pos, new_val as u64);
                         }}
                         min=0.0 max=(frame_count as f32 - 1.0)
                     />
