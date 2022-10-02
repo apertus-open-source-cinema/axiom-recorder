@@ -15,7 +15,7 @@ use crate::{
             ParameterType,
             ParameterTypeDescriptor,
             ParameterTypeDescriptor::Optional,
-            ParameterValue,
+            SerdeParameterValue,
         },
         processing_context::ProcessingContext,
     },
@@ -43,16 +43,16 @@ impl Parameterizable for DualFrameRawDecoder {
                 "debug",
                 ParameterTypeDescriptor::Optional(
                     ParameterType::BoolParameter,
-                    ParameterValue::BoolParameter(false),
+                    SerdeParameterValue::BoolParameter(false),
                 ),
             )
             .with(
                 "red-in-first-col",
-                Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+                Optional(ParameterType::BoolParameter, SerdeParameterValue::BoolParameter(true)),
             )
             .with(
                 "red-in-first-row",
-                Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(false)),
+                Optional(ParameterType::BoolParameter, SerdeParameterValue::BoolParameter(false)),
             )
     }
 
@@ -226,7 +226,7 @@ impl Parameterizable for ReverseDualFrameRawDecoder {
                 "flip",
                 ParameterTypeDescriptor::Optional(
                     ParameterType::BoolParameter,
-                    ParameterValue::BoolParameter(false),
+                    SerdeParameterValue::BoolParameter(false),
                 ),
             )
     }

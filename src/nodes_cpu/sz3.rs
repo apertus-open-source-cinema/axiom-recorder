@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::pipeline_processing::{
     frame::{Rgb, SZ3Compressed},
     node::InputProcessingNode,
-    parametrizable::{ParameterValue, Parameterizable, Parameters, ParametersDescriptor},
+    parametrizable::{Parameterizable, Parameters, ParametersDescriptor, SerdeParameterValue},
     payload::Payload,
 };
 use anyhow::{Context, Result};
@@ -47,7 +47,7 @@ impl Parameterizable for SZ3Compress {
                 "dims",
                 ParameterTypeDescriptor::Optional(
                     ParameterType::ListParameter(Box::new(ParameterType::IntRange(-1, i64::MAX))),
-                    ParameterValue::ListParameter(vec![]),
+                    SerdeParameterValue::ListParameter(vec![]),
                 ),
             )
     }

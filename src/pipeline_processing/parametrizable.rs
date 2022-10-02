@@ -12,30 +12,30 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
-pub enum ParameterValue {
+pub enum SerdeParameterValue {
     FloatRange(f64),
     IntRange(i64),
     StringParameter(String),
     BoolParameter(bool),
     NodeInput(InputProcessingNode),
-    ListParameter(Vec<ParameterValue>),
+    ListParameter(Vec<SerdeParameterValue>),
 }
-impl ParameterValue {
+impl SerdeParameterValue {
     fn clone_for_same_puller(&self) -> Self {
         match self {
             Self::FloatRange(f) => Self::FloatRange(*f),
             Self::IntRange(i) => Self::IntRange(*i),
             Self::BoolParameter(b) => Self::BoolParameter(*b),
             Self::StringParameter(s) => Self::StringParameter(s.clone()),
-            Self::ListParameter(l) => {
-                Self::ListParameter(l.iter().map(ParameterValue::clone_for_same_puller).collect())
-            }
+            Self::ListParameter(l) => Self::ListParameter(
+                l.iter().map(SerdeParameterValue::clone_for_same_puller).collect(),
+            ),
             Self::NodeInput(n) => Self::NodeInput(n.clone_for_same_puller()),
         }
     }
 }
 
-impl ToString for ParameterValue {
+impl ToString for SerdeParameterValue {
     fn to_string(&self) -> String {
         match self {
             Self::FloatRange(v) => v.to_string(),
@@ -43,20 +43,20 @@ impl ToString for ParameterValue {
             Self::StringParameter(v) => v.to_string(),
             Self::BoolParameter(v) => v.to_string(),
             Self::ListParameter(v) => {
-                v.iter().map(ParameterValue::to_string).collect::<Vec<_>>().join(",")
+                v.iter().map(SerdeParameterValue::to_string).collect::<Vec<_>>().join(",")
             }
             Self::NodeInput(_) => "<NodeInput>".to_string(),
         }
     }
 }
 
-impl Debug for ParameterValue {
+impl Debug for SerdeParameterValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("ParameterValue({})", self.to_string()))
     }
 }
 
-impl TryInto<f64> for ParameterValue {
+impl TryInto<f64> for SerdeParameterValue {
     type Error = Error;
 
     fn try_into(self) -> Result<f64, Self::Error> {
@@ -67,7 +67,7 @@ impl TryInto<f64> for ParameterValue {
     }
 }
 
-impl TryInto<i64> for ParameterValue {
+impl TryInto<i64> for SerdeParameterValue {
     type Error = Error;
 
     fn try_into(self) -> Result<i64, Self::Error> {
@@ -78,7 +78,7 @@ impl TryInto<i64> for ParameterValue {
     }
 }
 
-impl TryInto<u64> for ParameterValue {
+impl TryInto<u64> for SerdeParameterValue {
     type Error = Error;
 
     fn try_into(self) -> Result<u64, Self::Error> {
@@ -89,7 +89,7 @@ impl TryInto<u64> for ParameterValue {
     }
 }
 
-impl TryInto<String> for ParameterValue {
+impl TryInto<String> for SerdeParameterValue {
     type Error = Error;
 
     fn try_into(self) -> Result<String, Self::Error> {
@@ -100,7 +100,7 @@ impl TryInto<String> for ParameterValue {
     }
 }
 
-impl TryInto<bool> for ParameterValue {
+impl TryInto<bool> for SerdeParameterValue {
     type Error = Error;
 
     fn try_into(self) -> Result<bool, Self::Error> {
@@ -111,7 +111,7 @@ impl TryInto<bool> for ParameterValue {
     }
 }
 
-impl TryInto<InputProcessingNode> for ParameterValue {
+impl TryInto<InputProcessingNode> for SerdeParameterValue {
     type Error = Error;
 
     fn try_into(self) -> Result<InputProcessingNode, Self::Error> {
@@ -141,15 +141,15 @@ where ParameterValue: TryInto<T, Error = anyhow::Error>
 
 #[derive(Debug)]
 pub struct Parameters {
-    values: HashMap<String, ParameterValue>,
+    values: HashMap<String, SerdeParameterValue>,
 }
 
 impl Parameters {
-    pub fn new(values: HashMap<String, ParameterValue>) -> Self { Self { values } }
+    pub fn new(values: HashMap<String, SerdeParameterValue>) -> Self { Self { values } }
 
     pub fn take<T>(&mut self, key: &str) -> Result<T>
     where
-        ParameterValue: TryInto<T, Error = anyhow::Error>,
+        SerdeParameterValue: TryInto<T, Error = anyhow::Error>,
     {
         let parameter_value = self
             .values
@@ -161,15 +161,15 @@ impl Parameters {
     // FIXME(robin): workaround to https://github.com/rust-lang/rust/issues/96634
     pub fn take_vec<T>(&mut self, key: &str) -> Result<Vec<T>>
     where
-        ParameterValue: TryInto<T, Error = anyhow::Error>,
+        SerdeParameterValue: TryInto<T, Error = anyhow::Error>,
     {
         let parameter_value = self
             .values
             .remove(key)
             .ok_or_else(|| anyhow!("key {} not present in parameter storage", key))?;
         match parameter_value {
-            ParameterValue::ListParameter(v) => {
-                Ok(v.into_iter().map(ParameterValue::try_into).collect::<Result<_, _>>()?)
+            SerdeParameterValue::ListParameter(v) => {
+                Ok(v.into_iter().map(SerdeParameterValue::try_into).collect::<Result<_, _>>()?)
             }
             _ => Err(anyhow!("cant convert a non ListParameter ParameterValue to Vec")),
         }
@@ -183,7 +183,7 @@ impl Parameters {
         for (name, node) in inputs {
             self.values.insert(
                 name.clone(),
-                ParameterValue::NodeInput(InputProcessingNode::new(
+                SerdeParameterValue::NodeInput(InputProcessingNode::new(
                     puller_id,
                     node.assert_input_node().with_context(|| {
                         format!("could not convert input {name} to a input node")
@@ -234,18 +234,18 @@ pub enum ParameterType {
 }
 
 impl ParameterType {
-    pub fn value_is_of_type(&self, value: ParameterValue) -> Result<ParameterValue> {
+    pub fn value_is_of_type(&self, value: SerdeParameterValue) -> Result<SerdeParameterValue> {
         match (self, &value) {
-            (Self::StringParameter, ParameterValue::StringParameter(_)) => Ok(value),
-            (Self::BoolParameter, ParameterValue::BoolParameter(_)) => Ok(value),
-            (Self::FloatRange(min, max), ParameterValue::FloatRange(v)) => {
+            (Self::StringParameter, SerdeParameterValue::StringParameter(_)) => Ok(value),
+            (Self::BoolParameter, SerdeParameterValue::BoolParameter(_)) => Ok(value),
+            (Self::FloatRange(min, max), SerdeParameterValue::FloatRange(v)) => {
                 if (v >= min) && (v <= max) {
                     Ok(value)
                 } else {
                     Err(anyhow!("value {} is not {} <= value <= {}", v, min, max))
                 }
             }
-            (Self::IntRange(min, max), ParameterValue::IntRange(v)) => {
+            (Self::IntRange(min, max), SerdeParameterValue::IntRange(v)) => {
                 if (v >= min) && (v <= max) {
                     Ok(value)
                 } else {
@@ -256,13 +256,15 @@ impl ParameterType {
         }
     }
 
-    pub fn parse(&self, string: &str) -> Result<ParameterValue> {
+    pub fn parse(&self, string: &str) -> Result<SerdeParameterValue> {
         match self {
-            Self::StringParameter => Ok(ParameterValue::StringParameter(string.to_string())),
-            Self::BoolParameter => Ok(ParameterValue::BoolParameter(string.parse()?)),
-            Self::IntRange(..) => self.value_is_of_type(ParameterValue::IntRange(string.parse()?)),
+            Self::StringParameter => Ok(SerdeParameterValue::StringParameter(string.to_string())),
+            Self::BoolParameter => Ok(SerdeParameterValue::BoolParameter(string.parse()?)),
+            Self::IntRange(..) => {
+                self.value_is_of_type(SerdeParameterValue::IntRange(string.parse()?))
+            }
             Self::FloatRange(..) => {
-                self.value_is_of_type(ParameterValue::FloatRange(string.parse()?))
+                self.value_is_of_type(SerdeParameterValue::FloatRange(string.parse()?))
             }
             Self::NodeInput => Err(anyhow!("cant parse node input from string")),
             Self::ListParameter(ty) => {
@@ -271,7 +273,7 @@ impl ParameterType {
                 } else {
                     string.split(',').map(|part| ty.parse(part)).collect::<Result<_>>()?
                 };
-                Ok(ParameterValue::ListParameter(values))
+                Ok(SerdeParameterValue::ListParameter(values))
             }
         }
     }
@@ -279,7 +281,7 @@ impl ParameterType {
 
 #[derive(Debug)]
 pub enum ParameterTypeDescriptor {
-    Optional(ParameterType, ParameterValue),
+    Optional(ParameterType, SerdeParameterValue),
     Mandatory(ParameterType),
 }
 
@@ -293,7 +295,7 @@ impl Clone for ParameterTypeDescriptor {
 }
 
 impl ParameterTypeDescriptor {
-    pub fn parse(&self, string: Option<&str>) -> Result<ParameterValue> {
+    pub fn parse(&self, string: Option<&str>) -> Result<SerdeParameterValue> {
         match self {
             Self::Optional(parameter_type, default_value) => string
                 .map(|s| parameter_type.parse(s))
@@ -323,22 +325,28 @@ impl ParametersDescriptor {
     pub fn with_interpretation(self) -> ParametersDescriptor {
         self.with(
             "bit-depth",
-            Optional(ParameterType::IntRange(8, 16), ParameterValue::IntRange(12)),
+            Optional(ParameterType::IntRange(8, 16), SerdeParameterValue::IntRange(12)),
         )
         .with("width", Mandatory(ParameterType::IntRange(0, i64::max_value())))
         .with("height", Mandatory(ParameterType::IntRange(0, i64::max_value())))
         .with(
             "red-in-first-col",
-            Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+            Optional(ParameterType::BoolParameter, SerdeParameterValue::BoolParameter(true)),
         )
         .with(
             "red-in-first-row",
-            Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(true)),
+            Optional(ParameterType::BoolParameter, SerdeParameterValue::BoolParameter(true)),
         )
-        .with("rgb", Optional(ParameterType::BoolParameter, ParameterValue::BoolParameter(false)))
+        .with(
+            "rgb",
+            Optional(ParameterType::BoolParameter, SerdeParameterValue::BoolParameter(false)),
+        )
         .with(
             "fps",
-            Optional(ParameterType::FloatRange(0.0, f64::MAX), ParameterValue::FloatRange(24.0)),
+            Optional(
+                ParameterType::FloatRange(0.0, f64::MAX),
+                SerdeParameterValue::FloatRange(24.0),
+            ),
         )
     }
 }

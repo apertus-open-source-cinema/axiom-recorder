@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     node::NodeID,
-    parametrizable::{ParameterValue, Parameterizable, Parameters, ParametersDescriptor},
+    parametrizable::{Parameterizable, Parameters, ParametersDescriptor, SerdeParameterValue},
     payload::Payload,
 };
 use anyhow::{Context, Result};
@@ -34,7 +34,7 @@ impl Parameterizable for Average {
                 "std",
                 ParameterTypeDescriptor::Optional(
                     ParameterType::BoolParameter,
-                    ParameterValue::BoolParameter(false),
+                    SerdeParameterValue::BoolParameter(false),
                 ),
             )
     }

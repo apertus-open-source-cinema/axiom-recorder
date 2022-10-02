@@ -4,10 +4,10 @@ use crate::pipeline_processing::{
     parametrizable::{
         ParameterType::{BoolParameter, StringParameter},
         ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        SerdeParameterValue,
     },
     payload::Payload,
     processing_context::ProcessingContext,
@@ -38,7 +38,10 @@ impl Parameterizable for RawBlobReader {
         ParametersDescriptor::new()
             .with_interpretation()
             .with("file", Mandatory(StringParameter))
-            .with("cache-frames", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
+            .with(
+                "cache-frames",
+                Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)),
+            )
     }
     fn from_parameters(
         mut options: Parameters,
@@ -122,8 +125,14 @@ impl Parameterizable for RawDirectoryReader {
         ParametersDescriptor::new()
             .with_interpretation()
             .with("file-pattern", Mandatory(StringParameter))
-            .with("cache-frames", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
-            .with("internal-loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
+            .with(
+                "cache-frames",
+                Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)),
+            )
+            .with(
+                "internal-loop",
+                Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)),
+            )
     }
     fn from_parameters(
         mut options: Parameters,
@@ -136,6 +145,9 @@ impl Parameterizable for RawDirectoryReader {
         let file_pattern: String = options.take("file-pattern")?;
         let files = glob(&file_pattern)?.collect::<std::result::Result<Vec<_>, _>>()?;
         let frame_count = files.len();
+        if frame_count == 0 {
+            return Err(anyhow!("no files matched the pattern {}", file_pattern));
+        }
         Ok(Self {
             files,
             interp: options.get_interpretation()?,
