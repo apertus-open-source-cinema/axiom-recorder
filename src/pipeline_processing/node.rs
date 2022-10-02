@@ -1,6 +1,11 @@
-use crate::pipeline_processing::{payload::Payload, processing_context::ProcessingContext};
+use crate::pipeline_processing::{
+    payload::Payload,
+    processing_context::{Priority, ProcessingContext},
+};
 use anyhow::Result;
+use anymap::CloneAny;
 use async_trait::async_trait;
+
 use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
@@ -13,17 +18,43 @@ pub struct EOFError;
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Caps {
     pub frame_count: Option<u64>,
-    pub is_live: bool,
+
+    // iff this is true, it is allowed to access frames in a random order (with gaps; in reverse
+    // direction; ...). otherwise every frame has to be pulled (or explicitly dropped) in
+    // ascending order.
+    pub random_access: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct Request {
+    frame_number: u64,
+    priority: Priority,
+    requester: NodeID,
+    extra: anymap::Map<dyn CloneAny + Send + Sync>,
+}
+
+impl Request {
+    // you shall only use this function if you are a sink. otherwise you shal derive
+    // your requests from your input request!
+    pub fn new(output_priority: u8, frame_number: u64) -> Self {
+        Self {
+            priority: Priority::new(output_priority, frame_number),
+            frame_number,
+            requester: NodeID::from(usize::MAX),
+            extra: anymap::Map::new(),
+        }
+    }
+    fn with_requester(&self, requester: NodeID) -> Self { Self { requester, ..self.clone() } }
+    pub fn with_frame_number(&self, frame_number: u64) -> Self {
+        Self { frame_number, ..self.clone() }
+    }
+    pub fn frame_number(&self) -> u64 { self.frame_number }
+    pub fn priority(&self) -> Priority { self.priority }
 }
 
 #[async_trait]
 pub trait ProcessingNode {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        requester: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload>;
+    async fn pull(&self, request: Request) -> Result<Payload>;
     fn get_caps(&self) -> Caps;
 }
 
@@ -38,23 +69,25 @@ impl From<usize> for NodeID {
     fn from(value: usize) -> Self { NodeID(value as _) }
 }
 
+// This struct is passed as a wrapper to other ProcessingNodes as input so that
+// they dont need to supply their NodeID
 pub struct InputProcessingNode {
     node: Arc<dyn ProcessingNode + Send + Sync>,
-    puller_id: NodeID,
+    node_id: NodeID,
 }
 
 impl InputProcessingNode {
     pub(crate) fn new(puller_id: NodeID, node: Arc<dyn ProcessingNode + Send + Sync>) -> Self {
-        Self { node, puller_id }
+        Self { node, node_id: puller_id }
     }
 
-    pub async fn pull(&self, frame_number: u64, context: &ProcessingContext) -> Result<Payload> {
-        self.node.pull(frame_number, self.puller_id, context).await
+    pub async fn pull(&self, request: Request) -> Result<Payload> {
+        self.node.pull(request.with_requester(self.node_id)).await
     }
 
-    fn copy_with(&self, puller_id: NodeID) -> Self { Self { node: self.node.clone(), puller_id } }
+    fn copy_with(&self, node_id: NodeID) -> Self { Self { node: self.node.clone(), node_id } }
 
-    pub(crate) fn clone_for_same_puller(&self) -> Self { self.copy_with(self.puller_id) }
+    pub(crate) fn clone_for_same_puller(&self) -> Self { self.copy_with(self.node_id) }
 
     pub fn get_caps(&self) -> Caps { self.node.get_caps() }
 }

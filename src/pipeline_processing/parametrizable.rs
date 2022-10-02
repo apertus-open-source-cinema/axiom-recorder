@@ -89,6 +89,17 @@ impl TryInto<u64> for SerdeParameterValue {
     }
 }
 
+impl TryInto<u8> for SerdeParameterValue {
+    type Error = Error;
+
+    fn try_into(self) -> Result<u8, Self::Error> {
+        match self {
+            Self::IntRange(v) => Ok(v as u8),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to u8")),
+        }
+    }
+}
+
 impl TryInto<String> for SerdeParameterValue {
     type Error = Error;
 
@@ -255,7 +266,6 @@ impl ParameterType {
             _ => Err(anyhow!("value {:?} has to be of type {:?}", value, self)),
         }
     }
-
     pub fn parse(&self, string: &str) -> Result<SerdeParameterValue> {
         match self {
             Self::StringParameter => Ok(SerdeParameterValue::StringParameter(string.to_string())),

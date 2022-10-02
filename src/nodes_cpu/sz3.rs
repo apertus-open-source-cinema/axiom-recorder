@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 
 use crate::pipeline_processing::{
     frame::{Frame, Raw},
-    node::{Caps, NodeID, ProcessingNode},
+    node::{Caps, NodeID, ProcessingNode, Request},
     parametrizable::{ParameterType, ParameterTypeDescriptor},
     processing_context::ProcessingContext,
 };
@@ -29,6 +29,7 @@ pub struct SZ3Compress {
     dims: Option<Vec<i64>>,
     error_bound: sz3::ErrorBound,
     data_type: DataType,
+    context: ProcessingContext,
 }
 impl Parameterizable for SZ3Compress {
     fn describe_parameters() -> ParametersDescriptor {
@@ -55,7 +56,7 @@ impl Parameterizable for SZ3Compress {
     fn from_parameters(
         mut parameters: Parameters,
         _is_input_to: &[NodeID],
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
     ) -> Result<Self> {
         let tolerance = parameters.take("tolerance")?;
         let error_bound = match &*parameters.take::<String>("error_control")?.to_lowercase() {
@@ -84,35 +85,36 @@ impl Parameterizable for SZ3Compress {
         }
 
         let dims = if dims.is_empty() { None } else { Some(dims) };
-        Ok(Self { input: parameters.take("input")?, dims, error_bound, data_type })
+        Ok(Self {
+            input: parameters.take("input")?,
+            dims,
+            error_bound,
+            data_type,
+            context: context.clone(),
+        })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for SZ3Compress {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
-        let input = self.input.pull(frame_number, context).await?;
-        let (bytes, frame_dims, interp) = if let Ok(frame) =
-            context.ensure_cpu_buffer::<Raw>(&input)
-        {
-            (
-                frame.storage.clone(),
-                vec![frame.interp.width as _, frame.interp.height as _],
-                Arc::new(frame.interp) as Arc<_>,
-            )
-        } else {
-            let frame = context.ensure_cpu_buffer::<Rgb>(&input).context("Wrong input format")?;
-            (
-                frame.storage.clone(),
-                vec![3, frame.interp.width as _, frame.interp.height as _],
-                Arc::new(frame.interp) as Arc<_>,
-            )
-        };
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let input = self.input.pull(request).await?;
+        let (bytes, frame_dims, interp) =
+            if let Ok(frame) = self.context.ensure_cpu_buffer::<Raw>(&input) {
+                (
+                    frame.storage.clone(),
+                    vec![frame.interp.width as _, frame.interp.height as _],
+                    Arc::new(frame.interp) as Arc<_>,
+                )
+            } else {
+                let frame =
+                    self.context.ensure_cpu_buffer::<Rgb>(&input).context("Wrong input format")?;
+                (
+                    frame.storage.clone(),
+                    vec![3, frame.interp.width as _, frame.interp.height as _],
+                    Arc::new(frame.interp) as Arc<_>,
+                )
+            };
 
         let dims = self.dims.clone().unwrap_or(frame_dims);
 
@@ -148,7 +150,7 @@ impl ProcessingNode for SZ3Compress {
         })?;
 
         let buffer = unsafe {
-            let mut buffer = context.get_uninit_cpu_buffer(compressed.len());
+            let mut buffer = self.context.get_uninit_cpu_buffer(compressed.len());
             buffer.as_mut_slice(|data| {
                 data.copy_from_slice(&*compressed);
             });

@@ -3,9 +3,9 @@ use narui::*;
 use recorder::{
     gui::image::{image, ArcPartialEqHelper},
     pipeline_processing::{
-        node::NodeID,
+        node::{NodeID, Request},
         payload::Payload,
-        processing_context::ProcessingContext,
+        processing_context::{Priority, ProcessingContext},
         processing_graph::{ProcessingGraph, ProcessingGraphBuilder, SerdeNodeConfig},
     },
 };
@@ -85,11 +85,12 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                                     context.shout(frame, Some((i, ArcPartialEqHelper(image.downcast().unwrap()))));
                                 },
                                 to_pull = request_receiver.recv_async() => {
-                                    let processing_context_inner = processing_context.clone();
+                                    let _processing_context_inner = processing_context.clone();
                                     let debayer = debayer.clone();
-                                    todo.push_back(processing_context.spawn(async move {
-                                        let to_pull = to_pull.unwrap();
-                                        let frame = debayer.pull(to_pull, NodeID::from(usize::MAX), &processing_context_inner).await;
+                                    let to_pull = to_pull.unwrap();
+                                    todo.push_back(processing_context.spawn(Priority::new(0, to_pull),
+                                    async move {
+                                        let frame = debayer.pull(Request::new(0, to_pull)).await;
                                         (frame, to_pull)
                                     }.boxed()));
                                 }
@@ -97,11 +98,11 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                         } else {
                             futures::select! {
                                 to_pull = request_receiver.recv_async() => {
-                                    let processing_context_inner = processing_context.clone();
+                                    let _processing_context_inner = processing_context.clone();
                                     let debayer = debayer.clone();
-                                    todo.push_back(processing_context.spawn(async move {
-                                        let to_pull = to_pull.unwrap();
-                                        let frame = debayer.pull(to_pull, NodeID::from(usize::MAX), &processing_context_inner).await;
+                                    let to_pull = to_pull.unwrap();
+                                    todo.push_back(processing_context.spawn(Priority::new(0, to_pull), async move {
+                                        let frame = debayer.pull(Request::new(0, to_pull)).await;
                                         (frame, to_pull)
                                     }.boxed()));
                                 }

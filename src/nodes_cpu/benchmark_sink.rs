@@ -12,18 +12,29 @@ use std::{sync::Arc, time::Instant};
 
 
 use crate::{
-    pipeline_processing::parametrizable::{ParameterType, ParameterTypeDescriptor},
+    pipeline_processing::parametrizable::{
+        ParameterType,
+        ParameterType::IntRange,
+        ParameterTypeDescriptor,
+        ParameterTypeDescriptor::Optional,
+        SerdeParameterValue,
+    },
     util::fps_report::FPSReporter,
 };
 
 pub struct BenchmarkSink {
     input: InputProcessingNode,
+    priority: u8,
 }
 
 impl Parameterizable for BenchmarkSink {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+            .with(
+                "priority",
+                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
+            )
     }
 
     fn from_parameters(
@@ -31,7 +42,7 @@ impl Parameterizable for BenchmarkSink {
         _is_input_to: &[NodeID],
         _context: &ProcessingContext,
     ) -> Result<Self> {
-        Ok(Self { input: parameters.take("input")? })
+        Ok(Self { input: parameters.take("input")?, priority: parameters.take("priority")? })
     }
 }
 
@@ -64,6 +75,7 @@ impl SinkNode for BenchmarkSink {
             println!("warming cache...");
             let res = pull_unordered(
                 &context.clone(),
+                self.priority,
                 progress_callback.clone(),
                 self.input.clone_for_same_puller(),
                 0,
@@ -78,6 +90,7 @@ impl SinkNode for BenchmarkSink {
                 let start_time = Instant::now();
                 pull_unordered(
                     &context.clone(),
+                    self.priority,
                     progress_callback.clone(),
                     self.input.clone_for_same_puller(),
                     0,
@@ -97,8 +110,13 @@ impl SinkNode for BenchmarkSink {
 
             Ok(())
         } else {
-            let rx =
-                pull_ordered(context, progress_callback, self.input.clone_for_same_puller(), 0);
+            let rx = pull_ordered(
+                context,
+                self.priority,
+                progress_callback,
+                self.input.clone_for_same_puller(),
+                0,
+            );
             let reporter = FPSReporter::new("pipeline");
             loop {
                 rx.recv_async().await?;

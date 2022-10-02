@@ -10,7 +10,7 @@ use crate::{
     pipeline_processing::{
         buffers::ChunkedCpuBuffer,
         frame::{Frame, Raw},
-        node::{Caps, InputProcessingNode, ProcessingNode},
+        node::{Caps, InputProcessingNode, ProcessingNode, Request},
         parametrizable::{ParameterType, ParameterTypeDescriptor},
         processing_context::ProcessingContext,
     },
@@ -24,6 +24,7 @@ pub struct Average {
     num_frames: usize,
     last_frame_info: AsyncNotifier<(u64, u64)>,
     produce_std: bool,
+    context: ProcessingContext,
 }
 impl Parameterizable for Average {
     fn describe_parameters() -> ParametersDescriptor {
@@ -42,30 +43,27 @@ impl Parameterizable for Average {
     fn from_parameters(
         mut parameters: Parameters,
         _is_input_to: &[NodeID],
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
     ) -> Result<Self> {
         Ok(Self {
             input: parameters.take("input")?,
             num_frames: parameters.take::<i64>("n")? as usize,
             produce_std: parameters.take("std")?,
             last_frame_info: Default::default(),
+            context: context.clone(),
         })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for Average {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let frame_number = request.frame_number();
         let (_, total_offset) =
             self.last_frame_info.wait(move |(next, _)| *next == frame_number).await;
         let mut n = (self.num_frames as u64) * frame_number + total_offset;
         let input = loop {
-            let input = self.input.pull(n, context).await;
+            let input = self.input.pull(request.with_frame_number(n)).await;
             match input {
                 Ok(input) => break input,
                 Err(e) => {
@@ -74,6 +72,8 @@ impl ProcessingNode for Average {
                 }
             }
         };
+
+        let context = &self.context;
         let frame = context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
         let interp = frame.interp;
         assert_eq!(frame.interp.bit_depth, 12);
@@ -126,9 +126,10 @@ impl ProcessingNode for Average {
             ($i:expr) => {{
                 let input = self.input.clone_for_same_puller();
                 let context_copy = context.clone();
+                let request_copy = request.clone();
                 let out = out.clone();
-                context.spawn(async move {
-                    let input = input.pull($i, &context_copy).await;
+                context.spawn(request.priority(), async move {
+                    let input = input.pull(request_copy.with_frame_number($i)).await;
                     match &input {
                         Err(e) => {
                             println!("An error occured for {}: {e}", $i);
@@ -223,7 +224,7 @@ impl ProcessingNode for Average {
         let caps = self.input.get_caps();
         Caps {
             frame_count: caps.frame_count.map(|v| v / self.num_frames as u64),
-            is_live: caps.is_live,
+            random_access: caps.random_access,
         }
     }
 }

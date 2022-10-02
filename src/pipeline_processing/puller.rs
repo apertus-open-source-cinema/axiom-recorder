@@ -1,35 +1,40 @@
 // TODO(robin): make pullers pull the actual amount specified, requesting more
 // if there are errors
 use crate::pipeline_processing::{
-    node::{EOFError, InputProcessingNode, ProgressUpdate},
+    node::{EOFError, InputProcessingNode, ProgressUpdate, Request},
     payload::Payload,
-    processing_context::ProcessingContext,
+    processing_context::{Priority, ProcessingContext},
 };
 use anyhow::Result;
+use bytemuck::Contiguous;
 use futures::{
     stream::{FuturesOrdered, FuturesUnordered},
     StreamExt,
 };
-use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
-    Arc,
+use std::{
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
+    u64,
 };
 
 pub async fn pull_unordered(
     context: &ProcessingContext,
+    output_priority: u8,
     progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     input: InputProcessingNode,
     number_of_frames: u64,
     on_payload: impl Fn(Payload, u64) -> Result<()> + Send + Sync + Clone + 'static,
 ) -> Result<()> {
     let mut range = match (number_of_frames, input.get_caps().frame_count) {
-        (0, None) => 0..u32::MAX,
-        (0, Some(n)) => 0..(n as u32),
-        (n, None) => 0..(n as u32),
-        (n, Some(m)) => 0..((n as u32).min(m as u32)),
+        (0, None) => 0..u64::MAX_VALUE,
+        (0, Some(n)) => 0..n,
+        (n, None) => 0..n,
+        (n, Some(m)) => 0..n.min(m),
     };
 
-    let total_frames = if range.end == u32::MAX { None } else { Some(range.end as _) };
+    let total_frames = if range.end == u64::MAX_VALUE { None } else { Some(range.end as _) };
 
     let latest_frame = Arc::new(AtomicU64::new(0));
     let should_stop = Arc::new(AtomicBool::new(false));
@@ -45,35 +50,37 @@ pub async fn pull_unordered(
             }
         }
         if let Some(frame) = range.next() {
-            let context_clone = context.for_frame(frame as _);
             let input = input.clone_for_same_puller();
             let on_payload = on_payload.clone();
             let progress_callback = progress_callback.clone();
             let latest_frame = latest_frame.clone();
             let should_stop_fut = should_stop.clone();
-            let res = futures_unordered.push(context.spawn(async move {
-                match input.pull(frame as _, &context_clone).await {
-                    Ok(pulled) => on_payload(pulled, frame as _)?,
-                    Err(e) => {
-                        // TODO(robin): clean up into own trait?
-                        eprintln!("error pulling frame {frame}: {e:#}");
-                        if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
-                            eprintln!("end of file, exiting");
-                            should_stop_fut.store(true, Ordering::Relaxed);
-                        } else if let Some(e) = e.downcast_ref::<Arc<anyhow::Error>>() {
+            let res = futures_unordered.push(context.spawn(
+                Priority::new(output_priority, frame),
+                async move {
+                    match input.pull(Request::new(output_priority, frame)).await {
+                        Ok(pulled) => on_payload(pulled, frame as _)?,
+                        Err(e) => {
+                            // TODO(robin): clean up into own trait?
+                            eprintln!("error pulling frame {frame}: {e:#}");
                             if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
                                 eprintln!("end of file, exiting");
                                 should_stop_fut.store(true, Ordering::Relaxed);
+                            } else if let Some(e) = e.downcast_ref::<Arc<anyhow::Error>>() {
+                                if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
+                                    eprintln!("end of file, exiting");
+                                    should_stop_fut.store(true, Ordering::Relaxed);
+                                }
                             }
                         }
                     }
-                }
 
-                let latest_frame = latest_frame.fetch_max(frame as _, Ordering::Relaxed);
-                progress_callback(ProgressUpdate { latest_frame, total_frames });
+                    let latest_frame = latest_frame.fetch_max(frame as _, Ordering::Relaxed);
+                    progress_callback(ProgressUpdate { latest_frame, total_frames });
 
-                Ok::<(), anyhow::Error>(())
-            }));
+                    Ok::<(), anyhow::Error>(())
+                },
+            ));
 
             if should_stop.load(Ordering::Relaxed) {
                 break;
@@ -89,18 +96,19 @@ pub async fn pull_unordered(
 // TODO(robin): abort the thread when we want to stop
 pub fn pull_ordered(
     context: &ProcessingContext,
+    output_priority: u8,
     progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     input: InputProcessingNode,
     number_of_frames: u64,
 ) -> flume::Receiver<Payload> {
     let mut range = match (number_of_frames, input.get_caps().frame_count) {
-        (0, None) => 0..u32::MAX,
-        (0, Some(n)) => 0..(n as u32),
-        (n, None) => 0..(n as u32),
-        (n, Some(m)) => 0..((n as u32).min(m as u32)),
+        (0, None) => 0..u64::MAX_VALUE,
+        (0, Some(n)) => 0..n,
+        (n, None) => 0..n,
+        (n, Some(m)) => 0..n.min(m),
     };
 
-    let total_frames = if range.end == u32::MAX { None } else { Some(range.end as _) };
+    let total_frames = if range.end == u64::MAX_VALUE { None } else { Some(range.end as _) };
 
     let latest_frame = Arc::new(AtomicU64::new(0));
     let mut futures_ordered = FuturesOrdered::new();
@@ -136,17 +144,20 @@ pub fn pull_ordered(
                     }
                 }
                 if let Some(frame) = range.next() {
-                    let context_clone = context.for_frame(frame as _);
                     let input = input.clone_for_same_puller();
                     let progress_callback = progress_callback.clone();
                     let latest_frame = latest_frame.clone();
-                    futures_ordered.push_back(context.spawn(async move {
-                        let input = input.pull(frame as _, &context_clone).await;
-                        let latest_frame = latest_frame.fetch_max(frame as _, Ordering::Relaxed);
-                        progress_callback(ProgressUpdate { latest_frame, total_frames });
+                    futures_ordered.push_back(context.spawn(
+                        Priority::new(output_priority, frame),
+                        async move {
+                            let input = input.pull(Request::new(output_priority, frame)).await;
+                            let latest_frame =
+                                latest_frame.fetch_max(frame as _, Ordering::Relaxed);
+                            progress_callback(ProgressUpdate { latest_frame, total_frames });
 
-                        (input, frame as u64)
-                    }));
+                            (input, frame as u64)
+                        },
+                    ));
                 }
             }
         })
