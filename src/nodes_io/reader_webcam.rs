@@ -5,10 +5,10 @@ use crate::{
         parametrizable::{
             ParameterType::IntRange,
             ParameterTypeDescriptor::Optional,
-            ParameterValue,
             Parameterizable,
             Parameters,
             ParametersDescriptor,
+            SerdeParameterValue,
         },
         payload::Payload,
         processing_context::ProcessingContext,
@@ -43,7 +43,7 @@ impl Parameterizable for WebcamInput {
 
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("device", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
+            .with("device", Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)))
     }
     fn from_parameters(
         mut options: Parameters,

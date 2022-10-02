@@ -4,10 +4,10 @@ use crate::pipeline_processing::{
     parametrizable::{
         ParameterType::{FloatRange, NodeInput, StringParameter},
         ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        SerdeParameterValue,
     },
     processing_context::ProcessingContext,
     puller::pull_ordered,
@@ -33,7 +33,7 @@ impl Parameterizable for FfmpegWriter {
             .with("output", Mandatory(StringParameter))
             .with(
                 "input-options",
-                Optional(StringParameter, ParameterValue::StringParameter("".to_string())),
+                Optional(StringParameter, SerdeParameterValue::StringParameter("".to_string())),
             )
             .with("input", Mandatory(NodeInput))
     }

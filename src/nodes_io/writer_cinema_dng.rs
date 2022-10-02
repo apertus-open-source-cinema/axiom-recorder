@@ -17,7 +17,11 @@ use async_trait::async_trait;
 
 use crate::pipeline_processing::{
     node::ProgressUpdate,
-    parametrizable::{ParameterType::IntRange, ParameterTypeDescriptor::Optional, ParameterValue},
+    parametrizable::{
+        ParameterType::IntRange,
+        ParameterTypeDescriptor::Optional,
+        SerdeParameterValue,
+    },
 };
 use std::{fs::create_dir, sync::Arc};
 use tiff_encoder::{
@@ -44,7 +48,10 @@ impl Parameterizable for CinemaDngWriter {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInput))
-            .with("number-of-frames", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
+            .with(
+                "number-of-frames",
+                Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
+            )
     }
 
     fn from_parameters(

@@ -6,10 +6,10 @@ use crate::pipeline_processing::{
         ParameterType,
         ParameterType::BoolParameter,
         ParameterTypeDescriptor::{Mandatory, Optional},
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        SerdeParameterValue,
     },
     processing_context::ProcessingContext,
     puller::pull_ordered,
@@ -148,10 +148,10 @@ pub struct Display {
 impl Parameterizable for Display {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::default()
-            .with("mailbox", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
-            .with("live", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
-            .with("loop", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
-            .with("fullscreen", Optional(BoolParameter, ParameterValue::BoolParameter(false)))
+            .with("mailbox", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
+            .with("live", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
+            .with("loop", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
+            .with("fullscreen", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
             .with("input", Mandatory(ParameterType::NodeInput))
     }
 

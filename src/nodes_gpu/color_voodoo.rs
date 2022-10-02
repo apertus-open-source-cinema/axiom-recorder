@@ -6,10 +6,10 @@ use crate::pipeline_processing::{
     parametrizable::{
         ParameterType,
         ParameterTypeDescriptor,
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        SerdeParameterValue,
     },
     payload::Payload,
     processing_context::ProcessingContext,
@@ -54,21 +54,21 @@ impl Parameterizable for ColorVoodoo {
                 "pedestal",
                 ParameterTypeDescriptor::Optional(
                     ParameterType::IntRange(0, 255),
-                    ParameterValue::IntRange(8),
+                    SerdeParameterValue::IntRange(8),
                 ),
             )
             .with(
                 "s_gamma",
                 ParameterTypeDescriptor::Optional(
                     ParameterType::FloatRange(0.0, 100.0),
-                    ParameterValue::FloatRange(1.0),
+                    SerdeParameterValue::FloatRange(1.0),
                 ),
             )
             .with(
                 "v_gamma",
                 ParameterTypeDescriptor::Optional(
                     ParameterType::FloatRange(0.0, 100.0),
-                    ParameterValue::FloatRange(1.0),
+                    SerdeParameterValue::FloatRange(1.0),
                 ),
             )
     }

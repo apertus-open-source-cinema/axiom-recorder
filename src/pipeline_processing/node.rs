@@ -10,7 +10,7 @@ use std::{
 #[error("end of file")]
 pub struct EOFError;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct Caps {
     pub frame_count: Option<u64>,
     pub is_live: bool,
