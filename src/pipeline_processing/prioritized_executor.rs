@@ -85,54 +85,58 @@ mod prioritized_future_test {
         task::{Context, Poll},
     };
 
-    #[tokio::test]
-    async fn test_smoke() {
-        for _ in 0..100 {
-            let pr = PrioritizedReactor::new(1);
+    #[test]
+    fn test_smoke() {
+        pollster::block_on(async {
+            for _ in 0..100 {
+                let pr = PrioritizedReactor::new(1);
 
-            let output: Arc<Mutex<Vec<u64>>> = Default::default();
+                let output: Arc<Mutex<Vec<u64>>> = Default::default();
 
-            let fut_3 = {
-                let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().unwrap().push(3) }, 3)
-            };
-            let fut_1 = {
-                let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().unwrap().push(1) }, 1)
-            };
-            let fut_2 = {
-                let output = output.clone();
-                pr.spawn_with_priority(async move { output.lock().unwrap().push(2) }, 2)
-            };
+                let fut_3 = {
+                    let output = output.clone();
+                    pr.spawn_with_priority(async move { output.lock().unwrap().push(3) }, 3)
+                };
+                let fut_1 = {
+                    let output = output.clone();
+                    pr.spawn_with_priority(async move { output.lock().unwrap().push(1) }, 1)
+                };
+                let fut_2 = {
+                    let output = output.clone();
+                    pr.spawn_with_priority(async move { output.lock().unwrap().push(2) }, 2)
+                };
 
-            pr.start_inner();
-            let _res = join!(fut_3, fut_1, fut_2);
-            assert_eq!(&*output.lock().unwrap(), &vec![1, 2, 3]);
-        }
+                pr.start_inner();
+                let _res = join!(fut_3, fut_1, fut_2);
+                assert_eq!(&*output.lock().unwrap(), &vec![1, 2, 3]);
+            }
+        })
     }
 
-    #[tokio::test]
-    async fn test_step_future() {
-        struct StepFuture {
-            current: AtomicU64,
-        }
-        impl Future for StepFuture {
-            type Output = ();
+    #[test]
+    fn test_step_future() {
+        pollster::block_on(async {
+            struct StepFuture {
+                current: AtomicU64,
+            }
+            impl Future for StepFuture {
+                type Output = ();
 
-            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-                match self.current.load(Ordering::Acquire) {
-                    1_000 => Poll::Ready(()),
-                    _ => {
-                        self.current.fetch_add(1, Ordering::Release);
-                        cx.waker().clone().wake();
-                        Poll::Pending
+                fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                    match self.current.load(Ordering::Acquire) {
+                        1_000 => Poll::Ready(()),
+                        _ => {
+                            self.current.fetch_add(1, Ordering::Release);
+                            cx.waker().clone().wake();
+                            Poll::Pending
+                        }
                     }
                 }
             }
-        }
 
-        let pr = PrioritizedReactor::new(1);
-        pr.start_inner();
-        pr.spawn_with_priority(StepFuture { current: Default::default() }, 1).await;
+            let pr = PrioritizedReactor::new(1);
+            pr.start_inner();
+            pr.spawn_with_priority(StepFuture { current: Default::default() }, 1).await;
+        })
     }
 }
