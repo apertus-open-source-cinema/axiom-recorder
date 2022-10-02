@@ -1,7 +1,7 @@
 use crate::{
     pipeline_processing::{
         frame::{Frame, FrameInterpretation, FrameInterpretations},
-        node::{Caps, EOFError, NodeID, ProcessingNode},
+        node::{Caps, EOFError, NodeID, ProcessingNode, Request},
         parametrizable::{
             ParameterType::StringParameter,
             ParameterTypeDescriptor::Mandatory,
@@ -22,6 +22,7 @@ pub struct TcpReader {
     tcp_connection: Mutex<TcpStream>,
     interp: FrameInterpretations,
     notifier: AsyncNotifier<u64>,
+    context: ProcessingContext,
 }
 impl Parameterizable for TcpReader {
     fn describe_parameters() -> ParametersDescriptor {
@@ -33,7 +34,7 @@ impl Parameterizable for TcpReader {
     fn from_parameters(
         mut parameters: Parameters,
         _is_input_to: &[NodeID],
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -42,21 +43,20 @@ impl Parameterizable for TcpReader {
             tcp_connection: Mutex::new(TcpStream::connect(parameters.take::<String>("address")?)?),
             interp: parameters.get_interpretation()?,
             notifier: Default::default(),
+            context: context.clone(),
         })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for TcpReader {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let frame_number = request.frame_number();
+
         self.notifier.wait(move |x| *x >= frame_number).await;
 
-        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        let mut buffer =
+            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
         buffer
             .as_mut_slice(|slice| self.tcp_connection.lock().unwrap().read_exact(slice))
             .context(EOFError)?;
@@ -72,5 +72,5 @@ impl ProcessingNode for TcpReader {
         Ok(payload)
     }
 
-    fn get_caps(&self) -> Caps { Caps { frame_count: None, is_live: true } }
+    fn get_caps(&self) -> Caps { Caps { frame_count: None, random_access: false } }
 }

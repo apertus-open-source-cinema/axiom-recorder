@@ -10,7 +10,7 @@ use crate::{
     pipeline_processing::{
         buffers::CpuBuffer,
         frame::{CfaDescriptor, Frame, FrameInterpretation, Raw, Rgb},
-        node::{Caps, NodeID, ProcessingNode},
+        node::{Caps, NodeID, ProcessingNode, Request},
         parametrizable::{
             ParameterType,
             ParameterTypeDescriptor,
@@ -34,6 +34,7 @@ pub struct DualFrameRawDecoder {
     cfa_descriptor: CfaDescriptor,
     last_frame_info: AsyncNotifier<LastFrameInfo>,
     debug: bool,
+    context: ProcessingContext,
 }
 impl Parameterizable for DualFrameRawDecoder {
     fn describe_parameters() -> ParametersDescriptor {
@@ -59,7 +60,7 @@ impl Parameterizable for DualFrameRawDecoder {
     fn from_parameters(
         mut parameters: Parameters,
         _is_input_to: &[NodeID],
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
     ) -> Result<Self> {
         Ok(Self {
             input: parameters.take("input")?,
@@ -69,18 +70,15 @@ impl Parameterizable for DualFrameRawDecoder {
             },
             last_frame_info: Default::default(),
             debug: parameters.take("debug")?,
+            context: context.clone(),
         })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for DualFrameRawDecoder {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let frame_number = request.frame_number();
         let LastFrameInfo(_, next_even, last_wrsel, old_frame) =
             self.last_frame_info.wait(move |LastFrameInfo(next, ..)| *next == frame_number).await;
 
@@ -92,20 +90,24 @@ impl ProcessingNode for DualFrameRawDecoder {
                         .update(|LastFrameInfo(_, _, _, old_frame)| *old_frame = None);
 
                     offset = 1;
-                    let frame = self.input.pull(next_even, context).await?;
-                    let frame_b =
-                        context.ensure_cpu_buffer::<Rgb>(&frame).context("Wrong input format")?;
+                    let frame = self.input.pull(request.with_frame_number(next_even)).await?;
+                    let frame_b = self
+                        .context
+                        .ensure_cpu_buffer::<Rgb>(&frame)
+                        .context("Wrong input format")?;
                     Result::<_>::Ok(((frame_a, frame_b), true))
                 }
                 None => {
                     let frames = join!(
-                        self.input.pull(next_even, context),
-                        self.input.pull(next_even + 1, context)
+                        self.input.pull(request.with_frame_number(next_even)),
+                        self.input.pull(request.with_frame_number(next_even + 1))
                     );
-                    let frame_a = context
+                    let frame_a = self
+                        .context
                         .ensure_cpu_buffer::<Rgb>(&frames.0?)
                         .context("Wrong input format")?;
-                    let frame_b = context
+                    let frame_b = self
+                        .context
                         .ensure_cpu_buffer::<Rgb>(&frames.1?)
                         .context("Wrong input format")?;
                     Result::<_>::Ok(((frame_a, frame_b), false))
@@ -176,7 +178,7 @@ impl ProcessingNode for DualFrameRawDecoder {
             fps: frame_a.interp.fps / 2.0,
         };
 
-        let mut new_buffer = unsafe { context.get_uninit_cpu_buffer(interp.required_bytes()) };
+        let mut new_buffer = unsafe { self.context.get_uninit_cpu_buffer(interp.required_bytes()) };
 
         let line_bytes = frame_a.interp.width as usize * 3;
         frame_a.storage.as_slice(|frame_a| {
@@ -214,6 +216,7 @@ impl ProcessingNode for DualFrameRawDecoder {
 pub struct ReverseDualFrameRawDecoder {
     input: InputProcessingNode,
     flip: bool,
+    context: ProcessingContext,
 }
 impl Parameterizable for ReverseDualFrameRawDecoder {
     fn describe_parameters() -> ParametersDescriptor {
@@ -234,30 +237,29 @@ impl Parameterizable for ReverseDualFrameRawDecoder {
     fn from_parameters(
         mut parameters: Parameters,
         _is_input_to: &[NodeID],
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
     ) -> Result<Self> {
-        Ok(Self { input: parameters.take("input")?, flip: parameters.take("flip")? })
+        Ok(Self {
+            input: parameters.take("input")?,
+            flip: parameters.take("flip")?,
+            context: context.clone(),
+        })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for ReverseDualFrameRawDecoder {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
-        let downstream = frame_number / 2;
-        let frame = self.input.pull(downstream, context).await?;
-        let frame = context.ensure_cpu_buffer::<Raw>(&frame)?;
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let downstream = request.frame_number() / 2;
+        let frame = self.input.pull(request.with_frame_number(downstream)).await?;
+        let frame = self.context.ensure_cpu_buffer::<Raw>(&frame)?;
         let offset = if self.flip { 1 } else { 0 };
-        let offset = ((frame_number + offset) % 2) as usize;
+        let offset = ((request.frame_number() + offset) % 2) as usize;
 
         let line_bytes = (frame.interp.width * 3 / 2) as usize;
         let out_buffer = unsafe {
             let mut buffer =
-                context.get_uninit_cpu_buffer(line_bytes * frame.interp.height as usize / 2);
+                self.context.get_uninit_cpu_buffer(line_bytes * frame.interp.height as usize / 2);
             buffer.as_mut_slice(|buffer| {
                 frame.storage.as_slice(|input| {
                     for (out, input) in buffer

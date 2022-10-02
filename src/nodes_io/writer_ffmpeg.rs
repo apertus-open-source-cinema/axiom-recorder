@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     frame::Rgb,
     node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
     parametrizable::{
-        ParameterType::{FloatRange, NodeInput, StringParameter},
+        ParameterType::{FloatRange, IntRange, NodeInput, StringParameter},
         ParameterTypeDescriptor::{Mandatory, Optional},
         Parameterizable,
         Parameters,
@@ -25,12 +25,17 @@ pub struct FfmpegWriter {
     input_options: String,
     fps: f64,
     input: InputProcessingNode,
+    priority: u8,
 }
 impl Parameterizable for FfmpegWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("fps", Mandatory(FloatRange(0., f64::MAX)))
             .with("output", Mandatory(StringParameter))
+            .with(
+                "priority",
+                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
+            )
             .with(
                 "input-options",
                 Optional(StringParameter, SerdeParameterValue::StringParameter("".to_string())),
@@ -50,6 +55,7 @@ impl Parameterizable for FfmpegWriter {
             input_options: parameters.take("input-options")?,
             fps: parameters.take("fps")?,
             input: parameters.take("input")?,
+            priority: parameters.take("priority")?,
         })
     }
 }
@@ -61,7 +67,13 @@ impl SinkNode for FfmpegWriter {
         context: &ProcessingContext,
         progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let rx = pull_ordered(context, progress_callback, self.input.clone_for_same_puller(), 0);
+        let rx = pull_ordered(
+            context,
+            self.priority,
+            progress_callback,
+            self.input.clone_for_same_puller(),
+            0,
+        );
         let mut frame = context
             .ensure_cpu_buffer::<Rgb>(&rx.recv_async().await.unwrap())
             .context("Wrong input format")?;

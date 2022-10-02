@@ -43,7 +43,7 @@ struct VulkanContext {
 }
 
 // [u8 output priority, u56 frame number]
-#[derive(Default, Copy, Clone, Ord, Eq, PartialEq, PartialOrd)]
+#[derive(Default, Copy, Clone, Ord, Eq, PartialEq, PartialOrd, Debug)]
 pub struct Priority(u64);
 
 impl Priority {
@@ -71,8 +71,6 @@ impl std::fmt::Display for Priority {
 #[derive(Clone)]
 pub struct ProcessingContext {
     vulkan_device: Option<VulkanContext>,
-
-    priority: Priority,
     prioritized_reactor: PrioritizedReactor<Priority>,
 }
 impl Default for ProcessingContext {
@@ -159,23 +157,9 @@ impl ProcessingContext {
 
         Self {
             vulkan_device: vulkan_context,
-            priority: Default::default(),
             prioritized_reactor: PrioritizedReactor::start(threads),
         }
     }
-
-    pub fn for_priority(&self, priority: Priority) -> Self {
-        Self {
-            vulkan_device: self.vulkan_device.clone(),
-            priority,
-            prioritized_reactor: self.prioritized_reactor.clone(),
-        }
-    }
-
-    pub fn for_frame(&self, frame: u64) -> Self {
-        self.for_priority(self.priority.for_frame(frame))
-    }
-    pub fn frame(&self) -> u64 { self.priority.get_frame() }
 
     /// # Safety
     /// Only safe if you initialize the memory
@@ -284,9 +268,10 @@ impl ProcessingContext {
 
     pub fn spawn<O: Send + 'static>(
         &self,
+        priority: Priority,
         fut: impl Future<Output = O> + Send + 'static,
     ) -> impl Future<Output = O> {
-        self.prioritized_reactor.spawn_with_priority(fut, self.priority)
+        self.prioritized_reactor.spawn_with_priority(fut, priority)
     }
 
     pub fn block_on<O>(&self, fut: impl Future<Output = O>) -> O { pollster::block_on(fut) }

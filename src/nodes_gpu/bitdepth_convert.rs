@@ -2,7 +2,7 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, FrameInterpretation, Raw},
     gpu_util::ensure_gpu_buffer,
-    node::{Caps, InputProcessingNode, NodeID, ProcessingNode},
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
     parametrizable::{
         ParameterType,
         ParameterTypeDescriptor,
@@ -74,13 +74,8 @@ impl Parameterizable for GpuBitDepthConverter {
 
 #[async_trait]
 impl ProcessingNode for GpuBitDepthConverter {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
-        let input = self.input.pull(frame_number, context).await?;
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let input = self.input.pull(request).await?;
 
         let (frame, fut) =
             ensure_gpu_buffer::<Raw>(&input, self.queue.clone()).context("Wrong input format")?;

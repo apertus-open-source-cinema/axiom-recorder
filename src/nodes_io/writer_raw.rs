@@ -33,12 +33,17 @@ pub struct RawBlobWriter {
     file: Arc<Mutex<File>>,
     input: InputProcessingNode,
     number_of_frames: u64,
+    priority: u8,
 }
 impl Parameterizable for RawBlobWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInput))
+            .with(
+                "priority",
+                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
+            )
             .with(
                 "number-of-frames",
                 Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
@@ -56,6 +61,7 @@ impl Parameterizable for RawBlobWriter {
             file: Arc::new(Mutex::new(File::create(parameters.take::<String>("path")?)?)),
             input: parameters.take("input")?,
             number_of_frames: parameters.take("number-of-frames")?,
+            priority: parameters.take("priority")?,
         })
     }
 }
@@ -69,6 +75,7 @@ impl SinkNode for RawBlobWriter {
     ) -> Result<()> {
         let rx = pull_ordered(
             context,
+            self.priority,
             progress_callback,
             self.input.clone_for_same_puller(),
             self.number_of_frames,
@@ -86,12 +93,17 @@ pub struct RawDirectoryWriter {
     dir_path: String,
     input: InputProcessingNode,
     number_of_frames: u64,
+    priority: u8,
 }
 impl Parameterizable for RawDirectoryWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInput))
+            .with(
+                "priority",
+                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
+            )
             .with(
                 "number-of-frames",
                 Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
@@ -112,6 +124,7 @@ impl Parameterizable for RawDirectoryWriter {
             dir_path: filename,
             input: parameters.take("input")?,
             number_of_frames: parameters.take("number-of-frames")?,
+            priority: parameters.take("priority")?,
         })
     }
 }
@@ -126,6 +139,7 @@ impl SinkNode for RawDirectoryWriter {
         let context_clone = context.clone();
         pull_unordered(
             context,
+            self.priority,
             progress_callback,
             self.input.clone_for_same_puller(),
             self.number_of_frames,

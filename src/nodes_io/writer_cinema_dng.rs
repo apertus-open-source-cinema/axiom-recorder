@@ -41,6 +41,7 @@ pub struct CinemaDngWriter {
     dir_path: String,
     input: InputProcessingNode,
     number_of_frames: u64,
+    priority: u8,
 }
 
 impl Parameterizable for CinemaDngWriter {
@@ -48,6 +49,10 @@ impl Parameterizable for CinemaDngWriter {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInput))
+            .with(
+                "priority",
+                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
+            )
             .with(
                 "number-of-frames",
                 Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
@@ -68,6 +73,7 @@ impl Parameterizable for CinemaDngWriter {
             dir_path: filename,
             input: parameters.take("input")?,
             number_of_frames: parameters.take("number-of-frames")?,
+            priority: parameters.take("priority")?,
         })
     }
 }
@@ -84,6 +90,7 @@ impl SinkNode for CinemaDngWriter {
 
         pull_unordered(
             &context.clone(),
+            self.priority,
             progress_callback,
             self.input.clone_for_same_puller(),
             self.number_of_frames,

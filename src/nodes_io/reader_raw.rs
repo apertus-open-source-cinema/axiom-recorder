@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, FrameInterpretations},
-    node::{Caps, NodeID, ProcessingNode},
+    node::{Caps, NodeID, ProcessingNode, Request},
     parametrizable::{
         ParameterType::{BoolParameter, StringParameter},
         ParameterTypeDescriptor::{Mandatory, Optional},
@@ -29,6 +29,7 @@ pub struct RawBlobReader {
     cache_frames: bool,
     cache: Mutex<Vec<Option<Payload>>>,
     frame_count: u64,
+    context: ProcessingContext,
 }
 impl Parameterizable for RawBlobReader {
     const DESCRIPTION: Option<&'static str> =
@@ -46,7 +47,7 @@ impl Parameterizable for RawBlobReader {
     fn from_parameters(
         mut options: Parameters,
         _is_input_to: &[NodeID],
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
     ) -> anyhow::Result<Self>
     where
         Self: Sized,
@@ -62,17 +63,14 @@ impl Parameterizable for RawBlobReader {
             frame_count,
             cache_frames: options.take("cache-frames")?,
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
+            context: context.clone(),
         })
     }
 }
 #[async_trait]
 impl ProcessingNode for RawBlobReader {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let frame_number = request.frame_number();
         if frame_number >= self.frame_count as u64 {
             return Err(anyhow!(
                 "frame {} was requested but this stream only has a length of {}",
@@ -84,7 +82,8 @@ impl ProcessingNode for RawBlobReader {
         let mut file = self.file.lock().unwrap();
         file.seek(SeekFrom::Start(frame_number * self.interp.required_bytes() as u64))?;
 
-        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        let mut buffer =
+            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
         buffer
             .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
 
@@ -105,7 +104,7 @@ impl ProcessingNode for RawBlobReader {
     }
 
     fn get_caps(&self) -> Caps {
-        Caps { frame_count: Some(self.frame_count as u64), is_live: false }
+        Caps { frame_count: Some(self.frame_count as u64), random_access: true }
     }
 }
 
@@ -116,6 +115,7 @@ pub struct RawDirectoryReader {
     cache_frames: bool,
     internal_loop: bool,
     cache: Mutex<Vec<Option<Payload>>>,
+    context: ProcessingContext,
 }
 impl Parameterizable for RawDirectoryReader {
     const DESCRIPTION: Option<&'static str> =
@@ -137,7 +137,7 @@ impl Parameterizable for RawDirectoryReader {
     fn from_parameters(
         mut options: Parameters,
         _is_input_to: &[NodeID],
-        _context: &ProcessingContext,
+        context: &ProcessingContext,
     ) -> anyhow::Result<Self>
     where
         Self: Sized,
@@ -154,18 +154,15 @@ impl Parameterizable for RawDirectoryReader {
             cache_frames: options.take("cache-frames")?,
             internal_loop: options.take("internal-loop")?,
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
+            context: context.clone(),
         })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for RawDirectoryReader {
-    async fn pull(
-        &self,
-        mut frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let mut frame_number = request.frame_number();
         if self.internal_loop {
             frame_number %= self.files.len() as u64;
         }
@@ -185,7 +182,8 @@ impl ProcessingNode for RawDirectoryReader {
 
         let path = &self.files[frame_number as usize];
         let mut file = File::open(path)?;
-        let mut buffer = unsafe { context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        let mut buffer =
+            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
         buffer
             .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
 
@@ -205,7 +203,7 @@ impl ProcessingNode for RawDirectoryReader {
     fn get_caps(&self) -> Caps {
         Caps {
             frame_count: if self.internal_loop { None } else { Some(self.files.len() as u64) },
-            is_live: false,
+            random_access: true,
         }
     }
 }
