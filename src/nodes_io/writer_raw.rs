@@ -10,10 +10,10 @@ use crate::pipeline_processing::{
     parametrizable::{
         ParameterType::StringParameter,
         ParameterTypeDescriptor::Mandatory,
-        ParameterValue,
         Parameterizable,
         Parameters,
         ParametersDescriptor,
+        SerdeParameterValue,
     },
 };
 use anyhow::Result;
@@ -39,7 +39,10 @@ impl Parameterizable for RawBlobWriter {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInput))
-            .with("number-of-frames", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
+            .with(
+                "number-of-frames",
+                Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
+            )
     }
     fn from_parameters(
         mut parameters: Parameters,
@@ -89,7 +92,10 @@ impl Parameterizable for RawDirectoryWriter {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInput))
-            .with("number-of-frames", Optional(IntRange(0, i64::MAX), ParameterValue::IntRange(0)))
+            .with(
+                "number-of-frames",
+                Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
+            )
     }
 
     fn from_parameters(

@@ -68,11 +68,6 @@ pub struct ProcessingContext {
 }
 impl Default for ProcessingContext {
     fn default() -> Self {
-        let threads = std::env::var("RECORDER_NUM_THREADS")
-            .map_err(|_| ())
-            .and_then(|v| v.parse::<usize>().map_err(|_| ()))
-            .unwrap_or_else(|_| num_cpus::get());
-        println!("using {threads} threads");
         let vk_device = Instance::new(InstanceCreateInfo {
             enabled_extensions: vulkano_win::required_extensions(),
             ..Default::default()
@@ -105,30 +100,44 @@ impl Default for ProcessingContext {
                 .ok()
             })
         });
-        let runtime = tokio::runtime::Runtime::new().unwrap();
         match vk_device {
-            None => {
-                println!("using cpu only processing");
-                Self {
-                    vulkan_device: None,
-                    priority: Default::default(),
-                    prioritized_reactor: PrioritizedReactor::start(threads),
-                    tokio_rt_handle: runtime.handle().clone(),
-                }
-            }
+            None => ProcessingContext::new(None),
             Some((device, queues)) => {
-                println!("using gpu: {}", device.physical_device().properties().device_name);
-                Self {
-                    vulkan_device: Some(VulkanContext { device, queues: queues.collect() }),
-                    priority: Default::default(),
-                    prioritized_reactor: PrioritizedReactor::start(threads),
-                    tokio_rt_handle: runtime.handle().clone(),
-                }
+                ProcessingContext::new(Some(VulkanContext { device, queues: queues.collect() }))
             }
         }
     }
 }
 impl ProcessingContext {
+    pub fn from_vk_device_queues(device: Arc<Device>, queues: Vec<Arc<Queue>>) -> Self {
+        Self::new(Some(VulkanContext { device, queues }))
+    }
+    fn new(vulkan_context: Option<VulkanContext>) -> Self {
+        let threads = std::env::var("RECORDER_NUM_THREADS")
+            .map_err(|_| ())
+            .and_then(|v| v.parse::<usize>().map_err(|_| ()))
+            .unwrap_or_else(|_| num_cpus::get());
+        println!("using {threads} threads");
+
+
+        if let Some(vulkan_context) = &vulkan_context {
+            println!(
+                "using gpu: {}",
+                vulkan_context.device.physical_device().properties().device_name
+            );
+        } else {
+            println!("using cpu only processing");
+        }
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        Self {
+            vulkan_device: vulkan_context,
+            priority: Default::default(),
+            prioritized_reactor: PrioritizedReactor::start(threads),
+            tokio_rt_handle: runtime.handle().clone(),
+        }
+    }
+
     pub fn for_priority(&self, priority: Priority) -> Self {
         Self {
             vulkan_device: self.vulkan_device.clone(),
@@ -137,6 +146,7 @@ impl ProcessingContext {
             tokio_rt_handle: self.tokio_rt_handle.clone(),
         }
     }
+
     pub fn for_frame(&self, frame: u64) -> Self {
         self.for_priority(self.priority.for_frame(frame))
     }

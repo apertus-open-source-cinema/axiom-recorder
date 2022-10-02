@@ -6,3 +6,5 @@ mod nodes_cpu;
 mod nodes_gpu;
 mod nodes_io;
 mod nodes_util;
+
+pub mod gui;

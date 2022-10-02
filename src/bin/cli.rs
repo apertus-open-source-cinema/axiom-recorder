@@ -10,12 +10,12 @@ use recorder::{
             ParameterType,
             ParameterTypeDescriptor,
             ParameterTypeDescriptor::{Mandatory, Optional},
-            ParameterValue,
             ParameterizableDescriptor,
             Parameters,
+            SerdeParameterValue,
         },
         processing_context::ProcessingContext,
-        processing_graph::{ProcessingGraphBuilder, ProcessingNodeConfig},
+        processing_graph::{ProcessingGraphBuilder, ProcessingNodeConfig, SerdeNodeConfig},
     },
 };
 use serde::{Deserialize, Deserializer};
@@ -25,104 +25,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-#[derive(Debug, Clone)]
-enum NodeParam {
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    String(String),
-    NodeInput(String),
-    List(Vec<NodeParam>),
-}
-
-impl<'de> Deserialize<'de> for NodeParam {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize, Debug)]
-        #[serde(untagged)]
-        enum NodeParamSimple {
-            Int(i64),
-            Float(f64),
-            Bool(bool),
-            String(String),
-            List(Vec<NodeParam>),
-        }
-
-        let param = NodeParamSimple::deserialize(deserializer)?;
-        Ok(match param {
-            NodeParamSimple::Float(f) => NodeParam::Float(f),
-            NodeParamSimple::Int(i) => NodeParam::Int(i),
-            NodeParamSimple::String(s) => {
-                if let Some(s) = s.strip_prefix('<') {
-                    NodeParam::NodeInput(s.to_owned())
-                } else {
-                    NodeParam::String(s)
-                }
-            }
-            NodeParamSimple::Bool(b) => NodeParam::Bool(b),
-            NodeParamSimple::List(l) => NodeParam::List(l),
-        })
-    }
-}
-
-impl TryFrom<NodeParam> for ParameterValue {
-    type Error = ();
-
-    fn try_from(value: NodeParam) -> Result<Self, Self::Error> {
-        match value {
-            NodeParam::Float(f) => Ok(ParameterValue::FloatRange(f)),
-            NodeParam::Int(i) => Ok(ParameterValue::IntRange(i)),
-            NodeParam::String(s) => Ok(ParameterValue::StringParameter(s)),
-            NodeParam::Bool(b) => Ok(ParameterValue::BoolParameter(b)),
-            NodeParam::NodeInput(_) => Err(()),
-            NodeParam::List(l) => Ok(ParameterValue::ListParameter(
-                l.into_iter().map(ParameterValue::try_from).collect::<Result<_, Self::Error>>()?,
-            )),
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-struct NodeConfig {
-    #[serde(rename = "type")]
-    ty: String,
-    #[serde(flatten)]
-    parameters: HashMap<String, NodeParam>,
-}
-
-impl From<NodeConfig> for ProcessingNodeConfig<String> {
-    fn from(node_config: NodeConfig) -> Self {
-        Self {
-            name: node_config.ty,
-            parameters: Parameters::new(
-                node_config
-                    .parameters
-                    .clone()
-                    .into_iter()
-                    .filter_map(|(name, param)| match param {
-                        NodeParam::NodeInput(_) => None,
-                        param => param.try_into().ok().map(|v| (name, v)),
-                    })
-                    .collect(),
-            ),
-            inputs: node_config
-                .parameters
-                .into_iter()
-                .filter_map(|(name, param)| match param {
-                    NodeParam::NodeInput(i) => Some((name, i)),
-                    _ => None,
-                })
-                .collect(),
-        }
-    }
-}
-
 #[derive(Deserialize, Debug)]
 struct PipelineConfig {
     #[serde(flatten)]
-    nodes: HashMap<String, NodeConfig>,
+    nodes: HashMap<String, SerdeNodeConfig>,
 }
 
 #[cfg(feature = "dhat-heap")]

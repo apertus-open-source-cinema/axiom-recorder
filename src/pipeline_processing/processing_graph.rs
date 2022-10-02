@@ -1,5 +1,6 @@
 use anyhow::Result;
 use futures::StreamExt;
+use serde::{Deserialize, Deserializer};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -9,7 +10,7 @@ use crate::{
     nodes::create_node_from_name,
     pipeline_processing::{
         node::{Node, NodeID, ProgressUpdate},
-        parametrizable::Parameters,
+        parametrizable::{Parameters, SerdeParameterValue},
         processing_context::ProcessingContext,
     },
 };
@@ -34,22 +35,121 @@ impl<IdTy> ProcessingNodeConfig<IdTy> {
     }
 }
 
+
+#[derive(Debug, Clone)]
+pub enum SerdeNodeParam {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    String(String),
+    NodeInput(String),
+    List(Vec<SerdeNodeParam>),
+}
+
+impl<'de> Deserialize<'de> for SerdeNodeParam {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize, Debug)]
+        #[serde(untagged)]
+        enum NodeParamSimple {
+            Int(i64),
+            Float(f64),
+            Bool(bool),
+            String(String),
+            List(Vec<SerdeNodeParam>),
+        }
+
+        let param = NodeParamSimple::deserialize(deserializer)?;
+        Ok(match param {
+            NodeParamSimple::Float(f) => SerdeNodeParam::Float(f),
+            NodeParamSimple::Int(i) => SerdeNodeParam::Int(i),
+            NodeParamSimple::String(s) => {
+                if let Some(s) = s.strip_prefix('<') {
+                    SerdeNodeParam::NodeInput(s.to_owned())
+                } else {
+                    SerdeNodeParam::String(s)
+                }
+            }
+            NodeParamSimple::Bool(b) => SerdeNodeParam::Bool(b),
+            NodeParamSimple::List(l) => SerdeNodeParam::List(l),
+        })
+    }
+}
+
+impl TryFrom<SerdeNodeParam> for SerdeParameterValue {
+    type Error = ();
+
+    fn try_from(value: SerdeNodeParam) -> Result<Self, Self::Error> {
+        match value {
+            SerdeNodeParam::Float(f) => Ok(SerdeParameterValue::FloatRange(f)),
+            SerdeNodeParam::Int(i) => Ok(SerdeParameterValue::IntRange(i)),
+            SerdeNodeParam::String(s) => Ok(SerdeParameterValue::StringParameter(s)),
+            SerdeNodeParam::Bool(b) => Ok(SerdeParameterValue::BoolParameter(b)),
+            SerdeNodeParam::NodeInput(_) => Err(()),
+            SerdeNodeParam::List(l) => Ok(SerdeParameterValue::ListParameter(
+                l.into_iter()
+                    .map(SerdeParameterValue::try_from)
+                    .collect::<Result<_, Self::Error>>()?,
+            )),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SerdeNodeConfig {
+    #[serde(rename = "type")]
+    ty: String,
+    #[serde(flatten)]
+    parameters: HashMap<String, SerdeNodeParam>,
+}
+
+impl From<SerdeNodeConfig> for ProcessingNodeConfig<String> {
+    fn from(node_config: SerdeNodeConfig) -> Self {
+        Self {
+            name: node_config.ty,
+            parameters: Parameters::new(
+                node_config
+                    .parameters
+                    .clone()
+                    .into_iter()
+                    .filter_map(|(name, param)| match param {
+                        SerdeNodeParam::NodeInput(_) => None,
+                        param => param.try_into().ok().map(|v| (name, v)),
+                    })
+                    .collect(),
+            ),
+            inputs: node_config
+                .parameters
+                .into_iter()
+                .filter_map(|(name, param)| match param {
+                    SerdeNodeParam::NodeInput(i) => Some((name, i)),
+                    _ => None,
+                })
+                .collect(),
+        }
+    }
+}
+
+
 pub struct ProcessingGraphBuilder<IdTy> {
-    nodes: HashMap<IdTy, Option<ProcessingNodeConfig<IdTy>>>,
+    nodes: HashMap<IdTy, ProcessingNodeConfig<IdTy>>,
+    node_ids: HashMap<IdTy, NodeID>,
 }
 
 impl<IdTy> Default for ProcessingGraphBuilder<IdTy> {
-    fn default() -> Self { Self { nodes: HashMap::new() } }
+    fn default() -> Self { Self { nodes: HashMap::new(), node_ids: HashMap::new() } }
 }
 
 impl<IdTy> ProcessingGraphBuilder<IdTy>
 where
-    IdTy: std::cmp::Eq + std::hash::Hash + std::fmt::Debug + Clone,
+    IdTy: Eq + std::hash::Hash + std::fmt::Debug + Clone,
 {
     pub fn new() -> Self { Default::default() }
 
     pub fn add(&mut self, name: IdTy, config: ProcessingNodeConfig<IdTy>) -> Result<NodeID> {
-        let idx = self.nodes.len();
+        let node_id: NodeID = self.nodes.len().into();
         match self.nodes.entry(name.clone()) {
             std::collections::hash_map::Entry::Occupied(e) => {
                 let e = e.get();
@@ -58,8 +158,9 @@ where
                 ))
             }
             std::collections::hash_map::Entry::Vacant(v) => {
-                v.insert(Some(config));
-                Ok(idx.into())
+                v.insert(config);
+                self.node_ids.insert(name, node_id);
+                Ok(node_id)
             }
         }
     }
@@ -68,40 +169,35 @@ where
         if self.nodes.is_empty() {
             Ok(ProcessingGraph { nodes: HashMap::new(), sinks: vec![] })
         } else {
-            let mut id_to_nodeid = HashMap::<IdTy, NodeID>::new();
             let mut is_input_to = HashMap::<_, Vec<_>>::new();
 
-            for (idx, id) in self.nodes.keys().enumerate() {
-                id_to_nodeid.insert(id.clone(), idx.into());
-            }
-
             for (id, node) in self.nodes.iter() {
-                let idx = id_to_nodeid[id];
-                for input in node.as_ref().unwrap().inputs.values() {
-                    is_input_to.entry(id_to_nodeid[input]).or_default().push(idx);
+                let idx = self.node_ids[id];
+                for input in node.inputs.values() {
+                    is_input_to.entry(self.node_ids[input]).or_default().push(idx);
                 }
             }
 
-
             let mut built_nodes = HashMap::<NodeID, Node>::new();
-            let mut avail: HashSet<IdTy> = id_to_nodeid.keys().cloned().collect();
+            let mut sinks = vec![];
+
+            let mut avail: HashSet<IdTy> = self.node_ids.keys().cloned().collect();
             let mut queue = vec![];
             queue.push({
                 let v = avail.iter().cloned().next().unwrap();
                 avail.take(&v).unwrap()
             });
-            let mut sinks = vec![];
 
             while !queue.is_empty() {
                 let id = queue.last().unwrap().clone();
-                let idx = id_to_nodeid[&id];
+                let idx = self.node_ids[&id];
                 let mut missing = vec![];
                 let mut finished = HashMap::new();
 
-                let node = self.nodes.remove(&id).unwrap().unwrap();
+                let node = self.nodes.remove(&id).unwrap();
 
                 for (name, input_id) in &node.inputs {
-                    if let Some(node) = built_nodes.get(&id_to_nodeid[input_id]) {
+                    if let Some(node) = built_nodes.get(&self.node_ids[input_id]) {
                         finished.insert(name.clone(), node.clone());
                     } else {
                         missing.push(input_id.clone())
@@ -110,7 +206,7 @@ where
 
                 if !missing.is_empty() {
                     queue.append(&mut missing);
-                    self.nodes.insert(id, Some(node));
+                    self.nodes.insert(id, node);
                 } else {
                     let built_node = create_node_from_name(
                         &node.name,
@@ -153,7 +249,7 @@ impl ProcessingGraph {
     ) -> Result<()> {
         let ctx = Arc::new(ctx);
         if self.sinks.is_empty() {
-            Err(anyhow::anyhow!("processing graph should contain atleast one sink"))
+            Err(anyhow::anyhow!("processing graph should contain at least one sink"))
         } else {
             let res = ctx.block_on(async {
                 anyhow::Result::<_, anyhow::Error>::Ok(
@@ -185,4 +281,6 @@ impl ProcessingGraph {
             anyhow::Result::Ok(())
         }
     }
+
+    pub fn get_node(&self, id: NodeID) -> &Node { &self.nodes[&id] }
 }
