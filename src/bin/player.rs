@@ -64,7 +64,7 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                     serde_yaml::from_str::<SerdeNodeConfig>(
                         "
                       type: RawDirectoryReader
-                      file-pattern: /Users/anuejn/Downloads/Darkbox-Timelapse-Clock-Sequence/*
+                      file-pattern: test/Darkbox-Timelapse-Clock-Sequence/*
                       width: 4096
                       height: 3072
                       rgb: false
@@ -76,7 +76,7 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                     "converter".to_string(),
                     serde_yaml::from_str::<SerdeNodeConfig>(
                         "
-                    type: BitDepthConverter
+                    type: GpuBitDepthConverter
                     input: <reader
                 ",
                     )?
