@@ -1,27 +1,19 @@
-use std::{
-    io::Read,
-    sync::{Arc, Mutex},
-};
-
 use crate::{
     pipeline_processing::{
-        frame::{FrameInterpretation, FrameInterpretations},
-        node::EOFError,
-        parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
+        frame::{Frame, FrameInterpretation, FrameInterpretations},
+        node::{Caps, EOFError, NodeID, ProcessingNode, Request},
+        parametrizable::prelude::*,
         payload::Payload,
+        processing_context::ProcessingContext,
     },
     util::async_notifier::AsyncNotifier,
 };
 use anyhow::{Context, Result};
-
-
-use crate::pipeline_processing::{
-    frame::Frame,
-    node::{Caps, NodeID, ProcessingNode, Request},
-    parametrizable::{ParameterType, ParameterTypeDescriptor},
-    processing_context::ProcessingContext,
-};
 use async_trait::async_trait;
+use std::{
+    io::Read,
+    sync::{Arc, Mutex},
+};
 
 pub struct ZstdBlobReader {
     frame_and_file: AsyncNotifier<(
@@ -33,9 +25,7 @@ pub struct ZstdBlobReader {
 }
 impl Parameterizable for ZstdBlobReader {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with_interpretation()
-            .with("file", ParameterTypeDescriptor::Mandatory(ParameterType::StringParameter))
+        ParametersDescriptor::new().with_interpretation().with("file", Mandatory(StringParameter))
     }
     fn from_parameters(
         mut options: Parameters,

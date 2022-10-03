@@ -2,15 +2,7 @@ use crate::pipeline_processing::{
     frame::Rgb,
     gpu_util::ensure_gpu_buffer,
     node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
-    parametrizable::{
-        ParameterType,
-        ParameterType::BoolParameter,
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-        SerdeParameterValue,
-    },
+    parametrizable::prelude::*,
     processing_context::ProcessingContext,
     puller::pull_ordered,
 };
@@ -148,11 +140,11 @@ pub struct Display {
 impl Parameterizable for Display {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::default()
-            .with("mailbox", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
-            .with("live", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
-            .with("loop", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
-            .with("fullscreen", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
-            .with("input", Mandatory(ParameterType::NodeInput))
+            .with("input", Mandatory(NodeInputParameter))
+            .with("mailbox", Optional(BoolParameter))
+            .with("live", Optional(BoolParameter))
+            .with("loop", Optional(BoolParameter))
+            .with("fullscreen", Optional(BoolParameter))
     }
 
     fn from_parameters(

@@ -1,14 +1,7 @@
 use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, FrameInterpretations},
     node::{Caps, NodeID, ProcessingNode, Request},
-    parametrizable::{
-        ParameterType::{BoolParameter, StringParameter},
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-        SerdeParameterValue,
-    },
+    parametrizable::prelude::*,
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -39,10 +32,7 @@ impl Parameterizable for RawBlobReader {
         ParametersDescriptor::new()
             .with_interpretation()
             .with("file", Mandatory(StringParameter))
-            .with(
-                "cache-frames",
-                Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)),
-            )
+            .with("cache-frames", Optional(BoolParameter))
     }
     fn from_parameters(
         mut options: Parameters,
@@ -125,14 +115,8 @@ impl Parameterizable for RawDirectoryReader {
         ParametersDescriptor::new()
             .with_interpretation()
             .with("file-pattern", Mandatory(StringParameter))
-            .with(
-                "cache-frames",
-                Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)),
-            )
-            .with(
-                "internal-loop",
-                Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)),
-            )
+            .with("cache-frames", Optional(BoolParameter))
+            .with("internal-loop", Optional(BoolParameter))
     }
     fn from_parameters(
         mut options: Parameters,

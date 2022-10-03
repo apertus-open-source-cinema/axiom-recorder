@@ -3,13 +3,7 @@ use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, Rgb},
     gpu_util::ensure_gpu_buffer,
     node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
-    parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-    },
+    parametrizable::prelude::*,
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -53,8 +47,8 @@ pub struct Lut3d {
 impl Parameterizable for Lut3d {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with("file", ParameterTypeDescriptor::Mandatory(ParameterType::StringParameter))
+            .with("input", Mandatory(NodeInputParameter))
+            .with("file", Mandatory(StringParameter))
     }
 
     fn from_parameters(

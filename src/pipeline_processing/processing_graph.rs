@@ -10,7 +10,7 @@ use crate::{
     nodes::create_node_from_name,
     pipeline_processing::{
         node::{Node, NodeID, ProgressUpdate},
-        parametrizable::{Parameters, SerdeParameterValue},
+        parametrizable::{ParameterValue, Parameters},
         processing_context::ProcessingContext,
     },
 };
@@ -78,20 +78,18 @@ impl<'de> Deserialize<'de> for SerdeNodeParam {
     }
 }
 
-impl TryFrom<SerdeNodeParam> for SerdeParameterValue {
+impl TryFrom<SerdeNodeParam> for ParameterValue {
     type Error = ();
 
     fn try_from(value: SerdeNodeParam) -> Result<Self, Self::Error> {
         match value {
-            SerdeNodeParam::Float(f) => Ok(SerdeParameterValue::FloatRange(f)),
-            SerdeNodeParam::Int(i) => Ok(SerdeParameterValue::IntRange(i)),
-            SerdeNodeParam::String(s) => Ok(SerdeParameterValue::StringParameter(s)),
-            SerdeNodeParam::Bool(b) => Ok(SerdeParameterValue::BoolParameter(b)),
+            SerdeNodeParam::Float(f) => Ok(ParameterValue::FloatRangeValue(f)),
+            SerdeNodeParam::Int(i) => Ok(ParameterValue::IntRangeValue(i)),
+            SerdeNodeParam::String(s) => Ok(ParameterValue::StringValue(s)),
+            SerdeNodeParam::Bool(b) => Ok(ParameterValue::BoolValue(b)),
             SerdeNodeParam::NodeInput(_) => Err(()),
-            SerdeNodeParam::List(l) => Ok(SerdeParameterValue::ListParameter(
-                l.into_iter()
-                    .map(SerdeParameterValue::try_from)
-                    .collect::<Result<_, Self::Error>>()?,
+            SerdeNodeParam::List(l) => Ok(ParameterValue::ListValue(
+                l.into_iter().map(ParameterValue::try_from).collect::<Result<_, Self::Error>>()?,
             )),
         }
     }

@@ -4,11 +4,6 @@ use crate::nodes_gpu::display::Display;
 use crate::nodes_gpu::plot::Plot;
 #[cfg(target_os = "linux")]
 use crate::nodes_io::reader_webcam::WebcamInput;
-use crate::pipeline_processing::{
-    node::{Node, NodeID, ProcessingNodeIntoNode, SinkNodeIntoNode},
-    parametrizable::{Parameterizable, ParameterizableDescriptor, Parameters},
-    processing_context::ProcessingContext,
-};
 use crate::{
     nodes_cpu::{
         average::Average,
@@ -33,6 +28,11 @@ use crate::{
         writer_raw::{RawBlobWriter, RawDirectoryWriter},
     },
     //nodes_util::{cache::Cache, split::Split},
+    pipeline_processing::{
+        node::{Node, NodeID, ProcessingNodeIntoNode, SinkNodeIntoNode},
+        parametrizable::prelude::*,
+        processing_context::ProcessingContext,
+    },
 };
 
 use anyhow::{anyhow, Result};

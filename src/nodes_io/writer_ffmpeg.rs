@@ -1,14 +1,7 @@
 use crate::pipeline_processing::{
     frame::Rgb,
     node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
-    parametrizable::{
-        ParameterType::{FloatRange, IntRange, NodeInput, StringParameter},
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-        SerdeParameterValue,
-    },
+    parametrizable::prelude::*,
     processing_context::ProcessingContext,
     puller::pull_ordered,
 };
@@ -30,17 +23,11 @@ pub struct FfmpegWriter {
 impl Parameterizable for FfmpegWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("fps", Mandatory(FloatRange(0., f64::MAX)))
+            .with("input", Mandatory(NodeInputParameter))
+            .with("fps", Mandatory(PositiveReal()))
             .with("output", Mandatory(StringParameter))
-            .with(
-                "priority",
-                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
-            )
-            .with(
-                "input-options",
-                Optional(StringParameter, SerdeParameterValue::StringParameter("".to_string())),
-            )
-            .with("input", Mandatory(NodeInput))
+            .with("priority", Optional(U8()))
+            .with("input-options", Optional(StringParameter))
     }
     fn from_parameters(
         mut parameters: Parameters,

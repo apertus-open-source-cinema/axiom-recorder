@@ -1,3 +1,5 @@
+extern crate core;
+
 pub mod pipeline_processing;
 pub mod util;
 

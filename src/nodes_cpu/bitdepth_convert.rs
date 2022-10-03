@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, Raw},
     node::{Caps, NodeID, ProcessingNode, Request},
-    parametrizable::{ParameterType, ParameterTypeDescriptor},
+    parametrizable::prelude::*,
     processing_context::ProcessingContext,
 };
 use async_trait::async_trait;
@@ -20,8 +20,7 @@ pub struct BitDepthConverter {
 }
 impl Parameterizable for BitDepthConverter {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+        ParametersDescriptor::new().with("input", Mandatory(NodeInputParameter))
     }
 
     fn from_parameters(

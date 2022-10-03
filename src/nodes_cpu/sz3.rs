@@ -1,21 +1,13 @@
-use std::sync::Arc;
-
 use crate::pipeline_processing::{
-    frame::{Rgb, SZ3Compressed},
-    node::InputProcessingNode,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor, SerdeParameterValue},
+    frame::{Frame, Raw, Rgb, SZ3Compressed},
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
+    parametrizable::prelude::*,
     payload::Payload,
-};
-use anyhow::{Context, Result};
-
-
-use crate::pipeline_processing::{
-    frame::{Frame, Raw},
-    node::{Caps, NodeID, ProcessingNode, Request},
-    parametrizable::{ParameterType, ParameterTypeDescriptor},
     processing_context::ProcessingContext,
 };
+use anyhow::{Context, Result};
 use async_trait::async_trait;
+use std::sync::Arc;
 
 enum DataType {
     F32,
@@ -34,22 +26,13 @@ pub struct SZ3Compress {
 impl Parameterizable for SZ3Compress {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with(
-                "tolerance",
-                ParameterTypeDescriptor::Mandatory(ParameterType::FloatRange(0.0, f64::INFINITY)),
-            )
-            .with(
-                "error_control",
-                ParameterTypeDescriptor::Mandatory(ParameterType::StringParameter),
-            )
-            .with("data_type", ParameterTypeDescriptor::Mandatory(ParameterType::StringParameter))
+            .with("input", Mandatory(NodeInputParameter))
+            .with("tolerance", Mandatory(PositiveReal()))
+            .with("error_control", Mandatory(StringParameter))
+            .with("data_type", Mandatory(StringParameter))
             .with(
                 "dims",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::ListParameter(Box::new(ParameterType::IntRange(-1, i64::MAX))),
-                    SerdeParameterValue::ListParameter(vec![]),
-                ),
+                WithDefault(ListParameter(Box::new(IntRange(-1, i64::MAX))), ListValue(vec![])),
             )
     }
 

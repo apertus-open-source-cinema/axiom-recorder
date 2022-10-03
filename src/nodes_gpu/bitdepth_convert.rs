@@ -3,13 +3,7 @@ use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, Raw},
     gpu_util::ensure_gpu_buffer,
     node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
-    parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-    },
+    parametrizable::prelude::*,
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -44,8 +38,7 @@ pub struct GpuBitDepthConverter {
 
 impl Parameterizable for GpuBitDepthConverter {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+        ParametersDescriptor::new().with("input", Mandatory(NodeInputParameter))
     }
     fn from_parameters(
         mut parameters: Parameters,
