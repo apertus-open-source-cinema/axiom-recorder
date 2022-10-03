@@ -6,18 +6,12 @@ use itertools::Itertools;
 use recorder::{
     nodes::list_available_nodes,
     pipeline_processing::{
-        parametrizable::{
-            ParameterType,
-            ParameterTypeDescriptor,
-            ParameterTypeDescriptor::{Mandatory, Optional},
-            ParameterizableDescriptor,
-            Parameters,
-        },
+        parametrizable::prelude::*,
         processing_context::ProcessingContext,
         processing_graph::{ProcessingGraphBuilder, ProcessingNodeConfig, SerdeNodeConfig},
     },
 };
-use serde::{Deserialize};
+use serde::Deserialize;
 use std::{
     collections::{BTreeMap, HashMap},
     iter::once,
@@ -206,8 +200,7 @@ fn processing_node_from_commandline(
         .filter(|(_, descriptor)| {
             !matches!(
                 descriptor,
-                ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput)
-                    | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _)
+                Mandatory(NodeInputParameter) | WithDefault(NodeInputParameter, _)
             )
         })
         .map(|(key, parameter_type)| {
@@ -247,9 +240,7 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
     let parameters_description = leak(&node_descriptor.parameters_descriptor);
     for (key, parameter_type) in parameters_description.0.iter() {
         let parameter_type = leak(parameter_type);
-        if let ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput)
-        | ParameterTypeDescriptor::Optional(ParameterType::NodeInput, _) = parameter_type
-        {
+        if let Mandatory(NodeInputParameter) | WithDefault(NodeInputParameter, _) = parameter_type {
             continue;
         };
         let parameter_type_for_closure = parameter_type.clone();
@@ -265,7 +256,7 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
                         .map_err(|e| format!("{}", e))
                 })
                 .required(true),
-            Optional(_, default) => Arg::new(key.as_str())
+            WithDefault(_, default) => Arg::new(key.as_str())
                 .long(key)
                 .takes_value(true)
                 .allow_hyphen_values(true)

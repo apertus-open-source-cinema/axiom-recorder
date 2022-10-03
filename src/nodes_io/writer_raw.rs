@@ -1,31 +1,15 @@
+use crate::pipeline_processing::{
+    node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
+    parametrizable::prelude::*,
+    processing_context::ProcessingContext,
+    puller::{pull_ordered, pull_unordered},
+};
+use anyhow::Result;
 use async_trait::async_trait;
 use std::{
     fs::{create_dir, File},
     io::prelude::*,
     sync::{Arc, Mutex},
-};
-
-use crate::pipeline_processing::{
-    node::InputProcessingNode,
-    parametrizable::{
-        ParameterType::StringParameter,
-        ParameterTypeDescriptor::Mandatory,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-        SerdeParameterValue,
-    },
-};
-use anyhow::Result;
-
-use crate::pipeline_processing::{
-    node::{NodeID, ProgressUpdate, SinkNode},
-    parametrizable::{
-        ParameterType::{IntRange, NodeInput},
-        ParameterTypeDescriptor::Optional,
-    },
-    processing_context::ProcessingContext,
-    puller::{pull_ordered, pull_unordered},
 };
 
 
@@ -39,15 +23,9 @@ impl Parameterizable for RawBlobWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
-            .with("input", Mandatory(NodeInput))
-            .with(
-                "priority",
-                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
-            )
-            .with(
-                "number-of-frames",
-                Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("priority", Optional(U8()))
+            .with("number-of-frames", Optional(NaturalWithZero()))
     }
     fn from_parameters(
         mut parameters: Parameters,
@@ -99,15 +77,9 @@ impl Parameterizable for RawDirectoryWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
-            .with("input", Mandatory(NodeInput))
-            .with(
-                "priority",
-                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
-            )
-            .with(
-                "number-of-frames",
-                Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("priority", Optional(U8()))
+            .with("number-of-frames", Optional(NaturalWithZero()))
     }
 
     fn from_parameters(

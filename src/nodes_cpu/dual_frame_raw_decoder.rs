@@ -1,28 +1,18 @@
-use crate::pipeline_processing::{
-    node::InputProcessingNode,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
-    payload::Payload,
-};
-use anyhow::{anyhow, Context, Result};
-use std::sync::Arc;
-
 use crate::{
     pipeline_processing::{
         buffers::CpuBuffer,
         frame::{CfaDescriptor, Frame, FrameInterpretation, Raw, Rgb},
-        node::{Caps, NodeID, ProcessingNode, Request},
-        parametrizable::{
-            ParameterType,
-            ParameterTypeDescriptor,
-            ParameterTypeDescriptor::Optional,
-            SerdeParameterValue,
-        },
+        node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
+        parametrizable::{prelude::*, Parameterizable, Parameters, ParametersDescriptor},
+        payload::Payload,
         processing_context::ProcessingContext,
     },
     util::async_notifier::AsyncNotifier,
 };
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use futures::join;
+use std::sync::Arc;
 
 const FRAME_A_MARKER: u8 = 0xAA;
 
@@ -39,22 +29,10 @@ pub struct DualFrameRawDecoder {
 impl Parameterizable for DualFrameRawDecoder {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with(
-                "debug",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::BoolParameter,
-                    SerdeParameterValue::BoolParameter(false),
-                ),
-            )
-            .with(
-                "red-in-first-col",
-                Optional(ParameterType::BoolParameter, SerdeParameterValue::BoolParameter(true)),
-            )
-            .with(
-                "red-in-first-row",
-                Optional(ParameterType::BoolParameter, SerdeParameterValue::BoolParameter(false)),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("debug", Optional(BoolParameter))
+            .with("red-in-first-col", WithDefault(BoolParameter, BoolValue(true)))
+            .with("red-in-first-row", WithDefault(BoolParameter, BoolValue(false)))
     }
 
     fn from_parameters(
@@ -221,15 +199,14 @@ pub struct ReverseDualFrameRawDecoder {
 impl Parameterizable for ReverseDualFrameRawDecoder {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+            .with("input", Mandatory(NodeInputParameter))
             // For use with old recording, where we sometimes fucked up the A/B decoding,
             // and produced files with the lines swapped.
             // Should also be transparently fixed by DualFrameRawDecoder
             .with(
                 "flip",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::BoolParameter,
-                    SerdeParameterValue::BoolParameter(false),
+                Optional(
+                    BoolParameter
                 ),
             )
     }

@@ -1,26 +1,15 @@
 use crate::pipeline_processing::{
-    node::{InputProcessingNode, NodeID, SinkNode},
+    node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
     parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
     processing_context::ProcessingContext,
     puller::{pull_ordered, pull_unordered},
 };
 use anyhow::Result;
 use async_trait::async_trait;
-
-use crate::pipeline_processing::node::ProgressUpdate;
 use std::{sync::Arc, time::Instant};
 
 
-use crate::{
-    pipeline_processing::parametrizable::{
-        ParameterType,
-        ParameterType::IntRange,
-        ParameterTypeDescriptor,
-        ParameterTypeDescriptor::Optional,
-        SerdeParameterValue,
-    },
-    util::fps_report::FPSReporter,
-};
+use crate::{pipeline_processing::parametrizable::prelude::*, util::fps_report::FPSReporter};
 
 pub struct BenchmarkSink {
     input: InputProcessingNode,
@@ -30,11 +19,8 @@ pub struct BenchmarkSink {
 impl Parameterizable for BenchmarkSink {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with(
-                "priority",
-                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("priority", Optional(U8()))
     }
 
     fn from_parameters(

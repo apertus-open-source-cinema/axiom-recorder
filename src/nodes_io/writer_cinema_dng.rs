@@ -1,28 +1,13 @@
 use crate::pipeline_processing::{
     buffers::CpuBuffer,
     frame::Raw,
-    node::{InputProcessingNode, NodeID, SinkNode},
-    parametrizable::{
-        ParameterType::{NodeInput, StringParameter},
-        ParameterTypeDescriptor::Mandatory,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-    },
+    node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
+    parametrizable::prelude::*,
     processing_context::ProcessingContext,
     puller::pull_unordered,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-
-use crate::pipeline_processing::{
-    node::ProgressUpdate,
-    parametrizable::{
-        ParameterType::IntRange,
-        ParameterTypeDescriptor::Optional,
-        SerdeParameterValue,
-    },
-};
 use std::{fs::create_dir, sync::Arc};
 use tiff_encoder::{
     ifd::{tags, values::Offsets, Ifd},
@@ -47,16 +32,10 @@ pub struct CinemaDngWriter {
 impl Parameterizable for CinemaDngWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
+            .with("input", Mandatory(NodeInputParameter))
             .with("path", Mandatory(StringParameter))
-            .with("input", Mandatory(NodeInput))
-            .with(
-                "priority",
-                Optional(IntRange(0, u8::MAX as i64), SerdeParameterValue::IntRange(0)),
-            )
-            .with(
-                "number-of-frames",
-                Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)),
-            )
+            .with("priority", Optional(U8()))
+            .with("number-of-frames", Optional(NaturalWithZero()))
     }
 
     fn from_parameters(

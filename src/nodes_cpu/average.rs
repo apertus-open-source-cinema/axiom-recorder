@@ -1,23 +1,18 @@
-use crate::pipeline_processing::{
-    node::NodeID,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor, SerdeParameterValue},
-    payload::Payload,
-};
-use anyhow::{Context, Result};
-use std::sync::Arc;
-
 use crate::{
     pipeline_processing::{
         buffers::ChunkedCpuBuffer,
         frame::{Frame, Raw},
-        node::{Caps, InputProcessingNode, ProcessingNode, Request},
-        parametrizable::{ParameterType, ParameterTypeDescriptor},
+        node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
+        parametrizable::prelude::*,
+        payload::Payload,
         processing_context::ProcessingContext,
     },
     util::async_notifier::AsyncNotifier,
 };
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
+use std::sync::Arc;
 
 pub struct Average {
     input: InputProcessingNode,
@@ -29,15 +24,9 @@ pub struct Average {
 impl Parameterizable for Average {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with("n", ParameterTypeDescriptor::Mandatory(ParameterType::IntRange(1, 1_000_000)))
-            .with(
-                "std",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::BoolParameter,
-                    SerdeParameterValue::BoolParameter(false),
-                ),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("n", Mandatory(NaturalGreaterZero()))
+            .with("std", Optional(BoolParameter))
     }
 
     fn from_parameters(

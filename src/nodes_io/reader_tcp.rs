@@ -2,13 +2,7 @@ use crate::{
     pipeline_processing::{
         frame::{Frame, FrameInterpretation, FrameInterpretations},
         node::{Caps, EOFError, NodeID, ProcessingNode, Request},
-        parametrizable::{
-            ParameterType::StringParameter,
-            ParameterTypeDescriptor::Mandatory,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-        },
+        parametrizable::prelude::*,
         payload::Payload,
         processing_context::ProcessingContext,
     },

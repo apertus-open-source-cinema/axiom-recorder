@@ -2,14 +2,7 @@ use crate::{
     pipeline_processing::{
         frame::{Frame, FrameInterpretation, Rgb},
         node::{Caps, NodeID, ProcessingNode},
-        parametrizable::{
-            ParameterType::IntRange,
-            ParameterTypeDescriptor::Optional,
-            Parameterizable,
-            Parameters,
-            ParametersDescriptor,
-            SerdeParameterValue,
-        },
+        parametrizable::prelude::*,
         payload::Payload,
         processing_context::ProcessingContext,
     },
@@ -42,8 +35,7 @@ impl Parameterizable for WebcamInput {
         Some("read frames from a webcam (or webcam like source like a frame-grabber)");
 
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with("device", Optional(IntRange(0, i64::MAX), SerdeParameterValue::IntRange(0)))
+        ParametersDescriptor::new().with("device", Optional(NaturalWithZero()))
     }
     fn from_parameters(
         mut options: Parameters,

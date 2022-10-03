@@ -3,14 +3,7 @@ use crate::pipeline_processing::{
     frame::{Frame, FrameInterpretation, Rgb},
     gpu_util::ensure_gpu_buffer,
     node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
-    parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-        SerdeParameterValue,
-    },
+    parametrizable::prelude::*,
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -49,28 +42,10 @@ pub struct ColorVoodoo {
 impl Parameterizable for ColorVoodoo {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with(
-                "pedestal",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::IntRange(0, 255),
-                    SerdeParameterValue::IntRange(8),
-                ),
-            )
-            .with(
-                "s_gamma",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::FloatRange(0.0, 100.0),
-                    SerdeParameterValue::FloatRange(1.0),
-                ),
-            )
-            .with(
-                "v_gamma",
-                ParameterTypeDescriptor::Optional(
-                    ParameterType::FloatRange(0.0, 100.0),
-                    SerdeParameterValue::FloatRange(1.0),
-                ),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("pedestal", WithDefault(U8(), IntRangeValue(8)))
+            .with("s_gamma", WithDefault(FloatRange(0.0, 100.0), FloatRangeValue(1.0)))
+            .with("v_gamma", WithDefault(FloatRange(0.0, 100.0), FloatRangeValue(1.0)))
     }
     fn from_parameters(
         mut parameters: Parameters,
