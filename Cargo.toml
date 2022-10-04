@@ -44,6 +44,7 @@ narui = { git = "https://github.com/apertus-open-source-cinema/narui" }
 vulkano_maybe_molten = { git = "https://github.com/apertus-open-source-cinema/vulkano-maybe-molten" }
 pollster = "0.2.5"
 anymap = "1.0.0-beta.2"
+parking_lot = { version = "0.12.1", features = ["send_guard"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.13.0"

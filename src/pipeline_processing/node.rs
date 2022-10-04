@@ -50,7 +50,28 @@ impl Request {
     }
     pub fn frame_number(&self) -> u64 { self.frame_number }
     pub fn priority(&self) -> Priority { self.priority }
+    pub fn get_extra<T>(&self) -> Option<&T>
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        self.extra.get::<T>()
+    }
 }
+
+// types that are common to end up in the extra AnyMap of Request:
+
+/// Indicates that the frame request does not really need to be fulfilled but it
+/// is okay to omit all the work and instead return an error. A processingBlock
+/// _must_ pull all its inputs as it would usually do and indecate the FrameDrop
+/// to them.
+#[derive(Copy, Clone, Debug)]
+pub struct Drop;
+
+/// Indicates that we would like to be able to re-request the requested frame
+/// (so dont evict it)
+#[derive(Copy, Clone, Debug)]
+pub struct PinCache;
+
 
 #[async_trait]
 pub trait ProcessingNode {
