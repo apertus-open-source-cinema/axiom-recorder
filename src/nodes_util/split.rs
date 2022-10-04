@@ -1,16 +1,10 @@
 use crate::pipeline_processing::{
-    node::InputProcessingNode,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
+    parametrizable::{prelude::*, Parameterizable, Parameters, ParametersDescriptor},
     payload::Payload,
-};
-use anyhow::Result;
-
-
-use crate::pipeline_processing::{
-    node::{Caps, NodeID, ProcessingNode},
-    parametrizable::{ParameterType, ParameterTypeDescriptor},
     processing_context::ProcessingContext,
 };
+use anyhow::Result;
 use async_trait::async_trait;
 
 
@@ -22,11 +16,8 @@ pub struct Split {
 impl Parameterizable for Split {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with(
-                "element",
-                ParameterTypeDescriptor::Mandatory(ParameterType::IntRange(0, i64::MAX)),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("element", Mandatory(IntRange(0, i64::MAX)))
     }
 
     fn from_parameters(
@@ -40,13 +31,8 @@ impl Parameterizable for Split {
 
 #[async_trait]
 impl ProcessingNode for Split {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
-        let frame = self.input.pull(frame_number, context).await?;
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let frame = self.input.pull(request).await?;
         let payloads = frame.downcast::<Vec<Payload>>()?;
         Ok(payloads
             .get(self.elem as usize)
