@@ -87,6 +87,18 @@ impl TryInto<u64> for ParameterValue {
     }
 }
 
+
+impl TryInto<usize> for ParameterValue {
+    type Error = Error;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        match self {
+            IntRangeValue(v) => Ok(v as usize),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to u64")),
+        }
+    }
+}
+
 impl TryInto<u8> for ParameterValue {
     type Error = Error;
 

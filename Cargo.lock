@@ -2040,6 +2040,7 @@ dependencies = [
  "narui",
  "num_cpus",
  "owning_ref",
+ "parking_lot 0.12.1",
  "pollster",
  "serde",
  "serde_yaml",

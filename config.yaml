@@ -1,56 +1,28 @@
 dir_input:
   type: RawDirectoryReader
-  internal-loop: true
-  cache-frames: true
-  file-pattern: test/24fps-bubbles/*
-  width: 1920
-  height: 1080
-  rgb: true
-  # file-pattern: test/*/tl-*.raw12
-  # width: 4096
-  # height: 3072
-
-dual_frame_decoder:
-  type: DualFrameRawDecoder
-  input: <dir_input
+  file-pattern: test/*/tl-*.raw12
+  width: 4096
+  height: 3072
 
 bitdepth_conv:
   type: BitDepthConverter
-  input: <dual_frame_decoder
-  # input: <dir_input
-
-debayer:
-  type: Debayer
-  input: <bitdepth_conv
-
+  input: <dir_input
 cache:
   type: Cache
-  input: <debayer
+  input: <bitdepth_conv
 
 display:
-  type: Display
+  type: BenchmarkSink
   input: <cache
-  mailbox: true
-  live: true
 
 display2:
-  type: Display
+  type: BenchmarkSink
   input: <cache
-  mailbox: true
-  live: true
 
 display3:
-  type: Display
+  type: BenchmarkSink
   input: <cache
-  mailbox: true
-  live: true
 
-display4:
-  type: Display
-  input: <cache
-  mailbox: true
-  live: true
-  fullscreen: true
 
 # bench_sink:
 #   type: BenchmarkSink

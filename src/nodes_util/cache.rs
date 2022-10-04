@@ -1,100 +1,29 @@
-// TODO(robin): explicit cache + drop signaling
-// signaling of sinks that are done before others
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    sync::Arc,
-};
-
-use crate::pipeline_processing::{
-    node::InputProcessingNode,
-    parametrizable::{Parameterizable, Parameters, ParametersDescriptor},
-    payload::Payload,
+use crate::{
+    pipeline_processing::{
+        node::{Caps, InputProcessingNode, NodeID, PinCache, ProcessingNode, Request},
+        parametrizable::prelude::*,
+        payload::Payload,
+        processing_context::ProcessingContext,
+    },
+    util::async_notifier::AsyncNotifier,
 };
 use anyhow::Result;
-use futures::{
-    future::{BoxFuture, Shared},
-    lock::Mutex,
-    FutureExt,
-};
-
-
-use crate::pipeline_processing::{
-    node::{Caps, NodeID, ProcessingNode},
-    parametrizable::{ParameterType, ParameterTypeDescriptor},
-    processing_context::ProcessingContext,
-};
 use async_trait::async_trait;
-
-
-#[derive(Default)]
-struct ConsecutiveTracker {
-    values: BTreeSet<u64>,
-    highest_consecutive: Option<u64>,
-}
-
-impl ConsecutiveTracker {
-    fn push(&mut self, value: u64) -> u64 {
-        if let Some(highest_consecutive) = self.highest_consecutive {
-            if value < highest_consecutive {
-                eprintln!(
-                    "went backwards, inserted {value}, highest_consecutive: {highest_consecutive}"
-                );
-                return highest_consecutive;
-            }
-        }
-        self.values.insert(value);
-        let mut lowest_curr = self.values.iter().cloned().next().unwrap();
-        lowest_curr = match self.highest_consecutive {
-            Some(v) => {
-                if lowest_curr == v + 1 {
-                    lowest_curr
-                } else {
-                    return v;
-                }
-            }
-            None => {
-                if lowest_curr == 0 {
-                    lowest_curr
-                } else {
-                    return 0;
-                }
-            }
-        };
-
-        self.values.remove(&lowest_curr);
-        while let Some(next) = self.values.iter().cloned().next() {
-            if next == lowest_curr + 1 {
-                self.values.remove(&next);
-                lowest_curr = next;
-            } else {
-                break;
-            }
-        }
-
-        self.highest_consecutive = Some(lowest_curr);
-        lowest_curr
-    }
-}
-
-// cache eviction policy:
-// after 0 through n were pulled by a specific puller, remove 0 through n - 1
-// this is of course bullshit, because, one might need the "last" frame multiple
-// times, but because everything is out of order this eviction policy does not
-// guarantee that availability
-
-
-type PayloadFuture = Shared<BoxFuture<'static, std::result::Result<Payload, Arc<anyhow::Error>>>>;
-type PayloadCache = HashMap<NodeID, (ConsecutiveTracker, BTreeMap<u64, PayloadFuture>)>;
+use parking_lot::Mutex;
+use std::{collections::HashMap, sync::Arc};
 
 pub struct Cache {
     input: InputProcessingNode,
-    cache: Arc<Mutex<PayloadCache>>,
+    cache: AsyncNotifier<Arc<Mutex<HashMap<u64, (Payload, usize)>>>>,
+    nodes_to_feed: usize,
+    capacity: usize,
 }
 
 impl Parameterizable for Cache {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+            .with("input", Mandatory(NodeInputParameter))
+            .with("size", Optional(NaturalGreaterZero()))
     }
 
     fn from_parameters(
@@ -102,69 +31,69 @@ impl Parameterizable for Cache {
         is_input_to: &[NodeID],
         _context: &ProcessingContext,
     ) -> Result<Self> {
-        let mut cache = HashMap::new();
-        for id in is_input_to {
-            cache.insert(*id, Default::default());
-        }
-        Ok(Self { input: parameters.take("input")?, cache: Arc::new(Mutex::new(cache)) })
+        let capacity = parameters.take("size")?;
+
+        Ok(Self {
+            input: parameters.take("input")?,
+            cache: AsyncNotifier::new(Arc::new(Mutex::new(HashMap::with_capacity(capacity)))),
+            nodes_to_feed: is_input_to.len(),
+            capacity,
+        })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for Cache {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
-        let fut = {
-            let mut cache = self.cache.lock().await;
-            let (fut, insert) = {
-                let (tracker, futs) = cache.get_mut(&puller_id).unwrap();
-                let (fut, insert) = if let Some(fut) = futs.get(&frame_number) {
-                    (fut.clone(), false)
-                } else {
-                    let input = self.input.clone_for_same_puller();
-                    let context = context.clone();
-                    let fut = async move {
-                        let payload = input.pull(frame_number, &context).await;
-                        payload.map_err(Arc::new)
-                    }
-                    .boxed()
-                    .shared();
-                    (fut, true)
-                };
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let frame_number = request.frame_number();
+        let capacity = self.capacity;
 
-                let highest_consecutive = tracker.push(frame_number);
-                if (frame_number >= highest_consecutive) && insert {
-                    futs.insert(frame_number, fut.clone());
-                }
-                while let Some(v) = futs.keys().cloned().next() {
-                    if v < highest_consecutive {
-                        // eprintln!("removing cache frame {v} for puller {puller_id:?}");
-                        futs.remove(&v);
-                    } else {
-                        break;
+        // we need this loop in case the cache changes its content while between the
+        // wait and the update
+        loop {
+            let request = request.clone();
+            self.cache
+                .wait(move |cache: &Arc<Mutex<HashMap<u64, (Payload, usize)>>>| {
+                    let cache = cache.lock();
+                    cache.contains_key(&frame_number) || cache.len() < capacity
+                })
+                .await;
+            let result: Result<_> = self
+                .cache
+                .update(|cache| {
+                    let cache = cache.clone();
+                    async move {
+                        let mut cache = cache.lock();
+                        if cache.contains_key(&frame_number) {
+                            let entry = cache.get_mut(&frame_number).unwrap();
+                            let payload = entry.0.clone();
+                            if request.get_extra::<PinCache>().is_none() {
+                                entry.1 -= 1;
+                                if entry.1 == 0 {
+                                    cache.remove(&frame_number);
+                                }
+                            }
+                            Ok(Some(payload))
+                        } else if cache.len() < capacity {
+                            let to_feed = if request.get_extra::<PinCache>().is_some() {
+                                self.nodes_to_feed
+                            } else {
+                                self.nodes_to_feed - 1
+                            };
+                            let payload = self.input.pull(request).await?;
+                            cache.insert(frame_number, (payload.clone(), to_feed));
+                            Ok(Some(payload))
+                        } else {
+                            Ok(None)
+                        }
                     }
-                }
-
-                (fut, insert)
-            };
-
-            if insert {
-                for (id, (_, futs)) in cache.iter_mut() {
-                    if *id != puller_id {
-                        // eprintln!("inserting {frame_number} for {id:?}");
-                        futs.insert(frame_number, fut.clone());
-                    }
-                }
+                })
+                .await;
+            let result = result?;
+            if let Some(payload) = result {
+                return Ok(payload);
             }
-
-            fut
-        };
-
-        fut.await.map_err(|e| anyhow::anyhow!("error from cache: {e}").context(e))
+        }
     }
 
     fn get_caps(&self) -> Caps { self.input.get_caps() }
