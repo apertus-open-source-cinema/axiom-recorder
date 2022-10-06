@@ -24,6 +24,7 @@ use vulkano::{
     },
     instance::{Instance, InstanceCreateInfo},
 };
+use vulkano_maybe_molten::NewMaybeMolten;
 
 
 #[derive(Clone)]
@@ -68,7 +69,7 @@ pub struct ProcessingContext {
 }
 impl Default for ProcessingContext {
     fn default() -> Self {
-        let vk_device = Instance::new(InstanceCreateInfo {
+        let vk_device = Instance::new_maybe_molten(InstanceCreateInfo {
             enabled_extensions: vulkano_win::required_extensions(),
             ..Default::default()
         })
