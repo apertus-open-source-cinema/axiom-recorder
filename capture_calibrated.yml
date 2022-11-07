@@ -1,0 +1,35 @@
+input:
+  type: WebcamInput
+  device: {{ webcam-device }}
+
+decode:
+  type: DualFrameRawDecoder
+  input: <input
+
+calibrate:
+  input: <decode
+  type: Calibrate
+  darkframe: {{ darkframe }}
+  width: 4096
+  height: 2160
+
+calib_cache:
+  type: Cache
+  input: <calibrate
+
+bitdepth_conv:
+  type: BitDepthConverter
+  input: <calib_cache
+
+debayer:
+  type: Debayer
+  input: <bitdepth_conv
+
+display:
+  type: Display
+  input: <debayer
+
+save:
+  type: RawBlobWriter
+  path: {{ out-file }}
+  input: <calib_cache

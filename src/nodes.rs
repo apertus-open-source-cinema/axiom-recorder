@@ -13,6 +13,7 @@ use crate::{
     },
     nodes_gpu::{
         bitdepth_convert::GpuBitDepthConverter,
+        calibrate::Calibrate,
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
         lut_3d::Lut3d,
@@ -80,6 +81,7 @@ generate_dynamic_node_creation_functions![
     Split,
     SZ3Compress,
     ZstdBlobReader,
+    Calibrate,
     #[cfg(target_os = "linux")]
     WebcamInput,
 ];
