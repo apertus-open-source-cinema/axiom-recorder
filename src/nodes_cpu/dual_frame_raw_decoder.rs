@@ -85,7 +85,7 @@ impl ProcessingNode for DualFrameRawDecoder {
             self.last_frame_info.wait(move |LastFrameInfo(next, ..)| *next == frame_number).await;
 
         let mut offset = 2;
-        let pulled_frames = (|| async {
+        let pulled_frames_used_old = (|| async {
             match old_frame {
                 Some(frame_a) => {
                     self.last_frame_info
@@ -95,7 +95,7 @@ impl ProcessingNode for DualFrameRawDecoder {
                     let frame = self.input.pull(next_even, context).await?;
                     let frame_b =
                         context.ensure_cpu_buffer::<Rgb>(&frame).context("Wrong input format")?;
-                    Result::<_>::Ok((frame_a, frame_b))
+                    Result::<_>::Ok(((frame_a, frame_b), true))
                 }
                 None => {
                     let frames = join!(
@@ -108,13 +108,13 @@ impl ProcessingNode for DualFrameRawDecoder {
                     let frame_b = context
                         .ensure_cpu_buffer::<Rgb>(&frames.1?)
                         .context("Wrong input format")?;
-                    Result::<_>::Ok((frame_a, frame_b))
+                    Result::<_>::Ok(((frame_a, frame_b), false))
                 }
             }
         })()
         .await;
 
-        if let Err(e) = pulled_frames {
+        if let Err(e) = pulled_frames_used_old {
             // println!("problem getting frame, {next_even} -> {}", next_even + offset);
             self.last_frame_info.update(move |LastFrameInfo(next, next_next_even, ..)| {
                 *next = frame_number + 1;
@@ -122,7 +122,7 @@ impl ProcessingNode for DualFrameRawDecoder {
             });
             return Err(e);
         }
-        let (frame_a, frame_b) = pulled_frames.unwrap();
+        let ((frame_a, frame_b), used_old) = pulled_frames_used_old.unwrap();
         let swap = frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
                 let ctr_a = frame_a[0];
@@ -158,7 +158,7 @@ impl ProcessingNode for DualFrameRawDecoder {
                 *next = frame_number + 1;
                 *next_next_even = next_even + offset;
                 *last_wrsel = wrsel;
-                if !is_correct {
+                if !is_correct && !used_old {
                     // println!("slipped, offset = {offset}, next_even = {next_even}");
                     *old_frame = Some(frame_b.clone());
                 }
