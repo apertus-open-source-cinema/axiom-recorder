@@ -2,14 +2,8 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, FrameInterpretation, Raw},
     gpu_util::ensure_gpu_buffer,
-    node::{Caps, InputProcessingNode, NodeID, ProcessingNode},
-    parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-    },
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
+    parametrizable::prelude::*,
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -49,13 +43,10 @@ pub struct Calibrate {
 impl Parameterizable for Calibrate {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
-            .with("darkframe", ParameterTypeDescriptor::Mandatory(ParameterType::StringParameter))
-            .with("width", ParameterTypeDescriptor::Mandatory(ParameterType::IntRange(0, i64::MAX)))
-            .with(
-                "height",
-                ParameterTypeDescriptor::Mandatory(ParameterType::IntRange(0, i64::MAX)),
-            )
+            .with("input", Mandatory(NodeInputParameter))
+            .with("darkframe", Mandatory(StringParameter))
+            .with("width", Mandatory(IntRange(0, i64::MAX)))
+            .with("height", Mandatory(IntRange(0, i64::MAX)))
     }
 
     fn from_parameters(
@@ -121,13 +112,8 @@ impl Parameterizable for Calibrate {
 
 #[async_trait]
 impl ProcessingNode for Calibrate {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
-        let input = self.input.pull(frame_number, context).await?;
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let input = self.input.pull(request).await?;
 
         let (frame, fut) =
             ensure_gpu_buffer::<Raw>(&input, self.queue.clone()).context("Wrong input format")?;

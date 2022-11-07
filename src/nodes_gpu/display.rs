@@ -135,6 +135,7 @@ pub struct Display {
     // TODO(robin): readd handling for this
     do_loop: bool,
     input: InputProcessingNode,
+    priority: u8
 }
 
 impl Parameterizable for Display {
@@ -144,6 +145,7 @@ impl Parameterizable for Display {
             .with("mailbox", Optional(BoolParameter))
             .with("live", Optional(BoolParameter))
             .with("loop", Optional(BoolParameter))
+            .with("priority", Optional(U8()))
             .with("fullscreen", Optional(BoolParameter))
     }
 
@@ -158,6 +160,7 @@ impl Parameterizable for Display {
             do_loop: parameters.take("loop")?,
             fullscreen: parameters.take("fullscreen")?,
             input: parameters.take("input")?,
+            priority: parameters.take("priority")?,
         })
     }
 }
@@ -169,7 +172,7 @@ impl SinkNode for Display {
         context: &ProcessingContext,
         progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let rx = pull_ordered(context, progress_callback, self.input.clone_for_same_puller(), 0);
+        let rx = pull_ordered(context, self.priority, progress_callback, self.input.clone_for_same_puller(), 0);
         let (tx, rx_winit) = flume::bounded(1);
 
         let context = context.clone();

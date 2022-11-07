@@ -2,14 +2,8 @@ use crate::pipeline_processing::{
     buffers::GpuBuffer,
     frame::{Frame, Raw},
     gpu_util::ensure_gpu_buffer,
-    node::{Caps, InputProcessingNode, NodeID, ProcessingNode},
-    parametrizable::{
-        ParameterType,
-        ParameterTypeDescriptor,
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-    },
+    node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
+    parametrizable::prelude::*,
     payload::Payload,
     processing_context::ProcessingContext,
 };
@@ -43,8 +37,7 @@ pub struct Histogram {
 
 impl Parameterizable for Histogram {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new()
-            .with("input", ParameterTypeDescriptor::Mandatory(ParameterType::NodeInput))
+        ParametersDescriptor::new().with("input", Mandatory(NodeInputParameter))
     }
 
     fn from_parameters(
@@ -74,13 +67,8 @@ impl Parameterizable for Histogram {
 
 #[async_trait]
 impl ProcessingNode for Histogram {
-    async fn pull(
-        &self,
-        frame_number: u64,
-        _puller_id: NodeID,
-        context: &ProcessingContext,
-    ) -> Result<Payload> {
-        let input = self.input.pull(frame_number, context).await?;
+    async fn pull(&self, request: Request) -> Result<Payload> {
+        let input = self.input.pull(request).await?;
 
         let (frame, fut) =
             ensure_gpu_buffer::<Raw>(&input, self.queue.clone()).context("Wrong input format")?;

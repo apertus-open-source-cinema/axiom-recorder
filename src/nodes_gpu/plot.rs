@@ -2,15 +2,7 @@ use crate::pipeline_processing::{
     frame::Raw,
     gpu_util::ensure_gpu_buffer,
     node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
-    parametrizable::{
-        ParameterType,
-        ParameterType::BoolParameter,
-        ParameterTypeDescriptor::{Mandatory, Optional},
-        Parameterizable,
-        Parameters,
-        ParametersDescriptor,
-        SerdeParameterValue,
-    },
+    parametrizable::prelude::*,
     processing_context::ProcessingContext,
     puller::pull_ordered,
 };
@@ -114,15 +106,17 @@ pub struct Plot {
     live: bool,
     fullscreen: bool,
     input: InputProcessingNode,
+    priority: u8,
 }
 
 impl Parameterizable for Plot {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::default()
-            .with("mailbox", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
-            .with("live", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
-            .with("fullscreen", Optional(BoolParameter, SerdeParameterValue::BoolParameter(false)))
-            .with("input", Mandatory(ParameterType::NodeInput))
+            .with("mailbox", Optional(BoolParameter))
+            .with("live", Optional(BoolParameter))
+            .with("fullscreen", Optional(BoolParameter))
+            .with("input", Mandatory(NodeInputParameter))
+            .with("priority", Optional(U8()))
     }
 
     fn from_parameters(
@@ -135,6 +129,7 @@ impl Parameterizable for Plot {
             live: parameters.take("live")?,
             fullscreen: parameters.take("fullscreen")?,
             input: parameters.take("input")?,
+            priority: parameters.take("priority")?,
         })
     }
 }
@@ -146,7 +141,13 @@ impl SinkNode for Plot {
         context: &ProcessingContext,
         progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let rx = pull_ordered(context, progress_callback, self.input.clone_for_same_puller(), 0);
+        let rx = pull_ordered(
+            &context,
+            self.priority,
+            progress_callback,
+            self.input.clone_for_same_puller(),
+            0,
+        );
         let (tx, rx_winit) = flume::bounded(1);
 
         let context = context.clone();
