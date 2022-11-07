@@ -120,10 +120,10 @@ mod prioritized_future_test {
             type Output = ();
 
             fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-                match self.current.load(Ordering::Relaxed) {
+                match self.current.load(Ordering::Acquire) {
                     1_000 => Poll::Ready(()),
                     _ => {
-                        self.current.fetch_add(1, Ordering::Relaxed);
+                        self.current.fetch_add(1, Ordering::Release);
                         cx.waker().clone().wake();
                         Poll::Pending
                     }

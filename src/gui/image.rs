@@ -184,7 +184,7 @@ pub fn image(image: Arc<Frame<Rgb, GpuBuffer>>, context: &mut WidgetContext) -> 
                 PipelineBindPoint::Graphics,
                 pipeline.layout().clone(),
                 0,
-                descriptor_set.clone(),
+                descriptor_set,
             )
             .bind_pipeline_graphics(pipeline.clone())
             .push_constants(pipeline.layout().clone(), 0, push_constants)

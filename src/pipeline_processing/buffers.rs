@@ -66,7 +66,7 @@ impl InfoForTrackDrop for CpuAccessibleBuffer<[u8]> {
 impl<T: InfoForTrackDrop> From<T> for TrackDrop<T> {
     fn from(val: T) -> Self {
         #[allow(unused)]
-        let id = DROP_ID.fetch_add(1, Ordering::SeqCst);
+        let id = DROP_ID.fetch_add(1, Ordering::Relaxed);
         #[cfg(feature = "track-drop")]
         eprintln!("creating {id}: {}", val.info());
         Self {

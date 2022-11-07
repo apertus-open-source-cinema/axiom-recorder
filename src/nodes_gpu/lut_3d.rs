@@ -214,7 +214,12 @@ impl ProcessingNode for Lut3d {
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
             frame.interp.required_bytes() as DeviceSize,
-            BufferUsage { storage_buffer: true, storage_texel_buffer: true, ..BufferUsage::none() },
+            BufferUsage {
+                storage_buffer: true,
+                storage_texel_buffer: true,
+                transfer_src: true,
+                ..BufferUsage::none()
+            },
             std::iter::once(self.queue.family()),
         )?;
 

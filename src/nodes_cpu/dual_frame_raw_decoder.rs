@@ -276,7 +276,7 @@ impl ProcessingNode for ReverseDualFrameRawDecoder {
             interp: Rgb {
                 width: frame.interp.width / 2,
                 height: frame.interp.height / 2,
-                fps: frame.interp.fps,
+                fps: frame.interp.fps * 2.0,
             },
             storage: out_buffer,
         }))

@@ -77,7 +77,7 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                 block_on(async {
                     let mut todo = futures::stream::FuturesOrdered::new();
                     loop {
-                        if todo.len() > 0 {
+                        if !todo.is_empty() {
                             futures::select! {
                                 (image, i) = todo.select_next_some() => {
                                     let image: anyhow::Result<Payload> = image;

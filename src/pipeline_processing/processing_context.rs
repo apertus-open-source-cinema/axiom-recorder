@@ -22,7 +22,16 @@ use vulkano::{
         Queue,
         QueueCreateInfo,
     },
-    instance::{Instance, InstanceCreateInfo},
+    instance::{
+        debug::{
+            DebugUtilsMessageSeverity,
+            DebugUtilsMessageType,
+            DebugUtilsMessenger,
+            DebugUtilsMessengerCreateInfo,
+        },
+        Instance,
+        InstanceCreateInfo,
+    },
 };
 use vulkano_maybe_molten::NewMaybeMolten;
 
@@ -76,6 +85,24 @@ impl Default for ProcessingContext {
         .map_err(|e| eprintln!("error creating vulkan instance: {e}"))
         .ok()
         .and_then(|instance| {
+            // Safety: callback must not make any calls to the Vulkan API
+            unsafe {
+                std::mem::forget(DebugUtilsMessenger::new(
+                    instance.clone(),
+                    DebugUtilsMessengerCreateInfo {
+                        message_severity: DebugUtilsMessageSeverity::all(),
+                        message_type: DebugUtilsMessageType::all(),
+
+                        ..DebugUtilsMessengerCreateInfo::user_callback(Arc::new(|msg| {
+                            println!(
+                                "{}: {}",
+                                msg.layer_prefix.unwrap_or("unknown"),
+                                msg.description
+                            )
+                        }))
+                    },
+                ));
+            }
             PhysicalDevice::enumerate(&instance).find_map(|physical| {
                 if physical.properties().device_type == PhysicalDeviceType::Cpu {
                     return None;
@@ -87,6 +114,7 @@ impl Default for ProcessingContext {
                     khr_swapchain: true,
                     khr_storage_buffer_storage_class: true,
                     khr_8bit_storage: true,
+                    khr_shader_non_semantic_info: true,
                     ..DeviceExtensions::none()
                 };
                 Device::new(
