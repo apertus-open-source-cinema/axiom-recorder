@@ -1,79 +1,19 @@
-# dir_input:
-#   type: RawDirectoryReader
-#   internal-loop: true
-#   cache-frames: true
-#   file-pattern: test/24fps-bubbles/*
-#   width: 1920
-#   height: 1080
-#   rgb: true
-
 input:
-  type: ZstdBlobReader
-  file: {{in-file}}
-  width: 3840
-  height: 2160
-  rgb: false
+  type: WebcamInput
+  device: {{ webcam-device }}
 
-input_cache:
-  type: Cache
-  input: <input
-
-unpack:
-  type: ReverseDualFrameRawDecoder
-  input: <input_cache
-  flip: false
-
-repack:
+decode:
   type: DualFrameRawDecoder
-  input: <unpack
+  input: <input
 
 average:
   type: Average
-  input: <repack
-  std: true
-  n: 128
-
-average_cache:
-  type: Cache
-  input: <average
-
-average_frame:
-  type: Split
-  input: <average_cache
-  element: 0
-
-std_frame:
-  type: Split
-  input: <average_cache
-  element: 1
-
-std_out:
-  type: RawBlobWriter
-  number-of-frames: 1
-  path: std.blob
-  input: <std_frame
-
-avg_frame:
-  type: Split
-  input: <average_cache
-  element: 0
-
-avg_frame_compressed:
-  type: SZ3Compress
-  input: <avg_frame
-  tolerance: 0.1
-  error_control: abs
-  data_type: f32
-  dims: [540, 128, 120]
-
-avg_out_compressed:
-  type: RawBlobWriter
-  number-of-frames: 1
-  path: avg.blob.sz3
-  input: <avg_frame_compressed
+  input: <decode
+  std: false
+  n: 512
 
 avg_out:
   type: RawBlobWriter
   number-of-frames: 1
-  path: avg.blob
-  input: <avg_frame
+  path: {{ darkframe }}
+  input: <average
