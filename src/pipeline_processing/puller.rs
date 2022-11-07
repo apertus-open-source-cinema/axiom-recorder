@@ -59,11 +59,11 @@ pub async fn pull_unordered(
                         eprintln!("error pulling frame {frame}: {e:#}");
                         if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
                             eprintln!("end of file, exiting");
-                            should_stop_fut.store(true, Ordering::SeqCst);
+                            should_stop_fut.store(true, Ordering::Relaxed);
                         } else if let Some(e) = e.downcast_ref::<Arc<anyhow::Error>>() {
                             if let Some(&EOFError) = e.downcast_ref::<EOFError>() {
                                 eprintln!("end of file, exiting");
-                                should_stop_fut.store(true, Ordering::SeqCst);
+                                should_stop_fut.store(true, Ordering::Relaxed);
                             }
                         }
                     }
@@ -75,7 +75,7 @@ pub async fn pull_unordered(
                 Ok::<(), anyhow::Error>(())
             }));
 
-            if should_stop.load(Ordering::SeqCst) {
+            if should_stop.load(Ordering::Relaxed) {
                 break;
             }
 

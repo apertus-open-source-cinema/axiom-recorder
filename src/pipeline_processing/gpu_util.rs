@@ -33,6 +33,7 @@ pub fn to_immutable_buffer<Interpretation: Clone + Send + Sync + 'static>(
                 storage_buffer: true,
                 storage_texel_buffer: true,
                 transfer_dst: true,
+                transfer_src: true,
                 ..BufferUsage::none()
             },
         )

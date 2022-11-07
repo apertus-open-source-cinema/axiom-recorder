@@ -12,13 +12,12 @@ use recorder::{
             ParameterTypeDescriptor::{Mandatory, Optional},
             ParameterizableDescriptor,
             Parameters,
-            SerdeParameterValue,
         },
         processing_context::ProcessingContext,
         processing_graph::{ProcessingGraphBuilder, ProcessingNodeConfig, SerdeNodeConfig},
     },
 };
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize};
 use std::{
     collections::{BTreeMap, HashMap},
     iter::once,

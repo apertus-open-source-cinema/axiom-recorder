@@ -95,7 +95,7 @@ impl ProcessingNode for GpuBitDepthConverter {
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
             interp.required_bytes() as DeviceSize,
-            BufferUsage { storage_buffer: true, ..BufferUsage::none() },
+            BufferUsage { storage_buffer: true, transfer_src: true, ..BufferUsage::none() },
             std::iter::once(self.queue.family()),
         )?;
 

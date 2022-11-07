@@ -184,7 +184,7 @@ where
             let mut avail: HashSet<IdTy> = self.node_ids.keys().cloned().collect();
             let mut queue = vec![];
             queue.push({
-                let v = avail.iter().cloned().next().unwrap();
+                let v = avail.iter().next().cloned().unwrap();
                 avail.take(&v).unwrap()
             });
 
