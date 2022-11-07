@@ -1,6 +1,8 @@
 #[cfg(target_os = "linux")]
 use crate::nodes_gpu::display::Display;
 #[cfg(target_os = "linux")]
+use crate::nodes_gpu::plot::Plot;
+#[cfg(target_os = "linux")]
 use crate::nodes_io::reader_webcam::WebcamInput;
 use crate::{
     nodes_cpu::{
@@ -17,6 +19,7 @@ use crate::{
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
         lut_3d::Lut3d,
+        histogram::Histogram,
     },
     nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},
@@ -82,6 +85,9 @@ generate_dynamic_node_creation_functions![
     SZ3Compress,
     ZstdBlobReader,
     Calibrate,
+    Histogram,
+    #[cfg(target_os = "linux")]
+    Plot,
     #[cfg(target_os = "linux")]
     WebcamInput,
 ];
