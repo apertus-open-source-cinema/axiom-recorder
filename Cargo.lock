@@ -121,12 +121,12 @@ dependencies = [
 
 [[package]]
 name = "ash-molten"
-version = "0.13.1+1.1.10"
+version = "0.13.0+1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74f01aab261481bd870f4a4e44de72894b1721a5f9f25e5fbd79c9612d1d1605"
+checksum = "4ddc8dfcdf7ba11f085ff7a5cf39165c13c6446159f286da1071514f1a5b6e45"
 dependencies = [
  "anyhow",
- "ash 0.37.0+1.3.209",
+ "ash 0.35.2+1.2.203",
  "plist",
  "serde",
 ]
@@ -1411,7 +1411,7 @@ dependencies = [
  "vulkano",
  "vulkano-shaders",
  "vulkano-win",
- "vulkano_maybe_molten 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vulkano_maybe_molten",
  "winit",
 ]
 
@@ -2053,7 +2053,7 @@ dependencies = [
  "vulkano",
  "vulkano-shaders",
  "vulkano-win",
- "vulkano_maybe_molten 0.30.0 (git+https://github.com/apertus-open-source-cinema/vulkano-maybe-molten)",
+ "vulkano_maybe_molten",
  "winit",
  "zstd",
 ]
@@ -2621,20 +2621,9 @@ dependencies = [
 
 [[package]]
 name = "vulkano_maybe_molten"
-version = "0.30.0"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76ca7e8536bce965b3a8004712c4ae935c5607cbd373ee60ff4bf562ffdd3a46"
-dependencies = [
- "ash 0.35.2+1.2.203",
- "ash 0.37.0+1.3.209",
- "ash-molten",
- "vulkano",
-]
-
-[[package]]
-name = "vulkano_maybe_molten"
-version = "0.30.0"
-source = "git+https://github.com/apertus-open-source-cinema/vulkano-maybe-molten#74a43620afeddf0edf62bcec9b13faab3b010f92"
+checksum = "2254502078d1244ea98981ae002e723520541fdc51ea195ed04c9e9fdd38d3e4"
 dependencies = [
  "ash 0.35.2+1.2.203",
  "ash 0.37.0+1.3.209",
