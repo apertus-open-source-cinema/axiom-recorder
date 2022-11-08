@@ -41,7 +41,7 @@ zstd = "0.11.2"
 handlebars = "4.3.0"
 thiserror = "1.0.31"
 narui = { git = "https://github.com/apertus-open-source-cinema/narui" }
-vulkano_maybe_molten = { git = "https://github.com/apertus-open-source-cinema/vulkano-maybe-molten" }
+vulkano_maybe_molten = "0.30.1"
 pollster = "0.2.5"
 anymap = "1.0.0-beta.2"
 parking_lot = { version = "0.12.1", features = ["send_guard"] }
