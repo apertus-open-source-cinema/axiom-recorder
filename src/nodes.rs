@@ -18,8 +18,8 @@ use crate::{
         calibrate::Calibrate,
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
-        lut_3d::Lut3d,
         histogram::Histogram,
+        lut_3d::Lut3d,
     },
     nodes_io::{
         reader_raw::{RawBlobReader, RawDirectoryReader},

@@ -9,6 +9,6 @@ pub mod lut_3d;
 #[cfg(target_os = "linux")]
 pub mod display;
 
+pub mod histogram;
 #[cfg(target_os = "linux")]
 pub mod plot;
-pub mod histogram;

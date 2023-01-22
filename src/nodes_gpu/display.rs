@@ -135,7 +135,7 @@ pub struct Display {
     // TODO(robin): readd handling for this
     do_loop: bool,
     input: InputProcessingNode,
-    priority: u8
+    priority: u8,
 }
 
 impl Parameterizable for Display {
@@ -172,7 +172,13 @@ impl SinkNode for Display {
         context: &ProcessingContext,
         progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     ) -> Result<()> {
-        let rx = pull_ordered(context, self.priority, progress_callback, self.input.clone_for_same_puller(), 0);
+        let rx = pull_ordered(
+            context,
+            self.priority,
+            progress_callback,
+            self.input.clone_for_same_puller(),
+            0,
+        );
         let (tx, rx_winit) = flume::bounded(1);
 
         let context = context.clone();

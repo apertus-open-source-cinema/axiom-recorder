@@ -106,7 +106,8 @@ impl Default for ProcessingContext {
                 }
 
                 let queue_family = physical.queue_families().map(QueueCreateInfo::family).collect();
-                let khr_shader_non_semantic_info = physical.supported_extensions().khr_shader_non_semantic_info;
+                let khr_shader_non_semantic_info =
+                    physical.supported_extensions().khr_shader_non_semantic_info;
                 let device_ext = DeviceExtensions {
                     khr_swapchain: true,
                     khr_storage_buffer_storage_class: true,

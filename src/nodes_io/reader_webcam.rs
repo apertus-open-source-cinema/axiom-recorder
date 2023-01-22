@@ -50,16 +50,18 @@ impl Parameterizable for WebcamInput {
         let mut stream = CpuBufferQueueManager::new(&dev);
         stream.start();
 
-        Ok(Self { queue: Default::default(), stream: RwLock::new(stream), interp, context: context.clone() })
+        Ok(Self {
+            queue: Default::default(),
+            stream: RwLock::new(stream),
+            interp,
+            context: context.clone(),
+        })
     }
 }
 
 #[async_trait]
 impl ProcessingNode for WebcamInput {
-    async fn pull(
-        &self,
-        request: Request,
-    ) -> Result<Payload> {
+    async fn pull(&self, request: Request) -> Result<Payload> {
         // println!("pulling {frame_number}");
         let frame_number = request.frame_number();
         let (_, prev_seq) = self.queue.wait(move |(num, _)| *num == frame_number).await;
@@ -87,7 +89,8 @@ impl ProcessingNode for WebcamInput {
         // dbg!(frame_number, metadata.sequence);
         // frame, metadata.sequence
 
-        let mut buffer = unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        let mut buffer =
+            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
         buffer.as_mut_slice(|buffer| {
             for (src, dst) in frame.chunks_exact(3).zip(buffer.chunks_exact_mut(3)) {
                 dst[0] = src[2];
