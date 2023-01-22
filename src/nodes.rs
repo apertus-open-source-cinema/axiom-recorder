@@ -22,6 +22,7 @@ use crate::{
         lut_3d::Lut3d,
     },
     nodes_io::{
+        reader_cinema_dng::CinemaDngReader,
         reader_raw::{RawBlobReader, RawDirectoryReader},
         reader_tcp::TcpReader,
         writer_cinema_dng::CinemaDngWriter,
@@ -67,6 +68,7 @@ generate_dynamic_node_creation_functions![
     RawDirectoryReader,
     RawBlobReader,
     CinemaDngWriter,
+    CinemaDngReader,
     GpuBitDepthConverter,
     Debayer,
     #[cfg(target_os = "linux")]

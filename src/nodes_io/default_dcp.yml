@@ -1,0 +1,17 @@
+UniqueCameraModel: "AXIOM Beta"
+ProfileName: "AXIOM Beta simulated from spectral data"
+ProfileEmbedPolicy: allow copying
+
+CalibrationIlluminant1: StandardIlluminantA
+ColorMatrix1: [
+  2.698, -1.8779, 0.3348,
+  0.493, 0.0325, 0.2078,
+  0.2645, -0.1286, 0.3895,
+]
+
+CalibrationIlluminant2: D65Illuminant
+ColorMatrix2: [
+  2.5136, -1.2873, -0.1654,
+  0.2275, 0.5494, 0.0929,
+  0.1393, 0.0697, 0.4617,
+]

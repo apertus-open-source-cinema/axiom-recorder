@@ -1,0 +1,31 @@
+NewSubfileType: 0
+DNGVersion: [1, 4, 0, 0]
+
+Make: "Apertus"
+Model: "AXIOM"
+Software: "axiom-recorder"
+UniqueCameraModel: "Apertus AXIOM"
+
+# ImageWidth:
+# ImageLength:
+# RowsPerStrip:
+# BitsPerSample:
+SamplesPerPixel: 1
+
+Compression: None (No compression)
+FillOrder: MSBtoLSB (most-significant-bit to least-significant-bit)
+
+Orientation: RowTopColumnLeft
+
+# FrameRate:
+
+ResolutionUnit: Unitless (Units not specified)
+XResolution: 1
+YResolution: 1
+
+PlanarConfiguration: Chunky (Chunky (component interleaved) sample organization)
+PhotometricInterpretation: CFA (Color filter array)
+CFARepeatPatternDim: [2, 2]
+# CFAPattern:
+
+# StripOffsets: 
