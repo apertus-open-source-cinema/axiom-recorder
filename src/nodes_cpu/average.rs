@@ -63,7 +63,8 @@ impl ProcessingNode for Average {
         };
 
         let context = &self.context;
-        let frame = context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
+        let frame =
+            context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format for Average")?;
         let interp = frame.interp;
         assert_eq!(frame.interp.bit_depth, 12);
 
@@ -126,7 +127,7 @@ impl ProcessingNode for Average {
                         _ => {}
                     }
                     let input = input?;
-                    let frame = context_copy.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
+                    let frame = context_copy.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format for Average")?;
                     assert_eq!(interp.bit_depth, 12);
 
                     frame.storage.as_slice_async(|frame: &[u8]| async move {

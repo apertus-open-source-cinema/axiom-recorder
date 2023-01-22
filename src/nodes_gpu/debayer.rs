@@ -70,8 +70,8 @@ impl ProcessingNode for Debayer {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
 
-        let (frame, fut) =
-            ensure_gpu_buffer::<Raw>(&input, self.queue.clone()).context("Wrong input format")?;
+        let (frame, fut) = ensure_gpu_buffer::<Raw>(&input, self.queue.clone())
+            .context("Wrong input format for Debayer")?;
 
         if frame.interp.bit_depth != 8 {
             return Err(anyhow!(

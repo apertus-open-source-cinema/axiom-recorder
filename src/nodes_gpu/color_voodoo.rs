@@ -85,8 +85,8 @@ impl ProcessingNode for ColorVoodoo {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
 
-        let (frame, fut) =
-            ensure_gpu_buffer::<Rgb>(&input, self.queue.clone()).context("Wrong input format")?;
+        let (frame, fut) = ensure_gpu_buffer::<Rgb>(&input, self.queue.clone())
+            .context("Wrong input format for ColorVoodoo")?;
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),

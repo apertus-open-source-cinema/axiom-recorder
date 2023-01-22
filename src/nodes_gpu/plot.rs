@@ -296,7 +296,7 @@ impl SinkNode for Plot {
                             Ok(ref frame) => {
                                 let cpu_frame = context
                                     .ensure_cpu_buffer::<Raw>(frame)
-                                    .context("Wrong input format")
+                                    .context("Wrong input format for Plot")
                                     .unwrap();
                                 let count = cpu_frame.interp.width as _;
 
@@ -320,7 +320,7 @@ impl SinkNode for Plot {
                                 });
 
                                 let (frame, fut) = ensure_gpu_buffer::<Raw>(frame, queue.clone())
-                                    .context("Wrong input format")
+                                    .context("Wrong input format for Plot")
                                     .unwrap();
                                 next_frame_time += Duration::from_secs_f64(1.0 / frame.interp.fps);
 

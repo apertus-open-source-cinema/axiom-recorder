@@ -36,7 +36,10 @@ impl Parameterizable for BitDepthConverter {
 impl ProcessingNode for BitDepthConverter {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
-        let frame = self.context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format")?;
+        let frame = self
+            .context
+            .ensure_cpu_buffer::<Raw>(&input)
+            .context("Wrong input format for BitDepthConverter")?;
         let interp = Raw { bit_depth: 8, ..frame.interp };
         let mut new_buffer = unsafe { self.context.get_uninit_cpu_buffer(interp.required_bytes()) };
 

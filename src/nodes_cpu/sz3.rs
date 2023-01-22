@@ -90,8 +90,10 @@ impl ProcessingNode for SZ3Compress {
                     Arc::new(frame.interp) as Arc<_>,
                 )
             } else {
-                let frame =
-                    self.context.ensure_cpu_buffer::<Rgb>(&input).context("Wrong input format")?;
+                let frame = self
+                    .context
+                    .ensure_cpu_buffer::<Rgb>(&input)
+                    .context("Wrong input format for SZ3Compress")?;
                 (
                     frame.storage.clone(),
                     vec![3, frame.interp.width as _, frame.interp.height as _],

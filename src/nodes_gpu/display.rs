@@ -317,7 +317,7 @@ impl SinkNode for Display {
                             }
                             Ok(ref frame) => {
                                 let (frame, fut) = ensure_gpu_buffer::<Rgb>(frame, queue.clone())
-                                    .context("Wrong input format")
+                                    .context("Wrong input format for Display")
                                     .unwrap();
                                 frame_width = frame.interp.width as _;
                                 frame_height = frame.interp.height as _;

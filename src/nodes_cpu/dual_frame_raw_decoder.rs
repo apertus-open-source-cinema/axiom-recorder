@@ -72,7 +72,7 @@ impl ProcessingNode for DualFrameRawDecoder {
                     let frame_b = self
                         .context
                         .ensure_cpu_buffer::<Rgb>(&frame)
-                        .context("Wrong input format")?;
+                        .context("Wrong input format for DualFrameRawDecoder")?;
                     Result::<_>::Ok(((frame_a, frame_b), true))
                 }
                 None => {
@@ -83,11 +83,11 @@ impl ProcessingNode for DualFrameRawDecoder {
                     let frame_a = self
                         .context
                         .ensure_cpu_buffer::<Rgb>(&frames.0?)
-                        .context("Wrong input format")?;
+                        .context("Wrong input format for DualFrameRawDecoder")?;
                     let frame_b = self
                         .context
                         .ensure_cpu_buffer::<Rgb>(&frames.1?)
-                        .context("Wrong input format")?;
+                        .context("Wrong input format for DualFrameRawDecoder")?;
                     Result::<_>::Ok(((frame_a, frame_b), false))
                 }
             }
