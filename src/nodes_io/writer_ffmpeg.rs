@@ -16,7 +16,6 @@ use std::{
 pub struct FfmpegWriter {
     output: String,
     input_options: String,
-    fps: f64,
     input: InputProcessingNode,
     priority: u8,
 }
@@ -24,7 +23,6 @@ impl Parameterizable for FfmpegWriter {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
-            .with("fps", Mandatory(PositiveReal()))
             .with("output", Mandatory(StringParameter))
             .with("priority", Optional(U8()))
             .with("input-options", Optional(StringParameter))
@@ -40,7 +38,6 @@ impl Parameterizable for FfmpegWriter {
         Ok(Self {
             output: parameters.take("output")?,
             input_options: parameters.take("input-options")?,
-            fps: parameters.take("fps")?,
             input: parameters.take("input")?,
             priority: parameters.take("priority")?,
         })
@@ -63,20 +60,17 @@ impl SinkNode for FfmpegWriter {
         );
         let mut frame = context
             .ensure_cpu_buffer::<Rgb>(&rx.recv_async().await.unwrap())
-            .context("Wrong input format")?;
+            .context("Wrong input format for FfmpegWriter")?;
+
+        let input_options = &self.input_options;
+        let fps = frame.interp.fps;
+        let width = frame.interp.width;
+        let height = frame.interp.height;
+        let output = &self.output;
+        let args_string = format!("{input_options} -f rawvideo -framerate {fps} -video_size {width}x{height} -pixel_format rgb24 -i - {output}");
 
         let mut child = Command::new("ffmpeg")
-            .args(
-                shlex::split(&format!(
-                    "{} -f rawvideo -framerate {} -video_size {}x{} -pixel_format rgb24 -i - {}",
-                    self.input_options,
-                    self.fps,
-                    frame.interp.width,
-                    frame.interp.height,
-                    self.output
-                ))
-                .unwrap(),
-            )
+            .args(shlex::split(&args_string).unwrap())
             .stdin(Stdio::piped())
             .spawn()?;
 
@@ -84,7 +78,9 @@ impl SinkNode for FfmpegWriter {
             frame.storage.as_slice(|slice| child.stdin.as_mut().unwrap().write_all(slice))?;
 
             if let Ok(payload) = rx.recv_async().await {
-                frame = context.ensure_cpu_buffer::<Rgb>(&payload).context("Wrong input format")?;
+                frame = context
+                    .ensure_cpu_buffer::<Rgb>(&payload)
+                    .context("Wrong input format for FfmpegWriter")?;
             } else {
                 break;
             }
