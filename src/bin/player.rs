@@ -10,15 +10,18 @@ use recorder::{
     },
 };
 use std::{
+    env,
     sync::{Arc, Mutex},
     thread::spawn,
 };
-
 
 #[widget]
 pub fn player(context: &mut WidgetContext) -> Fragment {
     let vulkan_context = context.vulkan_context.clone();
     let frame = context.listenable(None);
+
+    let args: Vec<String> = env::args().collect();
+    let files = &args[1];
 
     let handle = context.effect(
         move |context| {
@@ -31,13 +34,10 @@ pub fn player(context: &mut WidgetContext) -> Fragment {
                 graph_builder.add(
                     "reader".to_string(),
                     serde_yaml::from_str::<SerdeNodeConfig>(
-                        "
-                      type: RawDirectoryReader
-                      file-pattern: test/Darkbox-Timelapse-Clock-Sequence/*
-                      width: 4096
-                      height: 3072
-                      rgb: false
-                ",
+                            &format!("
+                            type: CinemaDngReader
+                            file-pattern: {files}
+                            "),
                     )?
                     .into(),
                 )?;
