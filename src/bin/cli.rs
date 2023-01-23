@@ -159,6 +159,7 @@ fn work() -> Result<()> {
 fn nodes_usages_string() -> String {
     list_available_nodes()
         .keys()
+        .sorted()
         .map(|node_name| {
             Box::leak(Box::new(
                 clap_app_from_node_name(node_name)
@@ -176,7 +177,7 @@ fn processing_node_from_commandline(
     commandline: &[String],
     input: Option<usize>,
 ) -> Result<ProcessingNodeConfig<usize>> {
-    let name = &commandline[0];
+    let name = commandline.get(0).ok_or(anyhow!("need to specify at least two nodes for a pipeline\nsee --help for instructions on how to use this tool"))?;
 
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
     let node_descriptor: &ParameterizableDescriptor =
