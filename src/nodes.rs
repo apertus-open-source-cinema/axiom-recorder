@@ -36,7 +36,7 @@ use crate::{
     },
 };
 
-use crate::nodes_io::writer_ffmpeg::FfmpegWriter;
+use crate::nodes_io::{frameserver_cinema_dng::CinemaDngFrameserver, writer_ffmpeg::FfmpegWriter};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 macro_rules! generate_dynamic_node_creation_functions {
@@ -95,4 +95,5 @@ generate_dynamic_node_creation_functions![
     #[cfg(target_os = "linux")]
     WebcamInput,
     FfmpegWriter,
+    CinemaDngFrameserver,
 ];

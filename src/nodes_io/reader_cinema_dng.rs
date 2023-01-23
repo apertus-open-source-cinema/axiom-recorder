@@ -1,5 +1,5 @@
 use crate::pipeline_processing::{
-    frame::{CfaDescriptor, Frame, FrameInterpretations, Raw},
+    frame::{CfaDescriptor, Frame, Raw},
     node::{Caps, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     payload::Payload,

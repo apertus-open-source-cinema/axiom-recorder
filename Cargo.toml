@@ -44,7 +44,11 @@ vulkano_maybe_molten = "0.30.1"
 pollster = "0.2.5"
 anymap = "1.0.0-beta.2"
 parking_lot = { version = "0.12.1", features = ["send_guard"] }
-dng = { version = "1.4.0", features = ["yaml"] }
+dng = { version = "1.5.0", features = ["yaml"] }
+dav-server = { version = "0.5.2", features = ["hyper"] }
+tokio = { version = "1.19.2", features = ["full"] }
+hyper = { version = "0.14.23", features = ["full"] }
+futures-util = "0.3.25"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.13.0"

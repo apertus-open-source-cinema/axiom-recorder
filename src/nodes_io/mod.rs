@@ -1,3 +1,4 @@
+pub mod frameserver_cinema_dng;
 pub mod reader_cinema_dng;
 pub mod reader_raw;
 pub mod reader_tcp;

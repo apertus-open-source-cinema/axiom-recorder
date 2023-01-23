@@ -72,6 +72,7 @@ impl std::fmt::Display for Priority {
 pub struct ProcessingContext {
     vulkan_device: Option<VulkanContext>,
     prioritized_reactor: PrioritizedReactor<Priority>,
+    tokio_rt_handle: Arc<tokio::runtime::Runtime>,
 }
 impl Default for ProcessingContext {
     fn default() -> Self {
@@ -156,9 +157,11 @@ impl ProcessingContext {
             println!("using cpu only processing");
         }
 
+
         Self {
             vulkan_device: vulkan_context,
             prioritized_reactor: PrioritizedReactor::start(threads),
+            tokio_rt_handle: Arc::new(tokio::runtime::Runtime::new().unwrap()),
         }
     }
 
@@ -275,7 +278,9 @@ impl ProcessingContext {
         self.prioritized_reactor.spawn_with_priority(fut, priority)
     }
 
-    pub fn block_on<O>(&self, fut: impl Future<Output = O>) -> O { pollster::block_on(fut) }
+    pub fn block_on<O>(&self, fut: impl Future<Output = O>) -> O {
+        self.tokio_rt_handle.block_on(fut)
+    }
 
     pub fn num_threads(&self) -> usize { self.prioritized_reactor.num_threads }
 }
