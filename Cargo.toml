@@ -49,6 +49,7 @@ dav-server = { version = "0.5.2", features = ["hyper"] }
 tokio = { version = "1.19.2", features = ["full"] }
 hyper = { version = "0.14.23", features = ["full"] }
 futures-util = "0.3.25"
+portpicker = "0.1.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.13.0"

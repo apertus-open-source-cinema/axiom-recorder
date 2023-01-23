@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use dav_server::{
     davpath::DavPath,
-    fakels,
     fs::{
         BoxCloneMd,
         DavDirEntry,
@@ -45,6 +44,7 @@ use std::{
     fs,
     future::Future,
     io::{Cursor, SeekFrom},
+    net::{IpAddr, SocketAddr},
     path::PathBuf,
     str::FromStr,
     sync::Arc,
@@ -57,6 +57,7 @@ use zstd::zstd_safe::WriteBuf;
 pub struct CinemaDngFrameserver {
     input: InputProcessingNode,
     priority: u8,
+    address: SocketAddr,
     base_ifd: Ifd,
 }
 
@@ -67,6 +68,8 @@ impl Parameterizable for CinemaDngFrameserver {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
             .with("priority", Optional(U8()))
+            .with("host", WithDefault(StringParameter, StringValue("127.0.0.1".to_string())))
+            .with("port", Optional(IntRange(0, u16::MAX as i64)))
             .with("dcp-yaml", Optional(StringParameter))
     }
 
@@ -78,6 +81,11 @@ impl Parameterizable for CinemaDngFrameserver {
     where
         Self: Sized,
     {
+        let port = parameters.take::<u64>("port")?;
+        let port = if port == 0 { portpicker::pick_unused_port().unwrap() } else { port as u16 };
+        let host = parameters.take::<String>("host")?;
+        let address = SocketAddr::from((IpAddr::from_str(&host)?, port));
+
         let mut base_ifd =
             IfdYamlParser::default().parse_from_str(include_str!("./base_ifd.yml"))?;
 
@@ -89,12 +97,12 @@ impl Parameterizable for CinemaDngFrameserver {
             let data = fs::read_to_string(path.clone()).context("couldnt read dcp-yaml file")?;
             IfdYamlParser::new(path).parse_from_str(&data).context("couldnt parse dcp-yaml file")?
         };
-
         base_ifd.insert_from_other(dcp_ifd);
 
         Ok(Self {
             input: parameters.take("input")?,
             priority: parameters.take("priority")?,
+            address,
             base_ifd,
         })
     }
@@ -159,12 +167,8 @@ impl SinkNode for CinemaDngFrameserver {
         };
         let fs = CDngFs::new(frame_count, pull).await;
 
-        let dav_server = DavHandler::builder()
-            .filesystem(Box::new(fs) as _)
-            .locksystem(fakels::FakeLs::new())
-            .build_handler();
+        let dav_server = DavHandler::builder().filesystem(Box::new(fs) as _).build_handler();
 
-        let addr = ([127, 0, 0, 1], 9127).into();
         let service = make_service_fn(|_| {
             let dav_server = dav_server.clone();
             async move {
@@ -175,8 +179,8 @@ impl SinkNode for CinemaDngFrameserver {
                 Ok::<_, hyper::Error>(service_fn(func))
             }
         });
-        let server = Server::bind(&addr).serve(service);
-        println!("Listening on http://{}", addr);
+        let server = Server::bind(&self.address).serve(service);
+        println!("Listening on http://{}", self.address);
 
         server.await?;
 
