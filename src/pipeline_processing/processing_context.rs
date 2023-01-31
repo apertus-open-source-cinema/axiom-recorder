@@ -5,6 +5,7 @@ use crate::pipeline_processing::{
     prioritized_executor::PrioritizedReactor,
 };
 use anyhow::{anyhow, Result};
+use parking_lot::lock_api::RwLock;
 use std::{future::Future, sync::Arc};
 use vulkano::{
     buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer},
@@ -184,7 +185,11 @@ impl ProcessingContext {
             .unwrap()
             .into()
         } else {
-            unimplemented!()
+            let mut vec: Vec<u8> = Vec::with_capacity(len);
+            unsafe {
+                vec.set_len(len);
+            }
+            CpuBuffer::Vec(Arc::new(RwLock::new(vec)))
         }
     }
     pub fn get_init_cpu_buffer(&self, len: usize, init: u8) -> CpuBuffer {

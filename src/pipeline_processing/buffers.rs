@@ -1,5 +1,6 @@
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
 use owning_ref::OwningHandle;
+use parking_lot::RwLock;
 use std::{
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
@@ -78,49 +79,70 @@ impl<T: InfoForTrackDrop> From<T> for TrackDrop<T> {
 }
 
 #[derive(Clone)]
-pub struct CpuBuffer {
-    buf: Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>,
+pub enum CpuBuffer {
+    Vulkan(Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>),
+    Vec(Arc<RwLock<Vec<u8>>>),
 }
 
 impl From<Arc<CpuAccessibleBuffer<[u8]>>> for CpuBuffer {
     fn from(buf: Arc<CpuAccessibleBuffer<[u8]>>) -> Self {
-        Self { buf: Arc::new(Arc::try_unwrap(buf).unwrap().into()) }
+        Self::Vulkan(Arc::new(Arc::try_unwrap(buf).unwrap().into()))
     }
 }
 
 impl From<Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>> for CpuBuffer {
-    fn from(buf: Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>) -> Self { Self { buf } }
+    fn from(buf: Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>>) -> Self { Self::Vulkan(buf) }
 }
 
 impl CpuBuffer {
-    pub fn len(&self) -> usize { self.buf.len() as _ }
+    pub fn len(&self) -> usize {
+        match self {
+            CpuBuffer::Vulkan(buf) => buf.len() as _,
+            CpuBuffer::Vec(buf) => buf.read().len(),
+        }
+    }
 
-    pub fn is_empty(&self) -> bool { self.buf.len() == 0 }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
 
     pub fn cpu_accessible_buffer(&self) -> Arc<TrackDrop<CpuAccessibleBuffer<[u8]>>> {
-        self.buf.clone()
+        match self {
+            CpuBuffer::Vulkan(buf) => buf.clone(),
+            CpuBuffer::Vec(_) => unimplemented!(),
+        }
     }
 
     pub fn as_slice<FN: FnOnce(&[u8]) -> R, R>(&self, func: FN) -> R {
-        func(&*self.buf.read().unwrap())
+        match self {
+            CpuBuffer::Vulkan(buf) => func(&*buf.read().unwrap()),
+            CpuBuffer::Vec(buf) => func(&*buf.read()),
+        }
     }
 
     pub async fn as_slice_async<FN: for<'a> FnOnce(&'a [u8]) -> BoxFuture<'a, R>, R>(
         &self,
         func: FN,
     ) -> R {
-        func(&*self.buf.read().unwrap()).await
+        match self {
+            CpuBuffer::Vulkan(buf) => func(&*buf.read().unwrap()).await,
+            CpuBuffer::Vec(buf) => func(&*buf.read()).await,
+        }
     }
 
     pub fn as_mut_slice<FN: FnOnce(&mut [u8]) -> R, R>(&mut self, func: FN) -> R {
-        func(&mut *self.buf.write().unwrap())
+        match self {
+            CpuBuffer::Vulkan(buf) => func(&mut *buf.write().unwrap()),
+            CpuBuffer::Vec(buf) => func(&mut *buf.write()),
+        }
     }
 
     pub async fn as_mut_slice_async<FN: for<'a> FnOnce(&'a mut [u8]) -> BoxFuture<'a, R>, R>(
         &mut self,
         func: FN,
     ) -> R {
-        func(&mut *self.buf.write().unwrap()).await
+        match self {
+            CpuBuffer::Vulkan(buf) => func(&mut *buf.write().unwrap()).await,
+            CpuBuffer::Vec(buf) => func(&mut *buf.write()).await,
+        }
     }
 }
 
@@ -153,8 +175,14 @@ where
             for (i, cpu_buffer) in cpu_buffers.into_iter().enumerate() {
                 chunk_sizes[i] = cpu_buffer.len() / n;
 
-                let mut buf_holder =
-                    OwningHandle::new_with_fn(cpu_buffer.buf, |buf| (*buf).write().unwrap());
+                let buf = if let CpuBuffer::Vulkan(buf) = cpu_buffer {
+                    buf.clone()
+                } else {
+                    // TODO: Implement for CpuBuffer::Vec
+                    unimplemented!("Chunked Buffers are at the moment only implemented for Vulkan")
+                };
+
+                let mut buf_holder = OwningHandle::new_with_fn(buf, |buf| (*buf).write().unwrap());
                 ptrs[i] = buf_holder.as_mut_ptr();
                 buf_holders[i].write(buf_holder);
             }
