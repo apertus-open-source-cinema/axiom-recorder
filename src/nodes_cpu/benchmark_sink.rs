@@ -6,6 +6,7 @@ use crate::pipeline_processing::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
+
 use std::{sync::Arc, time::Instant};
 
 
@@ -20,7 +21,7 @@ impl Parameterizable for BenchmarkSink {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
-            .with("priority", Optional(U8()))
+            .with("priority", WithDefault(U8(), ParameterValue::IntRangeValue(0)))
     }
 
     fn from_parameters(
@@ -64,7 +65,7 @@ impl SinkNode for BenchmarkSink {
                 self.priority,
                 progress_callback.clone(),
                 self.input.clone_for_same_puller(),
-                0,
+                None,
                 move |_input, _frame_number| Ok(()),
             )
             .await;
@@ -79,7 +80,7 @@ impl SinkNode for BenchmarkSink {
                     self.priority,
                     progress_callback.clone(),
                     self.input.clone_for_same_puller(),
-                    0,
+                    None,
                     move |_input, _frame_number| Ok(()),
                 )
                 .await?;
@@ -101,7 +102,7 @@ impl SinkNode for BenchmarkSink {
                 self.priority,
                 progress_callback,
                 self.input.clone_for_same_puller(),
-                0,
+                None,
             );
             let reporter = FPSReporter::new("pipeline");
             loop {

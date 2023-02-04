@@ -1,7 +1,14 @@
 use crate::{
     pipeline_processing::{
         buffers::CpuBuffer,
-        frame::{CfaDescriptor, Frame, FrameInterpretation, Raw, Rgb},
+        frame::{
+            CfaDescriptor,
+            ColorInterpretation,
+            Compression,
+            Frame,
+            FrameInterpretation,
+            SampleInterpretation,
+        },
         node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
         parametrizable::{prelude::*, Parameterizable, Parameters, ParametersDescriptor},
         payload::Payload,
@@ -9,7 +16,7 @@ use crate::{
     },
     util::async_notifier::AsyncNotifier,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use futures::join;
 use std::sync::Arc;
@@ -17,7 +24,7 @@ use std::sync::Arc;
 const FRAME_A_MARKER: u8 = 0xAA;
 
 #[derive(Clone, Default)]
-struct LastFrameInfo(u64, u64, u8, Option<Arc<Frame<Rgb, CpuBuffer>>>);
+struct LastFrameInfo(u64, u64, u8, Option<Arc<Frame<CpuBuffer>>>);
 
 pub struct DualFrameRawDecoder {
     input: InputProcessingNode,
@@ -31,8 +38,7 @@ impl Parameterizable for DualFrameRawDecoder {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
             .with("debug", Optional(BoolParameter))
-            .with("red-in-first-col", WithDefault(BoolParameter, BoolValue(true)))
-            .with("red-in-first-row", WithDefault(BoolParameter, BoolValue(false)))
+            .with("bayer", WithDefault(StringParameter, StringValue("RGBG".to_string())))
     }
 
     fn from_parameters(
@@ -40,14 +46,18 @@ impl Parameterizable for DualFrameRawDecoder {
         _is_input_to: &[NodeID],
         context: &ProcessingContext,
     ) -> Result<Self> {
+        let cfa_descriptor = match parameters.take::<String>("bayer")?.to_uppercase().as_str() {
+            "RGBG" => CfaDescriptor { red_in_first_col: true, red_in_first_row: true },
+            "BGRG" => CfaDescriptor { red_in_first_col: true, red_in_first_row: false },
+            "GBGR" => CfaDescriptor { red_in_first_col: false, red_in_first_row: true },
+            "GRGB" => CfaDescriptor { red_in_first_col: false, red_in_first_row: true },
+            _ => bail!("couldn't parse CFA Pattern"),
+        };
         Ok(Self {
             input: parameters.take("input")?,
-            cfa_descriptor: CfaDescriptor {
-                red_in_first_col: parameters.take("red-in-first-col")?,
-                red_in_first_row: parameters.take("red-in-first-row")?,
-            },
+            cfa_descriptor,
             last_frame_info: Default::default(),
-            debug: parameters.take("debug")?,
+            debug: parameters.has("debug"),
             context: context.clone(),
         })
     }
@@ -71,7 +81,7 @@ impl ProcessingNode for DualFrameRawDecoder {
                     let frame = self.input.pull(request.with_frame_number(next_even)).await?;
                     let frame_b = self
                         .context
-                        .ensure_cpu_buffer::<Rgb>(&frame)
+                        .ensure_cpu_buffer_frame(&frame)
                         .context("Wrong input format for DualFrameRawDecoder")?;
                     Result::<_>::Ok(((frame_a, frame_b), true))
                 }
@@ -82,11 +92,11 @@ impl ProcessingNode for DualFrameRawDecoder {
                     );
                     let frame_a = self
                         .context
-                        .ensure_cpu_buffer::<Rgb>(&frames.0?)
+                        .ensure_cpu_buffer_frame(&frames.0?)
                         .context("Wrong input format for DualFrameRawDecoder")?;
                     let frame_b = self
                         .context
-                        .ensure_cpu_buffer::<Rgb>(&frames.1?)
+                        .ensure_cpu_buffer_frame(&frames.1?)
                         .context("Wrong input format for DualFrameRawDecoder")?;
                     Result::<_>::Ok(((frame_a, frame_b), false))
                 }
@@ -148,17 +158,19 @@ impl ProcessingNode for DualFrameRawDecoder {
             return Err(anyhow!("frame slipped in DualFrameRawDecoder:\n{}", debug_info));
         }
 
-        let interp = Raw {
-            width: frame_a.interp.width * 2,
-            height: frame_a.interp.height * 2,
-            bit_depth: 12,
-            cfa: self.cfa_descriptor,
-            fps: frame_a.interp.fps / 2.0,
+        let interpretation = FrameInterpretation {
+            width: frame_a.interpretation.width * 2,
+            height: frame_a.interpretation.height * 2,
+            fps: frame_a.interpretation.fps.map(|v| v / 2.0),
+            color_interpretation: ColorInterpretation::Bayer(self.cfa_descriptor),
+            sample_interpretation: SampleInterpretation::UInt(8),
+            compression: Compression::Uncompressed,
         };
 
-        let mut new_buffer = unsafe { self.context.get_uninit_cpu_buffer(interp.required_bytes()) };
+        let mut new_buffer =
+            unsafe { self.context.get_uninit_cpu_buffer(interpretation.required_bytes()) };
 
-        let line_bytes = frame_a.interp.width as usize * 3;
+        let line_bytes = frame_a.interpretation.width as usize * 3;
         frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
                 let (frame_a, frame_b) = if frame_a[2] == FRAME_A_MARKER {
@@ -181,7 +193,7 @@ impl ProcessingNode for DualFrameRawDecoder {
             })
         });
 
-        Ok(Payload::from(Frame { interp, storage: new_buffer }))
+        Ok(Payload::from(Frame { interpretation, storage: new_buffer }))
     }
 
     fn get_caps(&self) -> Caps {
@@ -205,9 +217,7 @@ impl Parameterizable for ReverseDualFrameRawDecoder {
             // Should also be transparently fixed by DualFrameRawDecoder
             .with(
                 "flip",
-                Optional(
-                    BoolParameter
-                ),
+                Optional(BoolParameter),
             )
     }
 
@@ -229,14 +239,23 @@ impl ProcessingNode for ReverseDualFrameRawDecoder {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let downstream = request.frame_number() / 2;
         let frame = self.input.pull(request.with_frame_number(downstream)).await?;
-        let frame = self.context.ensure_cpu_buffer::<Raw>(&frame)?;
+        let frame = self.context.ensure_cpu_buffer_frame(&frame)?;
+
+        if !matches!(frame.interpretation.sample_interpretation, SampleInterpretation::UInt(12)) {
+            bail!("A frame with bit_depth=12 is required. Convert the bit depth of the frame!")
+        }
+        if !matches!(frame.interpretation.color_interpretation, ColorInterpretation::Bayer(_cfa)) {
+            bail!("A frame with bayer pattern is expected!")
+        }
+
         let offset = if self.flip { 1 } else { 0 };
         let offset = ((request.frame_number() + offset) % 2) as usize;
 
-        let line_bytes = (frame.interp.width * 3 / 2) as usize;
+        let line_bytes = (frame.interpretation.width * 3 / 2) as usize;
         let out_buffer = unsafe {
-            let mut buffer =
-                self.context.get_uninit_cpu_buffer(line_bytes * frame.interp.height as usize / 2);
+            let mut buffer = self
+                .context
+                .get_uninit_cpu_buffer(line_bytes * frame.interpretation.height as usize / 2);
             buffer.as_mut_slice(|buffer| {
                 frame.storage.as_slice(|input| {
                     for (out, input) in buffer
@@ -252,10 +271,13 @@ impl ProcessingNode for ReverseDualFrameRawDecoder {
         };
 
         Ok(Payload::from(Frame {
-            interp: Rgb {
-                width: frame.interp.width / 2,
-                height: frame.interp.height / 2,
-                fps: frame.interp.fps * 2.0,
+            interpretation: FrameInterpretation {
+                width: frame.interpretation.width / 2,
+                height: frame.interpretation.height / 2,
+                fps: frame.interpretation.fps.map(|v| v * 2.0),
+                color_interpretation: ColorInterpretation::Rgb,
+                sample_interpretation: SampleInterpretation::UInt(8),
+                compression: Compression::Uncompressed,
             },
             storage: out_buffer,
         }))

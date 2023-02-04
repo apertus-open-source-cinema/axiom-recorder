@@ -6,11 +6,11 @@ use crate::nodes_gpu::plot::Plot;
 use crate::nodes_io::reader_webcam::WebcamInput;
 use crate::{
     nodes_cpu::{
-        average::Average,
+        //average::Average,
         benchmark_sink::BenchmarkSink,
         bitdepth_convert::BitDepthConverter,
         dual_frame_raw_decoder::{DualFrameRawDecoder, ReverseDualFrameRawDecoder},
-        sz3::SZ3Compress,
+        //sz3::SZ3Compress,
         zstd::ZstdBlobReader,
     },
     nodes_gpu::{
@@ -82,11 +82,11 @@ generate_dynamic_node_creation_functions![
     RawDirectoryWriter,
     RawBlobWriter,
     Lut3d,
-    Average,
+    //Average,
     TcpReader,
     Cache,
     Split,
-    SZ3Compress,
+    //SZ3Compress,
     ZstdBlobReader,
     Calibrate,
     Histogram,
