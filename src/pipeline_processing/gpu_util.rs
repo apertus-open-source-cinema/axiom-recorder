@@ -19,10 +19,10 @@ use vulkano::{
     sync::GpuFuture,
 };
 
-pub fn to_immutable_buffer<Interpretation: Clone + Send + Sync + 'static>(
-    frame: Arc<Frame<Interpretation, CpuBuffer>>,
+pub fn to_immutable_buffer(
+    frame: Arc<Frame<CpuBuffer>>,
     queue: Arc<Queue>,
-) -> (Frame<Interpretation, GpuBuffer>, impl GpuFuture) {
+) -> (Frame<GpuBuffer>, impl GpuFuture) {
     let device = queue.device();
 
     let (buffer, fut) = unsafe {
@@ -57,22 +57,22 @@ pub fn to_immutable_buffer<Interpretation: Clone + Send + Sync + 'static>(
         (buffer, future)
     };
 
-    (Frame { interp: frame.interp.clone(), storage: buffer.into() }, fut)
+    (Frame { interpretation: frame.interpretation.clone(), storage: buffer.into() }, fut)
 }
 
-pub fn ensure_gpu_buffer<Interpretation: Clone + Send + Sync + 'static>(
+pub fn ensure_gpu_buffer_frame(
     payload: &Payload,
     queue: Arc<Queue>,
-) -> anyhow::Result<(Arc<Frame<Interpretation, GpuBuffer>>, impl GpuFuture)> {
-    if let Ok(frame) = payload.downcast::<Frame<Interpretation, CpuBuffer>>() {
+) -> anyhow::Result<(Arc<Frame<GpuBuffer>>, impl GpuFuture)> {
+    if let Ok(frame) = payload.downcast::<Frame<CpuBuffer>>() {
         let (buf, fut) = to_immutable_buffer(frame, queue);
         Ok((Arc::new(buf), fut.boxed()))
-    } else if let Ok(frame) = payload.downcast::<Frame<Interpretation, GpuBuffer>>() {
+    } else if let Ok(frame) = payload.downcast::<Frame<GpuBuffer>>() {
         Ok((frame, vulkano::sync::now(queue.device().clone()).boxed()))
     } else {
         Err(anyhow!(
-            "wanted a frame with interpretation {}, but the payload was of type {}",
-            std::any::type_name::<Interpretation>(),
+            "wanted a frame with type {}, but the payload was of type {}",
+            std::any::type_name::<Frame<GpuBuffer>>(),
             payload.type_name
         ))
     }

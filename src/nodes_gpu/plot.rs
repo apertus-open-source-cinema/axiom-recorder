@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
-    frame::Raw,
-    gpu_util::ensure_gpu_buffer,
+    frame::Bayer,
+    gpu_util::ensure_gpu_buffer_frame,
     node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
     parametrizable::prelude::*,
     processing_context::ProcessingContext,
@@ -116,7 +116,7 @@ impl Parameterizable for Plot {
             .with("live", Optional(BoolParameter))
             .with("fullscreen", Optional(BoolParameter))
             .with("input", Mandatory(NodeInputParameter))
-            .with("priority", Optional(U8()))
+            .with("priority", WithDefault(U8(), ParameterValue::IntRangeValue(0)))
     }
 
     fn from_parameters(
@@ -125,11 +125,11 @@ impl Parameterizable for Plot {
         _context: &ProcessingContext,
     ) -> Result<Self> {
         Ok(Self {
-            mailbox: parameters.take("mailbox")?,
-            live: parameters.take("live")?,
-            fullscreen: parameters.take("fullscreen")?,
-            input: parameters.take("input")?,
-            priority: parameters.take("priority")?,
+            mailbox: parameters.has("mailbox"),
+            live: parameters.has("live"),
+            fullscreen: parameters.has("fullscreen"),
+            input: parameters.take("input"),
+            priority: parameters.take("priority"),
         })
     }
 }
@@ -295,10 +295,10 @@ impl SinkNode for Plot {
                             }
                             Ok(ref frame) => {
                                 let cpu_frame = context
-                                    .ensure_cpu_buffer::<Raw>(frame)
+                                    .ensure_cpu_buffer_frame::<Bayer>(frame)
                                     .context("Wrong input format for Plot")
                                     .unwrap();
-                                let count = cpu_frame.interp.width as _;
+                                let count = cpu_frame.interpretation.width as _;
 
                                 cpu_frame.storage.as_slice(|frame| {
                                     let frame = bytemuck::cast_slice::<u8, u32>(frame);
@@ -319,10 +319,12 @@ impl SinkNode for Plot {
                                     point_count = end - start;
                                 });
 
-                                let (frame, fut) = ensure_gpu_buffer::<Raw>(frame, queue.clone())
-                                    .context("Wrong input format for Plot")
-                                    .unwrap();
-                                next_frame_time += Duration::from_secs_f64(1.0 / frame.interp.fps);
+                                let (frame, fut) =
+                                    ensure_gpu_buffer_frame::<Bayer>(frame, queue.clone())
+                                        .context("Wrong input format for Plot")
+                                        .unwrap();
+                                next_frame_time +=
+                                    Duration::from_secs_f64(1.0 / frame.interpretation.fps);
 
                                 source_buffer = Some(frame);
                                 source_future = Some(fut);

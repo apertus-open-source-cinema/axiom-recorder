@@ -1,5 +1,5 @@
 use crate::pipeline_processing::{
-    frame::{Frame, FrameInterpretation, FrameInterpretations},
+    frame::{Frame, FrameInterpretation},
     node::{Caps, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     payload::Payload,
@@ -18,7 +18,7 @@ use std::{
 
 pub struct RawBlobReader {
     file: Mutex<File>,
-    interp: FrameInterpretations,
+    interpretation: FrameInterpretation,
     cache_frames: bool,
     cache: Mutex<Vec<Option<Payload>>>,
     frame_count: u64,
@@ -38,20 +38,20 @@ impl Parameterizable for RawBlobReader {
         mut options: Parameters,
         _is_input_to: &[NodeID],
         context: &ProcessingContext,
-    ) -> anyhow::Result<Self>
+    ) -> Result<Self>
     where
         Self: Sized,
     {
         let path: String = options.take("file")?;
         let file = File::open(path)?;
 
-        let interp = options.get_interpretation()?;
-        let frame_count = file.metadata()?.len() / interp.required_bytes() as u64;
+        let interpretation = options.get_interpretation()?;
+        let frame_count = file.metadata()?.len() / interpretation.required_bytes() as u64;
         Ok(Self {
             file: Mutex::new(file),
-            interp,
+            interpretation,
             frame_count,
-            cache_frames: options.take("cache-frames")?,
+            cache_frames: options.has("cache-frames"),
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
             context: context.clone(),
         })
@@ -70,10 +70,10 @@ impl ProcessingNode for RawBlobReader {
         }
 
         let mut file = self.file.lock().unwrap();
-        file.seek(SeekFrom::Start(frame_number * self.interp.required_bytes() as u64))?;
+        file.seek(SeekFrom::Start(frame_number * self.interpretation.required_bytes() as u64))?;
 
         let mut buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+            unsafe { self.context.get_uninit_cpu_buffer(self.interpretation.required_bytes()) };
         buffer
             .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
 
@@ -83,11 +83,8 @@ impl ProcessingNode for RawBlobReader {
             }
         }
 
-        let payload = match self.interp {
-            FrameInterpretations::Raw(interp) => Payload::from(Frame { storage: buffer, interp }),
-            FrameInterpretations::Rgb(interp) => Payload::from(Frame { storage: buffer, interp }),
-            FrameInterpretations::Rgba(interp) => Payload::from(Frame { storage: buffer, interp }),
-        };
+        let payload =
+            Payload::from(Frame { storage: buffer, interpretation: self.interpretation.clone() });
 
         self.cache.lock().unwrap()[frame_number as usize] = Some(payload.clone());
         Ok(payload)
@@ -101,7 +98,7 @@ impl ProcessingNode for RawBlobReader {
 
 pub struct RawDirectoryReader {
     files: Vec<PathBuf>,
-    interp: FrameInterpretations,
+    interpretation: FrameInterpretation,
     cache_frames: bool,
     internal_loop: bool,
     cache: Mutex<Vec<Option<Payload>>>,
@@ -122,7 +119,7 @@ impl Parameterizable for RawDirectoryReader {
         mut options: Parameters,
         _is_input_to: &[NodeID],
         context: &ProcessingContext,
-    ) -> anyhow::Result<Self>
+    ) -> Result<Self>
     where
         Self: Sized,
     {
@@ -134,9 +131,9 @@ impl Parameterizable for RawDirectoryReader {
         }
         Ok(Self {
             files,
-            interp: options.get_interpretation()?,
-            cache_frames: options.take("cache-frames")?,
-            internal_loop: options.take("internal-loop")?,
+            interpretation: options.get_interpretation()?,
+            cache_frames: options.has("cache-frames"),
+            internal_loop: options.has("internal-loop"),
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
             context: context.clone(),
         })
@@ -167,16 +164,12 @@ impl ProcessingNode for RawDirectoryReader {
         let path = &self.files[frame_number as usize];
         let mut file = File::open(path)?;
         let mut buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+            unsafe { self.context.get_uninit_cpu_buffer(self.interpretation.required_bytes()) };
         buffer
             .as_mut_slice(|buffer| file.read_exact(buffer).context("error while reading file"))?;
 
-
-        let payload = match self.interp {
-            FrameInterpretations::Raw(interp) => Payload::from(Frame { storage: buffer, interp }),
-            FrameInterpretations::Rgb(interp) => Payload::from(Frame { storage: buffer, interp }),
-            FrameInterpretations::Rgba(interp) => Payload::from(Frame { storage: buffer, interp }),
-        };
+        let payload =
+            Payload::from(Frame { storage: buffer, interpretation: self.interpretation.clone() });
 
         if self.cache_frames {
             self.cache.lock().unwrap()[frame_number as usize] = Some(payload.clone());

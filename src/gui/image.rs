@@ -1,7 +1,4 @@
-use crate::pipeline_processing::{
-    buffers::GpuBuffer,
-    frame::{Frame, Rgb},
-};
+use crate::pipeline_processing::{buffers::GpuBuffer, frame::Frame};
 use derivative::Derivative;
 use narui::{layout::Maximal, *};
 use std::sync::Arc;
@@ -120,7 +117,7 @@ impl<T> PartialEq for ArcPartialEqHelper<T> {
 }
 
 #[widget]
-pub fn image(image: Arc<Frame<Rgb, GpuBuffer>>, context: &mut WidgetContext) -> FragmentInner {
+pub fn image(image: Arc<Frame<GpuBuffer>>, context: &mut WidgetContext) -> FragmentInner {
     let cloned_image = ArcPartialEqHelper(image.clone());
     let device = context.vulkan_context.device.clone();
 
@@ -159,8 +156,8 @@ pub fn image(image: Arc<Frame<Rgb, GpuBuffer>>, context: &mut WidgetContext) -> 
             origin: origin.into(),
             size: size.into(),
             z_index,
-            width: image.interp.width as u32,
-            height: image.interp.height as u32,
+            width: image.interpretation.width as u32,
+            height: image.interpretation.height as u32,
             _dummy0: Default::default(),
         };
 

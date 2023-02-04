@@ -183,7 +183,7 @@ fn processing_node_from_commandline(
     let node_descriptor: &ParameterizableDescriptor =
         available_nodes.get(name).ok_or_else(|| {
             anyhow!(
-                "cant find node with name {}. avalable nodes are: \n{}",
+                "cant find node with name {}. available nodes are: \n{}",
                 name,
                 nodes_usages_string()
             )
@@ -204,13 +204,16 @@ fn processing_node_from_commandline(
                 Mandatory(NodeInputParameter) | WithDefault(NodeInputParameter, _)
             )
         })
-        .map(|(key, parameter_type)| {
-            Ok((
-                key.to_string(),
-                parameter_type
-                    .parse(results.value_of(key))
-                    .context(format!("parameter is {}", key))?,
-            ))
+        .filter_map(|(key, parameter_type)| {
+            results.value_of(key).map(|v| {
+                Ok((
+                    key.to_string(),
+                    parameter_type
+                        .get_parameter_type()
+                        .parse(v)
+                        .context(format!("parameter is {}", key))?,
+                ))
+            })
         })
         .collect::<Result<_, anyhow::Error>>()?;
 
@@ -228,7 +231,7 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
     let node_descriptor: &ParameterizableDescriptor =
         available_nodes.get(name).ok_or_else(|| {
             anyhow!(
-                "cant find node with name {}. avalable nodes are: {:?}",
+                "cant find node with name {}. available nodes are: {:?}",
                 name,
                 available_nodes.keys()
             )
@@ -252,22 +255,39 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
                 .allow_hyphen_values(true)
                 .validator(move |v| {
                     parameter_type_for_closure
-                        .parse(Some(v))
+                        .get_parameter_type()
+                        .parse(v)
                         .map(|_| ())
                         .map_err(|e| format!("{}", e))
                 })
                 .required(true),
+            WithDefault(BoolParameter, BoolValue(false)) => {
+                Arg::new(key.as_str()).long(key).takes_value(false).required(false)
+            }
             WithDefault(_, default) => Arg::new(key.as_str())
                 .long(key)
                 .takes_value(true)
                 .allow_hyphen_values(true)
                 .validator(move |v| {
                     parameter_type_for_closure
-                        .parse(Some(v))
+                        .get_parameter_type()
+                        .parse(v)
                         .map(|_| ())
                         .map_err(|e| format!("{}", e))
                 })
                 .default_value(Box::leak(Box::new(default.to_string())))
+                .required(false),
+            Optional(_) => Arg::new(key.as_str())
+                .long(key)
+                .takes_value(true)
+                .allow_hyphen_values(true)
+                .validator(move |v| {
+                    parameter_type_for_closure
+                        .get_parameter_type()
+                        .parse(v)
+                        .map(|_| ())
+                        .map_err(|e| format!("{}", e))
+                })
                 .required(false),
         })
     }

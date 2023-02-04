@@ -1,7 +1,7 @@
 use crate::pipeline_processing::{
     buffers::GpuBuffer,
-    frame::{Frame, FrameInterpretation, Raw},
-    gpu_util::ensure_gpu_buffer,
+    frame::Frame,
+    gpu_util::ensure_gpu_buffer_frame,
     node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     payload::Payload,
@@ -115,12 +115,12 @@ impl ProcessingNode for Calibrate {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
 
-        let (frame, fut) = ensure_gpu_buffer::<Raw>(&input, self.queue.clone())
+        let (frame, fut) = ensure_gpu_buffer_frame(&input, self.queue.clone())
             .context("Wrong input format for Calibrate")?;
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
-            frame.interp.required_bytes() as DeviceSize,
+            frame.interpretation.required_bytes() as DeviceSize,
             BufferUsage {
                 storage_buffer: true,
                 storage_texel_buffer: true,
@@ -131,8 +131,8 @@ impl ProcessingNode for Calibrate {
         )?;
 
         let push_constants = compute_shader::ty::PushConstantData {
-            width: frame.interp.width as _,
-            height: frame.interp.height as _,
+            width: frame.interpretation.width as _,
+            height: frame.interpretation.height as _,
         };
 
         let layout = self.pipeline.layout().set_layouts()[0].clone();
@@ -166,8 +166,8 @@ impl ProcessingNode for Calibrate {
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
             .dispatch([
-                (frame.interp.width as u32 + 15) / 16,
-                (frame.interp.height as u32 + 31) / 32,
+                (frame.interpretation.width as u32 + 15) / 16,
+                (frame.interpretation.height as u32 + 31) / 32,
                 1,
             ])?;
         let command_buffer = builder.build()?;
@@ -176,7 +176,10 @@ impl ProcessingNode for Calibrate {
             fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        Ok(Payload::from(Frame { interp: frame.interp, storage: GpuBuffer::from(sink_buffer) }))
+        Ok(Payload::from(Frame {
+            interpretation: frame.interpretation.clone(),
+            storage: GpuBuffer::from(sink_buffer),
+        }))
     }
 
     fn get_caps(&self) -> Caps { self.input.get_caps() }

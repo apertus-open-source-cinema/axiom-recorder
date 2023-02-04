@@ -1,7 +1,7 @@
 use crate::pipeline_processing::{
     buffers::GpuBuffer,
-    frame::{Frame, FrameInterpretation, Raw},
-    gpu_util::ensure_gpu_buffer,
+    frame::{Frame, FrameInterpretation, SampleInterpretation},
+    gpu_util::ensure_gpu_buffer_frame,
     node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     payload::Payload,
@@ -70,26 +70,30 @@ impl ProcessingNode for GpuBitDepthConverter {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
 
-        let (frame, fut) = ensure_gpu_buffer::<Raw>(&input, self.queue.clone())
+        let (frame, fut) = ensure_gpu_buffer_frame(&input, self.queue.clone())
             .context("Wrong input format for GpuBitDepthConvert")?;
 
-        if frame.interp.bit_depth != 12 {
+
+        if !matches!(frame.interpretation.sample_interpretation, SampleInterpretation::UInt(12)) {
             return Err(anyhow!(
                 "A frame with bit_depth=12 is required. Convert the bit depth of the frame!"
             ));
         }
 
-        let interp = Raw { bit_depth: 8, ..frame.interp };
+        let interpretation = FrameInterpretation {
+            sample_interpretation: SampleInterpretation::UInt(8),
+            ..frame.interpretation.clone()
+        };
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
-            interp.required_bytes() as DeviceSize,
+            interpretation.required_bytes() as DeviceSize,
             BufferUsage { storage_buffer: true, transfer_src: true, ..BufferUsage::none() },
             std::iter::once(self.queue.family()),
         )?;
 
         let push_constants = compute_shader::ty::PushConstantData {
-            width: interp.width as u32,
-            height: interp.height as u32,
+            width: interpretation.width as u32,
+            height: interpretation.height as u32,
         };
 
         let layout = self.pipeline.layout().set_layouts()[0].clone();
@@ -117,14 +121,18 @@ impl ProcessingNode for GpuBitDepthConverter {
             )
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
-            .dispatch([(interp.width as u32 + 31) / 16 / 2, (interp.height as u32 + 31) / 32, 1])?;
+            .dispatch([
+                (interpretation.width as u32 + 31) / 16 / 2,
+                (interpretation.height as u32 + 31) / 32,
+                1,
+            ])?;
         let command_buffer = builder.build()?;
 
         let future =
             fut.then_execute(self.queue.clone(), command_buffer)?.then_signal_fence_and_flush()?;
 
         future.wait(None).unwrap();
-        Ok(Payload::from(Frame { interp, storage: GpuBuffer::from(sink_buffer) }))
+        Ok(Payload::from(Frame { interpretation, storage: GpuBuffer::from(sink_buffer) }))
     }
 
     fn get_caps(&self) -> Caps { self.input.get_caps() }

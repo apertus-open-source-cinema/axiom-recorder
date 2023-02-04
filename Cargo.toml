@@ -16,7 +16,7 @@ track-drop = ["backtrace"]
 clap = { version = "3.1.18", features = ["default", "derive"] }
 indicatif = "0.17.0"
 glob = "0.3.0"
-anyhow = "1.0.57"
+anyhow = { version = "1.0.57", features = ["backtrace"] }
 itertools = "0.10.3"
 bytemuck = "1.9.1"
 vulkano = "0.30.0"
