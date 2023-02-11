@@ -1,13 +1,15 @@
-use crate::pipeline_processing::{
-    frame::{
-        CfaDescriptor,
-        ColorInterpretation,
-        Compression,
-        FrameInterpretation,
-        SampleInterpretation,
+use crate::{
+    pipeline_processing::{
+        frame::{
+            CfaDescriptor,
+            ColorInterpretation,
+            Compression,
+            FrameInterpretation,
+            SampleInterpretation,
+        },
+        node::{InputProcessingNode, Node, NodeID},
+        processing_context::ProcessingContext,
     },
-    node::{InputProcessingNode, Node, NodeID},
-    processing_context::ProcessingContext,
 };
 use anyhow::{anyhow, bail, Context, Error, Result};
 use prelude::*;
@@ -430,6 +432,20 @@ pub trait Parameterizable {
             description: Self::DESCRIPTION.map(|s| s.to_string()),
             parameters_descriptor: Self::describe_parameters(),
         }
+    }
+}
+
+impl<T: Default> Parameterizable for T {
+    fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::default() }
+    fn from_parameters(
+        _parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Self::default())
     }
 }
 

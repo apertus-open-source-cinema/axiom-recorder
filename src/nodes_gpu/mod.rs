@@ -1,4 +1,3 @@
-pub mod bitdepth_convert;
 pub mod calibrate;
 pub mod color_voodoo;
 pub mod debayer;
@@ -9,6 +8,8 @@ pub mod lut_3d;
 #[cfg(target_os = "linux")]
 pub mod display;
 
+pub mod base_gpu_node;
 pub mod histogram;
 #[cfg(target_os = "linux")]
 pub mod plot;
+mod shader_util;
