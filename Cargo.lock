@@ -1325,6 +1325,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fe2b9d82064e8a0226fddb3547f37f28eaa46d0fc210e275d835f08cf3b76a7"
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2393,6 +2399,7 @@ dependencies = [
  "handlebars",
  "hyper",
  "indicatif",
+ "indoc",
  "itertools",
  "narui",
  "num_cpus",
@@ -2402,6 +2409,7 @@ dependencies = [
  "portpicker",
  "serde",
  "serde_yaml",
+ "shaderc",
  "shlex 1.1.0",
  "sz3",
  "thiserror",
@@ -2565,9 +2573,9 @@ dependencies = [
 
 [[package]]
 name = "shaderc"
-version = "0.8.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80e6fe602a861622769530a23bc40bfba31adbf186d0c8412e83f5519c5d6bee"
+checksum = "31cef52787a0db5108788ea20bed13d6bf4b96287c5c5201e55725f7070f3443"
 dependencies = [
  "libc",
  "shaderc-sys",
@@ -2575,9 +2583,9 @@ dependencies = [
 
 [[package]]
 name = "shaderc-sys"
-version = "0.8.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3794498651f8173d0afbc0bb8aca45ced111098227e755dde4c0ef2888c8d0bf"
+checksum = "1e8f8439fffcffd6efcd74197204addf935dbab5752696bd990a6cd36d54cf64"
 dependencies = [
  "cmake",
  "libc",

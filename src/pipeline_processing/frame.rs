@@ -12,7 +12,7 @@ pub struct Frame<Storage> {
     pub storage: Storage,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FrameInterpretation {
     pub width: u64,
     pub height: u64,
@@ -38,7 +38,7 @@ impl FrameInterpretation {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ColorInterpretation {
     Bayer(CfaDescriptor),
     Rgb,
@@ -54,7 +54,7 @@ impl ColorInterpretation {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct CfaDescriptor {
     pub red_in_first_col: bool,
     pub red_in_first_row: bool,
@@ -65,7 +65,7 @@ impl CfaDescriptor {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum SampleInterpretation {
     UInt(u8),
     FP16,
@@ -81,7 +81,7 @@ impl SampleInterpretation {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Compression {
     Uncompressed,
     SZ3Compressed { size: usize },
