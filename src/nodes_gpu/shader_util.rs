@@ -5,10 +5,11 @@ use crate::pipeline_processing::frame::{
 };
 use anyhow::{bail, Result};
 use indoc::{formatdoc, indoc};
-use std::sync::Arc;
-use vulkano::{device::Device, shader::ShaderModule};
+use shaderc::CompilationArtifact;
 
-pub fn compile_shader(shader_code: &str, device: Arc<Device>) -> Result<Arc<ShaderModule>> {
+
+
+pub fn compile_shader(shader_code: &str) -> Result<CompilationArtifact> {
     let compiler = shaderc::Compiler::new().unwrap();
     let mut options = shaderc::CompileOptions::new().unwrap();
     options.add_macro_definition("dtype", Some("float"));
@@ -22,7 +23,7 @@ pub fn compile_shader(shader_code: &str, device: Arc<Device>) -> Result<Arc<Shad
         "main",
         Some(&options),
     )?;
-    Ok(unsafe { ShaderModule::from_words(device, &spirv.as_binary()) }?)
+    Ok(spirv)
 }
 
 pub fn generate_single_node_shader(
@@ -38,7 +39,7 @@ pub fn generate_single_node_shader(
         #extension GL_EXT_shader_explicit_arithmetic_types_int8: require
         #extension GL_EXT_shader_explicit_arithmetic_types_float16: require
 
-        layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+        layout(local_size_x = 256, local_size_y = 4, local_size_z = 1) in;
     "
     ));
     shader_code.push_str(read_sample_function(input_interpretation.sample_interpretation)?);
@@ -79,7 +80,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
                 layout(set = 0, binding = 0) buffer readonly Source { uint8_t data[]; } source;
 
                 dtype read_sample(uint i) {
-                    return dtype(source.data[i]);
+                    return dtype(source.data[i]) / 255.0;
                 }
                 "
             )),
@@ -87,20 +88,31 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
                 "
                 layout(set = 0, binding = 0) buffer readonly Source { uint8_t data[]; } source;
 
+
                 dtype read_sample(uint i) {
                     uint source_idx = i / 2 * 3;
-                    uint a = source.data[source_idx + 0];
-                    uint b = source.data[source_idx + 1];
-                    uint c = source.data[source_idx + 2];
 
                     uint v;
                     if (i % 2 == 0) {
+                        uint8_t a = source.data[source_idx + 0];
+                        uint8_t b = source.data[source_idx + 1];
                         v = (a << 4) | (b & 0xf0);
                     } else {
+                        uint8_t b = source.data[source_idx + 1];
+                        uint8_t c = source.data[source_idx + 2];
                         v = ((b & 0x0f) << 8) | c;
                     }
 
-                    return dtype(v) / dtype(1 << 12);
+                    return dtype(v) / 4095.0;
+                }
+                "
+            )),
+            16 => Ok(indoc!(
+                "
+                layout(set = 0, binding = 0) buffer readonly Source { uint16_t data[]; } source;
+
+                dtype read_sample(uint i) {
+                    return dtype(source.data[i]) / 65535.0;
                 }
                 "
             )),
@@ -135,6 +147,15 @@ fn write_sample_function(si: SampleInterpretation) -> Result<&'static str> {
 
                 void write_sample(uint i, dtype v) {
                     sink.data[i] = uint8_t(v * 255.0);
+                }
+                "
+            )),
+            16 => Ok(indoc!(
+                "
+                layout(set = 0, binding = 1) buffer writeonly Sink { uint16_t data[]; } sink;
+
+                void write_sample(uint i, dtype v) {
+                    sink.data[i] = uint16_t(v * 65535.0);
                 }
                 "
             )),

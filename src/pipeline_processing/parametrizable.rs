@@ -1,15 +1,13 @@
-use crate::{
-    pipeline_processing::{
-        frame::{
-            CfaDescriptor,
-            ColorInterpretation,
-            Compression,
-            FrameInterpretation,
-            SampleInterpretation,
-        },
-        node::{InputProcessingNode, Node, NodeID},
-        processing_context::ProcessingContext,
+use crate::pipeline_processing::{
+    frame::{
+        CfaDescriptor,
+        ColorInterpretation,
+        Compression,
+        FrameInterpretation,
+        SampleInterpretation,
     },
+    node::{InputProcessingNode, Node, NodeID},
+    processing_context::ProcessingContext,
 };
 use anyhow::{anyhow, bail, Context, Error, Result};
 use prelude::*;
@@ -69,6 +67,18 @@ impl TryInto<f64> for ParameterValue {
         match self {
             FloatRangeValue(v) => Ok(v),
             _ => Err(anyhow!("cant convert a non FloatRange ParameterValue ({self:?}) to f64")),
+        }
+    }
+}
+
+
+impl TryInto<f32> for ParameterValue {
+    type Error = Error;
+
+    fn try_into(self) -> Result<f32, Self::Error> {
+        match self {
+            FloatRangeValue(v) => Ok(v as f32),
+            _ => Err(anyhow!("cant convert a non FloatRange ParameterValue ({self:?}) to f32")),
         }
     }
 }
@@ -240,9 +250,9 @@ impl Parameters {
         let sample_interpretation = {
             if let Some(bits) = self.take_option::<u8>("uint-bits")? {
                 SampleInterpretation::UInt(bits)
-            } else if self.take("fp16")? {
+            } else if self.has("fp16") {
                 SampleInterpretation::FP16
-            } else if self.take("fp32")? {
+            } else if self.has("fp32") {
                 SampleInterpretation::FP32
             } else {
                 bail!("no sample interpretation was specified")
