@@ -16,43 +16,54 @@ use crate::{
         processing_context::ProcessingContext,
     },
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 
-use parking_lot::{RwLock};
+use parking_lot::RwLock;
 use std::{collections::HashMap, sync::Arc};
 use vulkano::{
-    buffer::{BufferUsage, DeviceLocalBuffer},
+    buffer::{BufferAccess, BufferUsage, DeviceLocalBuffer},
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit},
     descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet},
     device::{Device, Queue},
     pipeline::{ComputePipeline, Pipeline, PipelineBindPoint},
+    sampler::Sampler,
     sync::GpuFuture,
     DeviceSize,
 };
 
-pub enum PushConstantValue {
+#[derive(Clone)]
+pub enum BindingValue {
     U32(u32),
+    F32(f32),
+    Sampler(Arc<Sampler>),
+    Buffer(Arc<dyn BufferAccess>),
 }
 
-type PushConstants = HashMap<String, PushConstantValue>;
+type BindingsMapping = HashMap<String, BindingValue>;
 
 pub trait GpuNode: Parameterizable {
     fn get_glsl(&self) -> String;
     fn get_binding(
         &self,
         frame_interpretation: &FrameInterpretation,
-    ) -> Result<HashMap<String, PushConstantValue>>;
+    ) -> Result<HashMap<String, BindingValue>>;
     fn get_interpretation(&self, frame_interpretation: FrameInterpretation) -> FrameInterpretation {
         frame_interpretation
     }
 }
 
+#[derive(Clone)]
+struct PipelineCacheItem {
+    tag: FrameInterpretation,
+    pipeline: Arc<ComputePipeline>,
+    push_constant_names: Vec<(String, u32)>,
+}
 
 pub struct GpuNodeImpl<T: GpuNode> {
     gpu_node: T,
     device: Arc<Device>,
-    pipeline: Arc<RwLock<Option<(FrameInterpretation, Arc<ComputePipeline>)>>>,
+    pipeline: Arc<RwLock<Option<PipelineCacheItem>>>,
     queue: Arc<Queue>,
     input: InputProcessingNode,
 }
@@ -91,18 +102,25 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
         let (frame, fut) = ensure_gpu_buffer_frame(&input, self.queue.clone())
             .context(format!("Wrong input format for node {}", Self::get_name()))?;
 
-        let _binding = self.gpu_node.get_binding(&frame.interpretation)?;
+        let binding = self.gpu_node.get_binding(&frame.interpretation)?;
         let output_interpretation = self.gpu_node.get_interpretation(frame.interpretation);
 
+
+        // TODO: this is racy
         if self.pipeline.read().is_none()
-            || self.pipeline.read().as_ref().unwrap().0 != frame.interpretation
+            || self.pipeline.read().as_ref().unwrap().tag != frame.interpretation
         {
             let shader_code = generate_single_node_shader(
                 self.gpu_node.get_glsl(),
                 frame.interpretation,
                 output_interpretation,
             )?;
-            let shader = compile_shader(&shader_code, self.device.clone())?;
+            let spirv = compile_shader(&shader_code)
+                .context(format!("compilation error. shader code is:\n{shader_code}"))?;
+
+            let shader = unsafe {
+                vulkano::shader::ShaderModule::from_words(self.device.clone(), &spirv.as_binary())
+            }?;
             let pipeline = ComputePipeline::new(
                 self.device.clone(),
                 shader.entry_point("main").unwrap(),
@@ -111,10 +129,27 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
                 |_| {},
             )?;
 
-            self.pipeline.write().replace((frame.interpretation.clone(), pipeline));
+            let reflection = spirv_reflect::ShaderModule::load_u32_data(spirv.as_binary())
+                .map_err(|e| anyhow!(e))?;
+
+            let mut push_constant_names = Vec::new();
+            for block in
+                reflection.enumerate_push_constant_blocks(Some("main")).map_err(|e| anyhow!(e))?
+            {
+                for member in block.members {
+                    push_constant_names.push((member.name.clone(), member.absolute_offset))
+                }
+            }
+
+            self.pipeline.write().replace(PipelineCacheItem {
+                tag: frame.interpretation.clone(),
+                pipeline,
+                push_constant_names,
+            });
         }
 
-        let (_, pipeline) = self.pipeline.read().clone().unwrap();
+        let PipelineCacheItem { pipeline, push_constant_names, .. } =
+            self.pipeline.read().clone().unwrap();
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
@@ -123,7 +158,6 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
             std::iter::once(self.queue.family()),
         )?;
 
-        // TOOD: generate push constants
         let layout = pipeline.layout().set_layouts()[0].clone();
         let set = PersistentDescriptorSet::new(
             layout,
@@ -141,20 +175,29 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
             OneTimeSubmit,
         )
         .unwrap();
-        builder
-            .bind_descriptor_sets(
-                PipelineBindPoint::Compute,
-                pipeline.layout().clone(),
-                0,
-                set,
-            )
-            //.push_constants(self.pipeline.layout().clone(), 0, push_constants)
-            .bind_pipeline_compute(pipeline.clone())
-            .dispatch([
-                (output_interpretation.width as u32 + 31) / 16,
-                (output_interpretation.height as u32 + 31) / 16,
-                1,
-            ])?;
+        builder.bind_descriptor_sets(PipelineBindPoint::Compute, pipeline.layout().clone(), 0, set);
+
+        for (name, absolute_offset) in push_constant_names {
+            let value = binding
+                .get(&name)
+                .ok_or_else(|| anyhow!("couldn't find binding value for push constant '{name}'"))?;
+            match value.clone() {
+                BindingValue::U32(v) => {
+                    builder.push_constants(pipeline.layout().clone(), absolute_offset, v);
+                }
+                BindingValue::F32(v) => {
+                    builder.push_constants(pipeline.layout().clone(), absolute_offset, v);
+                }
+                BindingValue::Sampler(_) => bail!("Samplers are not Push Constants"),
+                BindingValue::Buffer(_) => bail!("Buffers are not Push Constants"),
+            }
+        }
+
+        builder.bind_pipeline_compute(pipeline.clone()).dispatch([
+            (output_interpretation.width as u32 + 255) / 256,
+            (output_interpretation.height as u32 + 3) / 4,
+            1,
+        ])?;
         let command_buffer = builder.build()?;
 
         let future =

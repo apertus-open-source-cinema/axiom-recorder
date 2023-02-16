@@ -52,6 +52,7 @@ futures-util = "0.3.25"
 portpicker = "0.1.1"
 shaderc = "0.8.2"
 indoc = "2.0.0"
+spirv-reflect = "0.2.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.13.0"

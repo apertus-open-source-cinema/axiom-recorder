@@ -1,12 +1,10 @@
 use crate::{
-    nodes_gpu::base_gpu_node::{GpuNode, PushConstantValue},
-    pipeline_processing::{
-        frame::{ColorInterpretation, FrameInterpretation, SampleInterpretation},
-    },
+    nodes_gpu::base_gpu_node::{BindingValue, GpuNode},
+    pipeline_processing::frame::{ColorInterpretation, FrameInterpretation, SampleInterpretation},
 };
 use anyhow::{bail, Result};
 
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 
 #[derive(Default)]
@@ -17,17 +15,11 @@ impl GpuNode for Debayer {
     fn get_binding(
         &self,
         frame_interpretation: &FrameInterpretation,
-    ) -> Result<HashMap<String, PushConstantValue>> {
+    ) -> Result<HashMap<String, BindingValue>> {
         match frame_interpretation.color_interpretation {
             ColorInterpretation::Bayer(cfa) => Ok(HashMap::from([
-                (
-                    "cfa.red_in_first_col".to_string(),
-                    PushConstantValue::U32(cfa.red_in_first_col as _),
-                ),
-                (
-                    "cfa.red_in_first_row".to_string(),
-                    PushConstantValue::U32(cfa.red_in_first_row as _),
-                ),
+                ("cfa.red_in_first_col".to_string(), BindingValue::U32(cfa.red_in_first_col as _)),
+                ("cfa.red_in_first_row".to_string(), BindingValue::U32(cfa.red_in_first_row as _)),
             ])),
             unsupported => bail!("expected bayer input found {unsupported:?}"),
         }

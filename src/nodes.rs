@@ -36,6 +36,7 @@ use crate::{
 use crate::{
     nodes_gpu::base_gpu_node::GpuNodeImpl,
     nodes_io::{frameserver_cinema_dng::CinemaDngFrameserver, writer_ffmpeg::FfmpegWriter},
+    nodes_util::null_source::NullFrameSource,
 };
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -96,4 +97,5 @@ generate_dynamic_node_creation_functions![
     WebcamInput,
     FfmpegWriter,
     CinemaDngFrameserver,
+    NullFrameSource,
 ];

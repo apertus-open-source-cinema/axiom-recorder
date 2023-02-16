@@ -1,3 +1,10 @@
+layout(push_constant) uniform PushConstantData {
+    float pedestal;
+    float s_gamma;
+    float v_gamma;
+} params;
+
+
 // stolen from: https://stackoverflow.com/questions/15095909/from-rgb-to-hsv-in-opengl-glsl
 vec3 rgb2hsv(vec3 c) {
     vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
@@ -14,7 +21,7 @@ vec3 hsv2rgb(vec3 c) {
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
-void produce_pixel(uvec2 pos) {
+vec3 produce_pixel(uvec2 pos) {
     vec3 rgb = read_pixel(pos);
     rgb = (rgb - params.pedestal) / (1 - params.pedestal);
     vec3 hsv = rgb2hsv(rgb);

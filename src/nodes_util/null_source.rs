@@ -35,13 +35,15 @@ impl Parameterizable for NullFrameSource {
 #[async_trait]
 impl ProcessingNode for NullFrameSource {
     async fn pull(&self, _request: Request) -> anyhow::Result<Payload> {
-        let mut buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(self.interpretation.required_bytes()) };
-        buffer.as_mut_slice(|buffer| {
-            for i in buffer {
-                *i = 0;
-            }
-        });
+        let buffer = unsafe {
+            let mut buffer =
+                self.context.get_uninit_cpu_buffer(self.interpretation.required_bytes());
+            buffer.as_mut_slice(|buffer| {
+                buffer.as_mut_ptr().write_bytes(0, buffer.len());
+            });
+            buffer
+        };
+
         let payload =
             Payload::from(Frame { storage: buffer, interpretation: self.interpretation.clone() });
         Ok(payload)
