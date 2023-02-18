@@ -75,6 +75,7 @@ generate_dynamic_node_creation_functions![
     CinemaDngReader,
     GpuNodeImpl<Debayer>,
     GpuNodeImpl<ColorVoodoo>,
+    GpuNodeImpl<Lut3d>,
     #[cfg(target_os = "linux")]
     Display,
     DualFrameRawDecoder,
@@ -82,7 +83,6 @@ generate_dynamic_node_creation_functions![
     BenchmarkSink,
     RawDirectoryWriter,
     RawBlobWriter,
-    Lut3d,
     //Average,
     TcpReader,
     Cache,

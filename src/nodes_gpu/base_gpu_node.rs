@@ -18,7 +18,6 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
-
 use parking_lot::RwLock;
 use std::{collections::HashMap, sync::Arc};
 use vulkano::{
@@ -26,6 +25,7 @@ use vulkano::{
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage::OneTimeSubmit},
     descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet},
     device::{Device, Queue},
+    image::ImageViewAbstract,
     pipeline::{ComputePipeline, Pipeline, PipelineBindPoint},
     sampler::Sampler,
     sync::GpuFuture,
@@ -36,11 +36,9 @@ use vulkano::{
 pub enum BindingValue {
     U32(u32),
     F32(f32),
-    Sampler(Arc<Sampler>),
+    Sampler((Arc<dyn ImageViewAbstract>, Arc<Sampler>)),
     Buffer(Arc<dyn BufferAccess>),
 }
-
-type BindingsMapping = HashMap<String, BindingValue>;
 
 pub trait GpuNode: Parameterizable {
     fn get_glsl(&self) -> String;
@@ -58,6 +56,7 @@ struct PipelineCacheItem {
     tag: FrameInterpretation,
     pipeline: Arc<ComputePipeline>,
     push_constant_names: Vec<(String, u32)>,
+    binding_names: Vec<(String, u32)>,
 }
 
 pub struct GpuNodeImpl<T: GpuNode> {
@@ -102,7 +101,8 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
         let (frame, fut) = ensure_gpu_buffer_frame(&input, self.queue.clone())
             .context(format!("Wrong input format for node {}", Self::get_name()))?;
 
-        let binding = self.gpu_node.get_binding(&frame.interpretation)?;
+        let mut binding = self.gpu_node.get_binding(&frame.interpretation)?;
+
         let output_interpretation = self.gpu_node.get_interpretation(frame.interpretation);
 
 
@@ -141,14 +141,22 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
                 }
             }
 
+            let mut binding_names = Vec::new();
+            for binding in
+                reflection.enumerate_descriptor_bindings(Some("main")).map_err(|e| anyhow!(e))?
+            {
+                binding_names.push((binding.name, binding.binding));
+            }
+
             self.pipeline.write().replace(PipelineCacheItem {
                 tag: frame.interpretation.clone(),
                 pipeline,
                 push_constant_names,
+                binding_names,
             });
         }
 
-        let PipelineCacheItem { pipeline, push_constant_names, .. } =
+        let PipelineCacheItem { pipeline, push_constant_names, binding_names, .. } =
             self.pipeline.read().clone().unwrap();
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
@@ -157,15 +165,22 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
             BufferUsage { storage_buffer: true, transfer_src: true, ..BufferUsage::none() },
             std::iter::once(self.queue.family()),
         )?;
+        binding.insert("source".to_string(), BindingValue::Buffer(frame.storage.untyped()));
+        binding.insert("sink".to_string(), BindingValue::Buffer(sink_buffer.clone()));
 
         let layout = pipeline.layout().set_layouts()[0].clone();
         let set = PersistentDescriptorSet::new(
             layout,
-            [
-                WriteDescriptorSet::buffer(0, frame.storage.untyped()),
-                WriteDescriptorSet::buffer(1, sink_buffer.clone()),
-                // TODO: generate other buffer bindings
-            ],
+            binding_names.iter().map(|(name, n)| match binding.get(name) {
+                Some(BindingValue::Buffer(buffer)) => {
+                    WriteDescriptorSet::buffer(*n, buffer.clone())
+                }
+                Some(BindingValue::Sampler((image_view, sampler))) => {
+                    WriteDescriptorSet::image_view_sampler(*n, image_view.clone(), sampler.clone())
+                }
+                Some(_) => panic!("invalid type for binding"),
+                None => panic!("not all binding values were supplied"),
+            }),
         )
         .unwrap();
 

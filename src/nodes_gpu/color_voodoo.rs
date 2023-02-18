@@ -1,15 +1,13 @@
 use crate::{
     nodes_gpu::base_gpu_node::{BindingValue, GpuNode},
     pipeline_processing::{
-        frame::FrameInterpretation,
+        frame::{ColorInterpretation, FrameInterpretation},
         node::NodeID,
         parametrizable::prelude::*,
         processing_context::ProcessingContext,
     },
 };
 use anyhow::{bail, Result};
-
-use crate::pipeline_processing::frame::ColorInterpretation;
 use std::collections::HashMap;
 
 
@@ -69,18 +67,9 @@ mod tests {
         nodes_gpu::base_gpu_node::GpuNodeImpl,
         nodes_util::null_source::NullFrameSource,
         pipeline_processing::{
-            frame::{
-                ColorInterpretation,
-                Compression,
-                FrameInterpretation,
-                SampleInterpretation,
-            },
+            frame::{ColorInterpretation, Compression, FrameInterpretation, SampleInterpretation},
             node::{InputProcessingNode, NodeID, ProcessingNode, Request},
-            parametrizable::{
-                prelude::{NodeInputValue},
-                Parameterizable,
-                Parameters,
-            },
+            parametrizable::{prelude::NodeInputValue, Parameterizable, Parameters},
             processing_context::ProcessingContext,
         },
     };

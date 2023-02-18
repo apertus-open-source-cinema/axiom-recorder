@@ -5,8 +5,8 @@ use crate::pipeline_processing::frame::{
 };
 use anyhow::{bail, Result};
 use indoc::{formatdoc, indoc};
+use regex::Regex;
 use shaderc::CompilationArtifact;
-
 
 
 pub fn compile_shader(shader_code: &str) -> Result<CompilationArtifact> {
@@ -69,7 +69,22 @@ pub fn generate_single_node_shader(
         "
     ));
 
+    let shader_code = assign_set_and_binding(&shader_code);
+
     Ok(shader_code)
+}
+
+/// replaces the layout(...) placeholder with consecutive layout(set = 0,
+/// binding = n) strings
+fn assign_set_and_binding(input: &str) -> String {
+    let re = Regex::new(r"layout\(\.\.\.\)").unwrap();
+    let mut str = String::new();
+    let mut non_matches = re.split(input);
+    str += non_matches.next().unwrap();
+    for (n, part) in non_matches.enumerate() {
+        str += &format!("layout(set = 0, binding = {n}){part}");
+    }
+    return str;
 }
 
 fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
@@ -77,7 +92,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
         SampleInterpretation::UInt(bits) => match bits {
             8 => Ok(indoc!(
                 "
-                layout(set = 0, binding = 0) buffer readonly Source { uint8_t data[]; } source;
+                layout(...) buffer readonly Source { uint8_t data[]; } source;
 
                 dtype read_sample(uint i) {
                     return dtype(source.data[i]) / 255.0;
@@ -86,7 +101,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
             )),
             12 => Ok(indoc!(
                 "
-                layout(set = 0, binding = 0) buffer readonly Source { uint8_t data[]; } source;
+                layout(...) buffer readonly Source { uint8_t data[]; } source;
 
 
                 dtype read_sample(uint i) {
@@ -109,7 +124,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
             )),
             16 => Ok(indoc!(
                 "
-                layout(set = 0, binding = 0) buffer readonly Source { uint16_t data[]; } source;
+                layout(...) buffer readonly Source { uint16_t data[]; } source;
 
                 dtype read_sample(uint i) {
                     return dtype(source.data[i]) / 65535.0;
@@ -120,7 +135,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
         },
         SampleInterpretation::FP16 => Ok(indoc!(
             "
-            layout(set = 0, binding = 0) buffer readonly Source { float16_t data[]; } source;
+            layout(...) buffer readonly Source { float16_t data[]; } source;
 
             dtype read_sample(uint i) {
                 return dtype(source.data[i]);
@@ -129,7 +144,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
         )),
         SampleInterpretation::FP32 => Ok(indoc!(
             "
-            layout(set = 0, binding = 0) buffer readonly Source { float data[]; } source;
+            layout(...) buffer readonly Source { float data[]; } source;
 
             dtype read_sample(uint i) {
                 return dtype(source.data[i]);
@@ -143,7 +158,7 @@ fn write_sample_function(si: SampleInterpretation) -> Result<&'static str> {
         SampleInterpretation::UInt(bits) => match bits {
             8 => Ok(indoc!(
                 "
-                layout(set = 0, binding = 1) buffer writeonly Sink { uint8_t data[]; } sink;
+                layout(...) buffer writeonly Sink { uint8_t data[]; } sink;
 
                 void write_sample(uint i, dtype v) {
                     sink.data[i] = uint8_t(v * 255.0);
@@ -152,7 +167,7 @@ fn write_sample_function(si: SampleInterpretation) -> Result<&'static str> {
             )),
             16 => Ok(indoc!(
                 "
-                layout(set = 0, binding = 1) buffer writeonly Sink { uint16_t data[]; } sink;
+                layout(...) buffer writeonly Sink { uint16_t data[]; } sink;
 
                 void write_sample(uint i, dtype v) {
                     sink.data[i] = uint16_t(v * 65535.0);
@@ -163,7 +178,7 @@ fn write_sample_function(si: SampleInterpretation) -> Result<&'static str> {
         },
         SampleInterpretation::FP16 => Ok(indoc!(
             "
-            layout(set = 0, binding = 1) buffer writeonly Sink { float16_t data[]; } sink;
+            layout(...) buffer writeonly Sink { float16_t data[]; } sink;
 
             void write_sample(uint i, dtype v) {
                 sink.data[i] = float16_t(v);
@@ -172,7 +187,7 @@ fn write_sample_function(si: SampleInterpretation) -> Result<&'static str> {
         )),
         SampleInterpretation::FP32 => Ok(indoc!(
             "
-            layout(set = 0, binding = 1) buffer writeonly Sink { float data[]; } sink;
+            layout(...) buffer writeonly Sink { float data[]; } sink;
 
             void write_sample(uint i, dtype v) {
                 sink.data[i] = float(v);
