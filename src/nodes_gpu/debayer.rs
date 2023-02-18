@@ -3,7 +3,6 @@ use crate::{
     pipeline_processing::frame::{ColorInterpretation, FrameInterpretation, SampleInterpretation},
 };
 use anyhow::{bail, Result};
-
 use std::collections::HashMap;
 
 
