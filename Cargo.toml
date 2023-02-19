@@ -55,6 +55,9 @@ indoc = "2.0.0"
 spirv-reflect = "0.2.3"
 regex = "1.7.1"
 
+[dev-dependencies]
+once_cell = "1.17.1"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = "0.13.0"
 v4l2-sys-mit = "0.2.0"

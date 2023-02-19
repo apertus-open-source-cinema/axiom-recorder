@@ -70,19 +70,17 @@ mod tests {
             frame::{ColorInterpretation, Compression, FrameInterpretation, SampleInterpretation},
             node::{InputProcessingNode, NodeID, ProcessingNode, Request},
             parametrizable::{prelude::NodeInputValue, Parameterizable, Parameters},
-            processing_context::ProcessingContext,
+            processing_context::TEST_CONTEXT,
         },
     };
     use std::{collections::HashMap, sync::Arc};
 
     #[test]
-    fn test_basic_functionality_color_voodo() {
-        let context = ProcessingContext::default();
-
+    fn test_basic() {
         let source = NodeInputValue(InputProcessingNode::new(
             NodeID::default(),
             Arc::new(NullFrameSource {
-                context: context.clone(),
+                context: TEST_CONTEXT.clone(),
                 interpretation: FrameInterpretation {
                     width: 1920,
                     height: 1080,
@@ -95,7 +93,8 @@ mod tests {
         ));
         let parameters = Parameters::new(HashMap::from([("input".to_string(), source)]))
             .add_defaults(GpuNodeImpl::<ColorVoodoo>::describe_parameters());
-        let dut = GpuNodeImpl::<ColorVoodoo>::from_parameters(parameters, &[], &context).unwrap();
+        let dut =
+            GpuNodeImpl::<ColorVoodoo>::from_parameters(parameters, &[], &TEST_CONTEXT).unwrap();
 
         for _ in 0..10 {
             let _payload = pollster::block_on(dut.pull(Request::new(0, 0))).unwrap();

@@ -12,10 +12,10 @@ use shaderc::CompilationArtifact;
 pub fn compile_shader(shader_code: &str) -> Result<CompilationArtifact> {
     let compiler = shaderc::Compiler::new().unwrap();
     let mut options = shaderc::CompileOptions::new().unwrap();
-    options.add_macro_definition("dtype", Some("float"));
-    options.add_macro_definition("dtype2", Some("vec2"));
-    options.add_macro_definition("dtype3", Some("vec3"));
-    options.add_macro_definition("dtype4", Some("vec4"));
+    options.add_macro_definition("dtype", Some("float16_t"));
+    options.add_macro_definition("dtype2", Some("f16vec2"));
+    options.add_macro_definition("dtype3", Some("f16vec3"));
+    options.add_macro_definition("dtype4", Some("f16vec4"));
     let spirv = compiler.compile_into_spirv(
         &shader_code,
         shaderc::ShaderKind::Compute,
@@ -95,7 +95,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
                 layout(...) buffer readonly Source { uint8_t data[]; } source;
 
                 dtype read_sample(uint i) {
-                    return dtype(source.data[i]) / 255.0;
+                    return dtype(dtype(source.data[i]) / 255.0);
                 }
                 "
             )),
@@ -118,7 +118,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
                         v = ((b & 0x0f) << 8) | c;
                     }
 
-                    return dtype(v) / 4095.0;
+                    return dtype(dtype(v) / 4095.0);
                 }
                 "
             )),
@@ -127,7 +127,7 @@ fn read_sample_function(si: SampleInterpretation) -> Result<&'static str> {
                 layout(...) buffer readonly Source { uint16_t data[]; } source;
 
                 dtype read_sample(uint i) {
-                    return dtype(source.data[i]) / 65535.0;
+                    return dtype(dtype(source.data[i]) / 65535.0);
                 }
                 "
             )),

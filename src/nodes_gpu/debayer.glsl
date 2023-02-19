@@ -16,33 +16,33 @@ dtype3 produce_pixel(uvec2 pos) {
     dtype h = read_pixel(pos + uvec2( 0, +1));
     dtype i = read_pixel(pos + uvec2(+1, +1));
 
-    vec3 red_pixel = vec3(
+    dtype3 red_pixel = dtype3(
         e,
         (f + d + h + b) / 4.,
         (i + a + g + c) / 4.
     );
-    vec3 blue_pixel = vec3(
+    dtype3 blue_pixel = dtype3(
         (i + a + g + c) / 4.,
         (f + d + h + b) / 4.,
         e
     );
-    vec3 green_pixel_red_row = vec3(
+    dtype3 green_pixel_red_row = dtype3(
         (d + f) / 2.,
         e,
         (b + h) / 2.
     );
-    vec3 green_pixel_blue_row = vec3(
+    dtype3 green_pixel_blue_row = dtype3(
         (b + h) / 2.,
         e,
         (d + f) / 2.
     );
 
-    float x_red = float((pos.x + uint(!CFA_RED_IN_FIRST_COL) + 1) % 2);
-    float x_red_not = float((pos.x + uint(!CFA_RED_IN_FIRST_COL)) % 2);
-    float y_red = float((pos.y + uint(!CFA_RED_IN_FIRST_ROW) + 1) % 2);
-    float y_red_not = float((pos.y + uint(!CFA_RED_IN_FIRST_ROW)) % 2);
+    dtype x_red = dtype((pos.x + uint(!CFA_RED_IN_FIRST_COL) + 1) % 2);
+    dtype x_red_not = dtype((pos.x + uint(!CFA_RED_IN_FIRST_COL)) % 2);
+    dtype y_red = dtype((pos.y + uint(!CFA_RED_IN_FIRST_ROW) + 1) % 2);
+    dtype y_red_not = dtype((pos.y + uint(!CFA_RED_IN_FIRST_ROW)) % 2);
 
-    vec3 rgb = (
+    dtype3 rgb = (
         + red_pixel * x_red * y_red
         + blue_pixel * x_red_not * y_red_not
         + green_pixel_red_row * x_red_not * y_red

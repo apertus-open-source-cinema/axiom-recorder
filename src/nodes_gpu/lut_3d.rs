@@ -200,19 +200,16 @@ mod tests {
                 Parameterizable,
                 Parameters,
             },
-            processing_context::ProcessingContext,
+            processing_context::TEST_CONTEXT,
         },
     };
     use std::{collections::HashMap, sync::Arc};
 
-    #[test]
-    fn test_basic_functionality_lut3d() {
-        let context = ProcessingContext::default();
-
+    fn test_basic(lut_path: &str) {
         let source = NodeInputValue(InputProcessingNode::new(
             NodeID::default(),
             Arc::new(NullFrameSource {
-                context: context.clone(),
+                context: TEST_CONTEXT.clone(),
                 interpretation: FrameInterpretation {
                     width: 1920,
                     height: 1080,
@@ -225,13 +222,26 @@ mod tests {
         ));
         let parameters = Parameters::new(HashMap::from([
             ("input".to_string(), source),
-            ("file".to_string(), StringValue("/Users/anuejn/Library/Containers/com.blackmagic-design.DaVinciResolveLite/Data/Library/Application Support/LUT/Film Looks/Rec709 Kodak 2383 D60.cube".to_string())),
+            ("file".to_string(), StringValue(lut_path.to_string())),
         ]))
-            .add_defaults(GpuNodeImpl::<Lut3d>::describe_parameters());
-        let dut = GpuNodeImpl::<Lut3d>::from_parameters(parameters, &[], &context).unwrap();
+        .add_defaults(GpuNodeImpl::<Lut3d>::describe_parameters());
+        let dut = GpuNodeImpl::<Lut3d>::from_parameters(parameters, &[], &TEST_CONTEXT).unwrap();
 
         for _ in 0..10 {
             let _payload = pollster::block_on(dut.pull(Request::new(0, 0))).unwrap();
         }
     }
+
+    macro_rules! test_file {
+        ($fname:expr) => {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/resources/test/", $fname)
+        };
+    }
+
+    #[test]
+    fn test_17_point() { test_basic(test_file!("luts/17point.cube")) }
+    #[test]
+    fn test_33_point() { test_basic(test_file!("luts/33point.cube")) }
+    #[test]
+    fn test_65_point() { test_basic(test_file!("luts/65point.cube")) }
 }

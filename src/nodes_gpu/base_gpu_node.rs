@@ -115,8 +115,14 @@ impl<T: GpuNode + Send + Sync> ProcessingNode for GpuNodeImpl<T> {
                 frame.interpretation,
                 output_interpretation,
             )?;
-            let spirv = compile_shader(&shader_code)
-                .context(format!("compilation error. shader code is:\n{shader_code}"))?;
+            let shader_code_with_line_numbers: String = shader_code
+                .lines()
+                .enumerate()
+                .map(|(i, l)| format!("{:>5}: {}\n", i + 1, l))
+                .collect();
+            let spirv = compile_shader(&shader_code).context(format!(
+                "compilation error. shader code is:\n{shader_code_with_line_numbers}"
+            ))?;
 
             let shader = unsafe {
                 vulkano::shader::ShaderModule::from_words(self.device.clone(), &spirv.as_binary())

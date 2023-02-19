@@ -27,7 +27,7 @@ impl GpuNode for Debayer {
     fn get_interpretation(&self, frame_interpretation: FrameInterpretation) -> FrameInterpretation {
         FrameInterpretation {
             color_interpretation: ColorInterpretation::Rgb,
-            sample_interpretation: SampleInterpretation::UInt(8),
+            sample_interpretation: SampleInterpretation::FP16,
             ..frame_interpretation
         }
     }
@@ -49,19 +49,17 @@ mod tests {
             },
             node::{InputProcessingNode, NodeID, ProcessingNode, Request},
             parametrizable::{prelude::NodeInputValue, Parameterizable, Parameters},
-            processing_context::ProcessingContext,
+            processing_context::TEST_CONTEXT,
         },
     };
     use std::{collections::HashMap, sync::Arc};
 
     #[test]
-    fn test_basic_functionality_debayer() {
-        let context = ProcessingContext::default();
-
+    fn test_basic() {
         let source = NodeInputValue(InputProcessingNode::new(
             NodeID::default(),
             Arc::new(NullFrameSource {
-                context: context.clone(),
+                context: TEST_CONTEXT.clone(),
                 interpretation: FrameInterpretation {
                     width: 1920,
                     height: 1080,
@@ -76,7 +74,7 @@ mod tests {
             }),
         ));
         let parameters = Parameters::new(HashMap::from([("input".to_string(), source)]));
-        let dut = GpuNodeImpl::<Debayer>::from_parameters(parameters, &[], &context).unwrap();
+        let dut = GpuNodeImpl::<Debayer>::from_parameters(parameters, &[], &TEST_CONTEXT).unwrap();
 
         for _ in 0..10 {
             let _payload = pollster::block_on(dut.pull(Request::new(0, 0))).unwrap();

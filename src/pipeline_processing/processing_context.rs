@@ -5,6 +5,8 @@ use crate::pipeline_processing::{
     prioritized_executor::PrioritizedReactor,
 };
 use anyhow::{anyhow, Result};
+#[cfg(test)]
+use once_cell::sync::Lazy;
 use parking_lot::lock_api::RwLock;
 use std::{future::Future, sync::Arc};
 use vulkano::{
@@ -68,6 +70,9 @@ impl std::fmt::Display for Priority {
         write!(f, "Priority(output = {}, frame = {})", output_priority, frame_number)
     }
 }
+
+#[cfg(test)]
+pub static TEST_CONTEXT: Lazy<ProcessingContext> = Lazy::new(|| ProcessingContext::default());
 
 #[derive(Clone)]
 pub struct ProcessingContext {
