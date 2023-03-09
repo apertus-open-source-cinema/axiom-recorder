@@ -399,10 +399,9 @@ impl ParametersDescriptor {
             .with("fps", WithDefault(PositiveReal(), FloatRangeValue(24.0)))
 
             // buffer interpretation
-            .with("uint-bits", Optional(IntRange(8, 16)))
+            .with("uint-bits", Optional(IntRange(1, 64)))
             .with("fp16", Flag())
             .with("fp32", Flag())
-
 
             // color interpretation
             .with("bayer", WithDefault(StringParameter, StringValue("RGBG".to_string())))
