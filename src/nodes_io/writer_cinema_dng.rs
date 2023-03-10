@@ -143,16 +143,16 @@ pub fn frame_to_dng_ifd(frame: Arc<Frame<CpuBuffer>>, base_ifd: Ifd) -> Result<I
 
     match frame.interpretation.sample_interpretation {
         SampleInterpretation::UInt(bits) => {
-            ifd.insert(tags::ifd::BitsPerSample, bits as u32);
-            ifd.insert(tags::ifd::SampleFormat, 1);
+            ifd.insert(tags::ifd::BitsPerSample, bits as u16);
+            ifd.insert(tags::ifd::SampleFormat, 1u16);
         }
         SampleInterpretation::FP16 => {
-            ifd.insert(tags::ifd::BitsPerSample, 16);
-            ifd.insert(tags::ifd::SampleFormat, 3);
+            ifd.insert(tags::ifd::BitsPerSample, 16u16);
+            ifd.insert(tags::ifd::SampleFormat, 3u16);
         }
         SampleInterpretation::FP32 => {
-            ifd.insert(tags::ifd::BitsPerSample, 32);
-            ifd.insert(tags::ifd::SampleFormat, 3);
+            ifd.insert(tags::ifd::BitsPerSample, 32u16);
+            ifd.insert(tags::ifd::SampleFormat, 3u16);
         }
     }
 
