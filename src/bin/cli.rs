@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use clap::{Arg, Parser};
+use clap::{Arg, ArgAction, Parser};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
@@ -57,13 +57,7 @@ enum Command {
         /// path to the configuration file
         file: std::path::PathBuf,
         /// variables to substitute in the config file
-        #[clap(
-            short = 's',
-            long = "set",
-            name = "key=value",
-            allow_hyphen_values(true),
-            takes_value = true
-        )]
+        #[clap(short = 's', long = "set", name = "key=value", allow_hyphen_values(true))]
         vars: Vec<String>,
     },
 }
@@ -204,18 +198,10 @@ fn processing_node_from_commandline(
                 Mandatory(NodeInputParameter) | WithDefault(NodeInputParameter, _)
             )
         })
-        .filter_map(|(key, parameter_type)| {
-            results.value_of(key).map(|v| {
-                Ok((
-                    key.to_string(),
-                    parameter_type
-                        .get_parameter_type()
-                        .parse(v)
-                        .context(format!("parameter is {}", key))?,
-                ))
-            })
+        .filter_map(|(key, _parameter_type)| {
+            results.get_one::<ParameterValue>(key).map(|v| (key.clone(), v.clone()))
         })
-        .collect::<Result<_, anyhow::Error>>()?;
+        .collect();
 
     Ok(ProcessingNodeConfig::single_input_node(
         name.to_string(),
@@ -226,7 +212,7 @@ fn processing_node_from_commandline(
 
 fn leak<T: Clone>(s: &T) -> &'static T { Box::leak(Box::new(s.clone())) }
 
-fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
+fn clap_app_from_node_name(name: &str) -> Result<clap::Command> {
     let available_nodes: HashMap<String, ParameterizableDescriptor> = list_available_nodes();
     let node_descriptor: &ParameterizableDescriptor =
         available_nodes.get(name).ok_or_else(|| {
@@ -237,7 +223,7 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
             )
         })?;
 
-    let mut app = clap::Command::new(node_descriptor.name.clone());
+    let mut app = clap::Command::new(&node_descriptor.name);
     if let Some(description) = node_descriptor.description.clone() {
         app = app.about(leak(&description).as_str());
     }
@@ -247,48 +233,19 @@ fn clap_app_from_node_name(name: &str) -> Result<clap::Command<'static>> {
         if let Mandatory(NodeInputParameter) | WithDefault(NodeInputParameter, _) = parameter_type {
             continue;
         };
-        let parameter_type_for_closure = parameter_type.clone();
+        let value_parser = parameter_type.get_parameter_type().clone();
+        let arg = Arg::new(key).long(key);
         app = app.arg(match parameter_type {
-            Mandatory(_) => Arg::new(leak(&key).as_str())
-                .long(key)
-                .takes_value(true)
-                .allow_hyphen_values(true)
-                .validator(move |v| {
-                    parameter_type_for_closure
-                        .get_parameter_type()
-                        .parse(v)
-                        .map(|_| ())
-                        .map_err(|e| format!("{}", e))
-                })
-                .required(true),
+            Mandatory(_) => arg.required(true).value_parser(value_parser).allow_hyphen_values(true),
             WithDefault(BoolParameter, BoolValue(false)) => {
-                Arg::new(key.as_str()).long(key).takes_value(false).required(false)
+                arg.required(false).action(ArgAction::SetTrue).value_parser(value_parser)
             }
-            WithDefault(_, default) => Arg::new(key.as_str())
-                .long(key)
-                .takes_value(true)
-                .allow_hyphen_values(true)
-                .validator(move |v| {
-                    parameter_type_for_closure
-                        .get_parameter_type()
-                        .parse(v)
-                        .map(|_| ())
-                        .map_err(|e| format!("{}", e))
-                })
-                .default_value(Box::leak(Box::new(default.to_string())))
-                .required(false),
-            Optional(_) => Arg::new(key.as_str())
-                .long(key)
-                .takes_value(true)
-                .allow_hyphen_values(true)
-                .validator(move |v| {
-                    parameter_type_for_closure
-                        .get_parameter_type()
-                        .parse(v)
-                        .map(|_| ())
-                        .map_err(|e| format!("{}", e))
-                })
-                .required(false),
+            WithDefault(_, default) => arg
+                .default_value(default.to_string())
+                .required(false)
+                .value_parser(value_parser)
+                .allow_hyphen_values(true),
+            Optional(_) => arg.required(false).value_parser(value_parser).allow_hyphen_values(true),
         })
     }
     Ok(app)

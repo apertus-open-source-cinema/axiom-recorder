@@ -57,7 +57,7 @@ impl Parameterizable for DualFrameRawDecoder {
             input: parameters.take("input")?,
             cfa_descriptor,
             last_frame_info: Default::default(),
-            debug: parameters.has("debug"),
+            debug: matches!(parameters.take_option("debug")?, Some(true)),
             context: context.clone(),
         })
     }

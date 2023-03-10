@@ -51,7 +51,7 @@ impl Parameterizable for RawBlobReader {
             file: Mutex::new(file),
             interpretation,
             frame_count,
-            cache_frames: options.has("cache-frames"),
+            cache_frames: matches!(options.take_option("cache-frames")?, Some(true)),
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
             context: context.clone(),
         })
@@ -132,8 +132,8 @@ impl Parameterizable for RawDirectoryReader {
         Ok(Self {
             files,
             interpretation: options.get_interpretation()?,
-            cache_frames: options.has("cache-frames"),
-            internal_loop: options.has("internal-loop"),
+            cache_frames: matches!(options.take_option("cache-frames")?, Some(true)),
+            internal_loop: matches!(options.take_option("internal-loop")?, Some(true)),
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
             context: context.clone(),
         })

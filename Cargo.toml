@@ -13,7 +13,7 @@ dhat-heap = ["dhat"]
 track-drop = ["backtrace"]
 
 [dependencies]
-clap = { version = "3.1.18", features = ["default", "derive"] }
+clap = { version = "4.1.8", features = ["default", "derive", "string"] }
 indicatif = "0.17.0"
 glob = "0.3.0"
 anyhow = { version = "1.0.57", features = ["backtrace"] }

@@ -10,11 +10,13 @@ use crate::pipeline_processing::{
     processing_context::ProcessingContext,
 };
 use anyhow::{anyhow, bail, Context, Error, Result};
+use clap::{builder::TypedValueParser, Arg, Command};
 use prelude::*;
 use std::{
     any::type_name,
     collections::HashMap,
     convert::TryInto,
+    ffi::OsStr,
     fmt::{Debug, Formatter},
 };
 
@@ -26,16 +28,14 @@ pub enum ParameterValue {
     NodeInputValue(InputProcessingNode),
     ListValue(Vec<ParameterValue>),
 }
-impl ParameterValue {
-    fn clone_for_same_puller(&self) -> Self {
+impl Clone for ParameterValue {
+    fn clone(&self) -> Self {
         match self {
             FloatRangeValue(f) => FloatRangeValue(*f),
             IntRangeValue(i) => IntRangeValue(*i),
             BoolValue(b) => BoolValue(*b),
             StringValue(s) => StringValue(s.clone()),
-            ListValue(l) => {
-                ListValue(l.iter().map(ParameterValue::clone_for_same_puller).collect())
-            }
+            ListValue(l) => ListValue(l.iter().map(ParameterValue::clone).collect()),
             NodeInputValue(n) => NodeInputValue(n.clone_for_same_puller()),
         }
     }
@@ -210,8 +210,6 @@ impl Parameters {
         parameter_value.map(|v| v.try_into()).transpose()
     }
 
-    pub fn has(&self, key: &str) -> bool { self.values.contains_key(key) }
-
     pub(crate) fn add_inputs(
         mut self,
         puller_id: NodeID,
@@ -250,9 +248,9 @@ impl Parameters {
         let sample_interpretation = {
             if let Some(bits) = self.take_option::<u8>("uint-bits")? {
                 SampleInterpretation::UInt(bits)
-            } else if self.has("fp16") {
+            } else if let Some(true) = self.take_option::<bool>("fp16")? {
                 SampleInterpretation::FP16
-            } else if self.has("fp32") {
+            } else if let Some(true) = self.take_option::<bool>("fp32")? {
                 SampleInterpretation::FP32
             } else {
                 bail!("no sample interpretation was specified")
@@ -262,21 +260,21 @@ impl Parameters {
         let color_interpretation = {
             if let Some(pattern) = self.take_option::<String>("bayer")? {
                 match pattern.to_uppercase().as_str() {
-                    "RGBG" => ColorInterpretation::Bayer(CfaDescriptor {
+                    "RGGB" => ColorInterpretation::Bayer(CfaDescriptor {
                         red_in_first_col: true,
                         red_in_first_row: true,
                     }),
-                    "BGRG" => ColorInterpretation::Bayer(CfaDescriptor {
+                    "GBRG" => ColorInterpretation::Bayer(CfaDescriptor {
                         red_in_first_col: true,
                         red_in_first_row: false,
                     }),
-                    "GBGR" => ColorInterpretation::Bayer(CfaDescriptor {
+                    "GRBG" => ColorInterpretation::Bayer(CfaDescriptor {
                         red_in_first_col: false,
                         red_in_first_row: true,
                     }),
-                    "GRGB" => ColorInterpretation::Bayer(CfaDescriptor {
+                    "BGGR" => ColorInterpretation::Bayer(CfaDescriptor {
                         red_in_first_col: false,
-                        red_in_first_row: true,
+                        red_in_first_row: false,
                     }),
                     _ => bail!("couldn't parse CFA Pattern"),
                 }
@@ -351,6 +349,21 @@ impl ParameterType {
     }
 }
 
+impl TypedValueParser for ParameterType {
+    type Value = ParameterValue;
+
+    fn parse_ref(
+        &self,
+        _cmd: &Command,
+        _arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> std::result::Result<Self::Value, clap::Error> {
+        Ok(self
+            .parse(value.to_str().unwrap())
+            .map_err(|e| clap::Error::raw(clap::error::ErrorKind::ValueValidation, e))?)
+    }
+}
+
 #[derive(Debug)]
 pub enum ParameterTypeDescriptor {
     Mandatory(ParameterType),
@@ -362,7 +375,7 @@ impl Clone for ParameterTypeDescriptor {
     fn clone(&self) -> Self {
         match self {
             Mandatory(ty) => Mandatory(ty.clone()),
-            WithDefault(ty, v) => WithDefault(ty.clone(), v.clone_for_same_puller()),
+            WithDefault(ty, v) => WithDefault(ty.clone(), v.clone()),
             Optional(ty) => Optional(ty.clone()),
         }
     }
@@ -404,7 +417,7 @@ impl ParametersDescriptor {
             .with("fp32", Flag())
 
             // color interpretation
-            .with("bayer", WithDefault(StringParameter, StringValue("RGBG".to_string())))
+            .with("bayer", WithDefault(StringParameter, StringValue("RGGB".to_string())))
             .with("rgb", Flag())
             .with("rgba", Flag())
     }
