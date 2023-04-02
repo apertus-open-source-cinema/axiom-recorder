@@ -1,0 +1,14 @@
+dir_input:
+  type: RawDirectoryReader
+  file-pattern: {{input-dir}}
+  width: 3840
+  height: 2160
+  fp32: true
+  bayer: GBRG
+
+write_dng:
+  input: <dir_input
+  type: CinemaDngWriter
+# dcp-yaml: E:\dev\axiom\axiom-recorder\ryan-dcp.yml
+  dcp-yaml: E:\dev\axiom\axiom-recorder\src\nodes_io\default_dcp.yml
+  path: {{output-dir}}

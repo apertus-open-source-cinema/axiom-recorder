@@ -1,0 +1,17 @@
+UniqueCameraModel: "AXIOM Beta"
+ProfileName: "Ryan custom"
+ProfileEmbedPolicy: allow copying
+
+CalibrationIlluminant1: D50Illuminant
+ColorMatrix1: [
+  1.0, 0.0, 0.0,
+  0.0, 1.0, 0.0,
+  0.0, 0.0, 1.0,
+]
+
+CalibrationIlluminant2: StandardIlluminantA
+ColorMatrix2: [
+  1.0, 0.0, 0.0,
+  0.0, 1.0, 0.0,
+  0.0, 0.0, 1.0
+]
