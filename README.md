@@ -91,18 +91,18 @@ The config file supports variable substitution. You can set name value pairs on 
 
 ## Examples
 
-Convert a directory of raw12 files from the Beta to mp4 (h264) using FFmpeg:
+Convert a directory of raw12 files recorded previously from the AXIOM Beta to mp4 (h264) using FFmpeg:
 ```shell
 $ target/release/cli from-cli RawDirectoryReader --file-pattern '~/Darkbox-Timelapse-Clock-Sequence/*.raw12' --bit-depth 12 --height 3072 --width 4096 --loop true --fps 30 ! BitDepthConverter ! Debayer ! FfmpegWriter --output darkbox.mp4
 ```
 
-Convert a directory of raw12 files from the Beta into CinemaDng with a specified dcp file.
+Convert a directory of raw12 files recorded previously from the AXIOM Beta into CinemaDng with a specified dcp file.
 Information on the DCP yaml file format can be found [in the dng-rs crate](https://github.com/apertus-open-source-cinema/dng-rs/).
 ```shell
 $ target/release/cli from-cli RawDirectoryReader --file-pattern '~/Darkbox-Timelapse-Clock-Sequence/*.raw12' --bit-depth 12 --height 3072 --width 4096 --loop true --fps 30 ! CinemaDngWriter --dcp-yaml axiom-beta-simulated.yml --output dng_out_dir
 ```
 
-Serve a directory of raw12 files from the Beta as CinemaDng files with the WebDAV frameserver:
+Serve a directory of raw12 files recorded previously from the AXIOM Beta as CinemaDng files with the WebDAV frameserver:
 ```shell
 $ target/release/cli from-cli RawDirectoryReader --file-pattern '~/Darkbox-Timelapse-Clock-Sequence/*.raw12' --bit-depth 12 --height 3072 --width 4096 --loop true --fps 30 ! CinemaDngFrameserver --port 9178
 # the frameserver can then be mounted. On macOS like so:
