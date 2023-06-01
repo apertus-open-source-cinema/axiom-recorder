@@ -2736,7 +2736,7 @@ dependencies = [
 [[package]]
 name = "sz3"
 version = "0.1.0+3.1.5.3"
-source = "git+https://github.com/apertus-open-source-cinema/sz3-rs#7e227cd1ae84cae304aa138dbda226ab918d92f0"
+source = "git+https://github.com/apertus-open-source-cinema/sz3-rs#40ed81685098a785d940c1ee60818b4026c50940"
 dependencies = [
  "sz3-sys",
  "thiserror",
@@ -2745,7 +2745,7 @@ dependencies = [
 [[package]]
 name = "sz3-sys"
 version = "0.1.0+SZ3-3.1.5.3"
-source = "git+https://github.com/apertus-open-source-cinema/sz3-rs#7e227cd1ae84cae304aa138dbda226ab918d92f0"
+source = "git+https://github.com/apertus-open-source-cinema/sz3-rs#40ed81685098a785d940c1ee60818b4026c50940"
 dependencies = [
  "bindgen 0.59.2",
  "cc",
