@@ -2468,6 +2468,7 @@ dependencies = [
  "shlex 1.1.0",
  "spirv-reflect",
  "sz3",
+ "textwrap 0.16.0",
  "thiserror",
  "tokio",
  "v4l",

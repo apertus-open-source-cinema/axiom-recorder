@@ -17,6 +17,7 @@ use std::{
     iter::once,
     sync::{Arc, Mutex},
 };
+use textwrap::indent;
 
 #[derive(Deserialize, Debug)]
 struct PipelineConfig {
@@ -155,17 +156,17 @@ fn nodes_usages_string() -> String {
         .keys()
         .sorted()
         .map(|node_name| {
-            Box::leak(Box::new(
-                clap_app_from_node_name(node_name)
+            Box::leak(Box::new(indent(
+                &clap_app_from_node_name(node_name)
                     .unwrap()
-                    .help_template("    * {usage}")
-                    .no_binary_name(true)
-                    .try_get_matches_from(once::<&str>("--help"))
-                    .unwrap_err()
+                    .help_template("* {name}\n{options}")
+                    .disable_help_flag(true)
+                    .render_help()
                     .to_string(),
-            ))
+                "    ",
+            )))
         })
-        .join("")
+        .join("\n")
 }
 fn processing_node_from_commandline(
     commandline: &[String],

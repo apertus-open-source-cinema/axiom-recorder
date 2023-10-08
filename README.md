@@ -20,44 +20,144 @@ A GUI tool for doing recording in a more convenient way is planned but not imple
 Processing pipelines can either be specified directly on the cli:
 
 ```sh
-$ target/debug/cli from-cli --help
-cli-from-cli 
+target/debug/cli from-cli --help
 specify the processing pipeline directly on the cli
 
-USAGE:
-    cli from-cli [PIPELINE]...
+Usage: cli from-cli [PIPELINE]...
 
-ARGS:
-    <PIPELINE>...    example: <Node1> --source-arg ! <Node2> --sink-arg
+Arguments:
+  [PIPELINE]...  example: <Node1> --source-arg ! <Node2> --sink-arg
 
-OPTIONS:
-    -h, --help    Print help information
+Options:
+  -h, --help  Print help
 
 NODES:
-    * Average [OPTIONS] --n <n>
-    * BenchmarkSink [OPTIONS]
-    * BitDepthConverter
-    * Cache [OPTIONS]
-    * Calibrate --height <height> --darkframe <darkframe> --width <width>
-    * CinemaDngFrameserver [OPTIONS]
-    * CinemaDngReader [OPTIONS] --file-pattern <file-pattern>
-    * CinemaDngWriter [OPTIONS] --path <path>
-    * ColorVoodoo [OPTIONS]
+    * BenchmarkSink
+          --priority <priority>  [default: 0]
+
+    * Cache
+          --size <size>  [default: 1]
+
+    * Calibrate
+          --height <height>        
+          --width <width>          
+          --darkframe <darkframe>
+
+    * CinemaDngFrameserver
+          --priority <priority>  [default: 0]
+          --dcp-yaml <dcp-yaml>  
+          --host <host>          [default: 127.0.0.1]
+          --port <port>
+
+    * CinemaDngReader
+          --internal-loop <internal-loop>  
+          --cache-frames <cache-frames>    
+          --file-pattern <file-pattern>
+
+    * CinemaDngWriter
+          --number-of-frames <number-of-frames>  
+          --path <path>                          
+          --dcp-yaml <dcp-yaml>                  
+          --priority <priority>                  [default: 0]
+
+    * ColorVoodoo
+          --pedestal <pedestal>  [default: 0]
+          --s_gamma <s_gamma>    [default: 1]
+          --v_gamma <v_gamma>    [default: 1]
+
     * Debayer
-    * DualFrameRawDecoder [OPTIONS]
-    * FfmpegWriter [OPTIONS] --output <output>
-    * GpuBitDepthConverter
+
+    * DualFrameRawDecoder
+          --bayer <bayer>  [default: RGBG]
+          --debug <debug>
+
+    * FfmpegWriter
+          --input-options <input-options>  [default: ]
+          --output <output>                
+          --priority <priority>            [default: 0]
+
     * Histogram
-    * Lut3d --file <file>
-    * RawBlobReader [OPTIONS] --height <height> --width <width> --file <file>
-    * RawBlobWriter [OPTIONS] --path <path>
-    * RawDirectoryReader [OPTIONS] --height <height> --width <width> --file-pattern <file-pattern>
-    * RawDirectoryWriter [OPTIONS] --path <path>
-    * ReverseDualFrameRawDecoder [OPTIONS]
-    * SZ3Compress [OPTIONS] --data_type <data_type> --tolerance <tolerance> --error_control <error_control>
-    * Split --element <element>
-    * TcpReader [OPTIONS] --width <width> --height <height> --address <address>
-    * ZstdBlobReader [OPTIONS] --file <file> --width <width> --height <height>
+
+    * Lut3d
+          --file <file>
+
+    * NullFrameSource
+          --fps <fps>              [default: 24]
+          --height <height>        
+          --bayer <bayer>          [default: RGGB]
+          --uint-bits <uint-bits>  
+          --fp32                   
+          --rgb                    
+          --fp16                   
+          --width <width>          
+          --rgba
+
+    * RawBlobReader
+          --cache-frames <cache-frames>  
+          --fp16                         
+          --fp32                         
+          --uint-bits <uint-bits>        
+          --width <width>                
+          --bayer <bayer>                [default: RGGB]
+          --height <height>              
+          --rgb                          
+          --fps <fps>                    [default: 24]
+          --rgba                         
+          --file <file>
+
+    * RawBlobWriter
+          --path <path>                          
+          --priority <priority>                  [default: 0]
+          --number-of-frames <number-of-frames>
+
+    * RawDirectoryReader
+          --fps <fps>                      [default: 24]
+          --height <height>                
+          --fp32                           
+          --bayer <bayer>                  [default: RGGB]
+          --cache-frames <cache-frames>    
+          --internal-loop <internal-loop>  
+          --fp16                           
+          --uint-bits <uint-bits>          
+          --rgb                            
+          --file-pattern <file-pattern>    
+          --width <width>                  
+          --rgba
+
+    * RawDirectoryWriter
+          --number-of-frames <number-of-frames>  
+          --priority <priority>                  [default: 0]
+          --path <path>
+
+    * ReverseDualFrameRawDecoder
+          --flip <flip>
+
+    * Split
+          --element <element>
+
+    * TcpReader
+          --fps <fps>              [default: 24]
+          --address <address>      
+          --rgb                    
+          --uint-bits <uint-bits>  
+          --fp16                   
+          --width <width>          
+          --height <height>        
+          --fp32                   
+          --bayer <bayer>          [default: RGGB]
+          --rgba
+
+    * ZstdBlobReader
+          --uint-bits <uint-bits>  
+          --fps <fps>              [default: 24]
+          --rgba                   
+          --file <file>            
+          --height <height>        
+          --bayer <bayer>          [default: RGGB]
+          --rgb                    
+          --fp16                   
+          --fp32                   
+          --width <width>
 ```
 
 Alternatively you can use the yaml based config file, for example:
@@ -88,6 +188,20 @@ display:
   input: <debayer
 ```
 The config file supports variable substitution. You can set name value pairs on the cli using `--set name=value`.
+
+### Frame interpretations
+Some Nodes e.g. `RawBlobReader` or `RawDirectoryReader` need to know how to interpret the data. For this some things need to be specified:
+
+* A `--width` and a `--height`
+* A frame rate with `--fps`
+* A format for the samples (pixels / color channels of the pixels) needs to be specified: Either `--fp16`, `--fp32` or `--uint-bits N` where `N` is the number of bits per sample (e.g. 12 for the AXIOM Beta).
+* A color format. This can either be `--rgb`, `--rgba` or `--bayer PATTERN`. Bayer Patterns are specified as left to right top to bottom as a 2x2 pixel string indicating the color. E.g. `GRBG` is the following color pattern
+  |       |       |
+  |-------|-------|
+  | Green | Red   |
+  | Blue  | Green |
+
+These parameters only specify the interpretation but no conversions. So if you want to get an RGB image from a Bayer source you still need to take care of conversion with a `Debayer` node in between.
 
 ## Examples
 
