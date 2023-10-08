@@ -240,6 +240,20 @@ impl Parameters {
         self
     }
 
+    pub fn get_bayer(&mut self) -> Result<CfaDescriptor> {
+        Ok(if let Some(pattern) = self.take_option::<String>("bayer")? {
+            match pattern.to_uppercase().as_str() {
+                "RGGB" => CfaDescriptor { red_in_first_col: true, red_in_first_row: true },
+                "GBRG" => CfaDescriptor { red_in_first_col: true, red_in_first_row: false },
+                "GRBG" => CfaDescriptor { red_in_first_col: false, red_in_first_row: true },
+                "BGGR" => CfaDescriptor { red_in_first_col: false, red_in_first_row: false },
+                _ => bail!("couldn't parse CFA Pattern"),
+            }
+        } else {
+            bail!("bayer pattern not specified")
+        })
+    }
+
     pub fn get_interpretation(&mut self) -> Result<FrameInterpretation> {
         let width = self.take("width")?;
         let height = self.take("height")?;
@@ -258,26 +272,8 @@ impl Parameters {
         };
 
         let color_interpretation = {
-            if let Some(pattern) = self.take_option::<String>("bayer")? {
-                match pattern.to_uppercase().as_str() {
-                    "RGGB" => ColorInterpretation::Bayer(CfaDescriptor {
-                        red_in_first_col: true,
-                        red_in_first_row: true,
-                    }),
-                    "GBRG" => ColorInterpretation::Bayer(CfaDescriptor {
-                        red_in_first_col: true,
-                        red_in_first_row: false,
-                    }),
-                    "GRBG" => ColorInterpretation::Bayer(CfaDescriptor {
-                        red_in_first_col: false,
-                        red_in_first_row: true,
-                    }),
-                    "BGGR" => ColorInterpretation::Bayer(CfaDescriptor {
-                        red_in_first_col: false,
-                        red_in_first_row: false,
-                    }),
-                    _ => bail!("couldn't parse CFA Pattern"),
-                }
+            if let Some(_) = self.take_option::<String>("bayer")? {
+                ColorInterpretation::Bayer(self.get_bayer()?)
             } else if self.take("rgb")? {
                 ColorInterpretation::Rgb
             } else if self.take("rgba")? {

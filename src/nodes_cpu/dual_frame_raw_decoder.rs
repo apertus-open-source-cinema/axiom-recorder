@@ -46,13 +46,7 @@ impl Parameterizable for DualFrameRawDecoder {
         _is_input_to: &[NodeID],
         context: &ProcessingContext,
     ) -> Result<Self> {
-        let cfa_descriptor = match parameters.take::<String>("bayer")?.to_uppercase().as_str() {
-            "RGBG" => CfaDescriptor { red_in_first_col: true, red_in_first_row: true },
-            "BGRG" => CfaDescriptor { red_in_first_col: true, red_in_first_row: false },
-            "GBGR" => CfaDescriptor { red_in_first_col: false, red_in_first_row: true },
-            "GRGB" => CfaDescriptor { red_in_first_col: false, red_in_first_row: true },
-            _ => bail!("couldn't parse CFA Pattern"),
-        };
+        let cfa_descriptor = parameters.get_bayer()?;
         Ok(Self {
             input: parameters.take("input")?,
             cfa_descriptor,
