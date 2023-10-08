@@ -195,11 +195,14 @@ Some Nodes e.g. `RawBlobReader` or `RawDirectoryReader` need to know how to inte
 * A `--width` and a `--height`
 * A frame rate with `--fps`
 * A format for the samples (pixels / color channels of the pixels) needs to be specified: Either `--fp16`, `--fp32` or `--uint-bits N` where `N` is the number of bits per sample (e.g. 12 for the AXIOM Beta).
-* A color format. This can either be `--rgb`, `--rgba` or `--bayer PATTERN`. Bayer Patterns are specified as left to right top to bottom as a 2x2 pixel string indicating the color. E.g. `GRBG` is the following color pattern
-  |       |       |
-  |-------|-------|
-  | Green | Red   |
-  | Blue  | Green |
+* A color format. This can either be `--rgb`, `--rgba` or `--bayer PATTERN`. Bayer Patterns are specified as left to right top to bottom as a 2x2 pixel string indicating the color. E.g. `GRBG` is the following cfa pattern
+  | Green | Red   | Green | Red   | ... |
+  |-------|-------|-------|-------|-----|
+  | Blue  | Green | Blue  | Green | ... |
+  | Green | Red   | Green | Red   | ... |
+  | Blue  | Green | Blue  | Green | ... |
+  | ...   | ...   | ...   | ...   | ... |
+
 
 These parameters only specify the interpretation but no conversions. So if you want to get an RGB image from a Bayer source you still need to take care of conversion with a `Debayer` node in between.
 
