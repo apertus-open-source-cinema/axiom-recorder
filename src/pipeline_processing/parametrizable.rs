@@ -335,7 +335,7 @@ impl ParametersDescriptor {
         ParametersDescriptor(self.0)
     }
     pub fn with_interpretation(self) -> ParametersDescriptor {
-        self.with("bit-depth", WithDefault(IntRange(8, 16), IntRangeValue(12)))
+        self.with("bit-depth", WithDefault(NaturalGreaterZero(), IntRangeValue(12)))
             .with("width", Mandatory(NaturalWithZero()))
             .with("height", Mandatory(NaturalWithZero()))
             .with("red-in-first-col", WithDefault(BoolParameter, BoolValue(true)))

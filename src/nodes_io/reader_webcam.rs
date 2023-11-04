@@ -197,7 +197,7 @@ impl CpuBufferQueueManager {
                 v4l2::vidioc::VIDIOC_DQBUF,
                 &mut v4l2_buf as *mut _ as *mut std::os::raw::c_void,
             ) {
-//                println!("error during dequeue: {:?}", e)
+                //                println!("error during dequeue: {:?}", e)
             }
         }
 

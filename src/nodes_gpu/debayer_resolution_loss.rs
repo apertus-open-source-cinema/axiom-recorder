@@ -79,8 +79,11 @@ impl ProcessingNode for DebayerResolutionLoss {
             ));
         }
 
-        let interp =
-            Rgb { width: frame.interp.width / 2, height: frame.interp.height / 2, fps: frame.interp.fps };
+        let interp = Rgb {
+            width: frame.interp.width / 2,
+            height: frame.interp.height / 2,
+            fps: frame.interp.fps,
+        };
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
             interp.required_bytes() as DeviceSize,
@@ -127,11 +130,7 @@ impl ProcessingNode for DebayerResolutionLoss {
             )
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
-            .dispatch([
-                (new_width + 31) as u32 / 32,
-                (new_height as u32 + 31) / 32,
-                1,
-            ])?;
+            .dispatch([(new_width + 31) as u32 / 32, (new_height as u32 + 31) / 32, 1])?;
         let command_buffer = builder.build()?;
 
         let future =

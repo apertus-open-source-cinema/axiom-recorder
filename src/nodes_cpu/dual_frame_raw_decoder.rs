@@ -108,7 +108,8 @@ impl ProcessingNode for DualFrameRawDecoder {
             let ty_newer = newer_frame[2];
             ty_newer == 85
         });
-        let (frame_a, frame_b) = if newer_is_a { (newer_frame, older_frame) } else { (older_frame, newer_frame) };
+        let (frame_a, frame_b) =
+            if newer_is_a { (newer_frame, older_frame) } else { (older_frame, newer_frame) };
 
         let (is_correct, debug_info, read_buffer) = frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
@@ -130,8 +131,15 @@ impl ProcessingNode for DualFrameRawDecoder {
                 let ctr_a = frame_a[0];
                 let ctr_b = frame_b[0];
                 let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
-                let ctr_is_ok = ctr_is_ok || (ctr_b == 0 && ctr_a == 255) || (ctr_a == 0 && ctr_b == 255);
-                (read_buffer_matches && ctr_is_ok && ((read_buffer_a != last_read_buffer) || slipped_before), debug_info, read_buffer_a)
+                let ctr_is_ok =
+                    ctr_is_ok || (ctr_b == 0 && ctr_a == 255) || (ctr_a == 0 && ctr_b == 255);
+                (
+                    read_buffer_matches
+                        && ctr_is_ok
+                        && ((read_buffer_a != last_read_buffer) || slipped_before),
+                    debug_info,
+                    read_buffer_a,
+                )
             })
         });
         self.last_frame_info.update(
