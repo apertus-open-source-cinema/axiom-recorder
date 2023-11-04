@@ -272,7 +272,7 @@ impl Parameters {
         };
 
         let color_interpretation = {
-            if let Some(_) = self.take_option::<String>("bayer")? {
+            if self.values.contains_key("bayer") {
                 ColorInterpretation::Bayer(self.get_bayer()?)
             } else if self.take("rgb")? {
                 ColorInterpretation::Rgb
