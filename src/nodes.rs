@@ -9,6 +9,7 @@ use crate::{
         //average::Average,
         benchmark_sink::BenchmarkSink,
         dual_frame_raw_decoder::{DualFrameRawDecoder, ReverseDualFrameRawDecoder},
+        fp_to_uint::Fp32ToUInt16,
         //sz3::SZ3Compress,
         zstd::ZstdBlobReader,
     },
@@ -98,4 +99,5 @@ generate_dynamic_node_creation_functions![
     FfmpegWriter,
     CinemaDngFrameserver,
     NullFrameSource,
+    Fp32ToUInt16,
 ];

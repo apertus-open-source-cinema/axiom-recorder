@@ -206,6 +206,16 @@ Some Nodes e.g. `RawBlobReader` or `RawDirectoryReader` need to know how to inte
 
 These parameters only specify the interpretation but no conversions. So if you want to get an RGB image from a Bayer source you still need to take care of conversion with a `Debayer` node in between.
 
+### DNG output
+In the pipeline of the AXIOM raw recorder, sometimes images in floating point format can occur
+(for example when averaging multiple frames). Although the DNG specification specifies floating 
+point DNG files, not a lot of software actually supports it. To avoid issues with downstream
+processing software you can convert your data to uint16 before writing DNG files. Example:
+
+```shell
+$ target/release/cli from-cli RawBlobReader --fp32 --width 3840 --height 2160 --bayer GBRG --file Halogen_Xrite_0_8ms.raw32 ! Fp32ToUInt16 --multiplier 16 ! CinemaDngWriter --path out
+```
+
 ## Examples
 
 Convert a directory of raw12 files from the Beta to mp4 (h264) using FFmpeg:
