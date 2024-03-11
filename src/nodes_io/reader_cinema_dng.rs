@@ -114,10 +114,11 @@ impl ProcessingNode for CinemaDngReader {
             bit_depth: get_tag_as_u32(tags::ifd::BitsPerSample)?,
             fps: dng
                 .get_entry_by_path(&main_ifd.chain_tag(tags::ifd::FrameRate))
-                .ok_or(anyhow!("couldnt read frame rate of DNG {path:?}"))?
-                .value
-                .as_f64()
-                .ok_or(anyhow!("couldnt interpret frame rate of DNG {path:?} as f64"))?,
+                .map(|entry| entry.value.as_f64().ok_or(anyhow!("couldnt interpret frame rate of DNG {path:?} as f64")))
+                .unwrap_or_else(|| {
+                    eprintln!("DNG has no fps, falling back to 24");
+                    Ok(24.0)
+                })?,
             cfa,
         };
 
