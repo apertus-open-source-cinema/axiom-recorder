@@ -104,11 +104,8 @@ impl ProcessingNode for DualFrameRawDecoder {
         }
         let ((frame_a, frame_b), used_old) = pulled_frames_used_old.unwrap();
         let swap = frame_a.storage.as_slice(|frame_a| {
-            frame_b.storage.as_slice(|frame_b| {
-                let ctr_a = frame_a[0];
-                let ctr_b = frame_b[0];
-                (ctr_a > ctr_b) || ((ctr_a == 0) && (ctr_b >= 14))
-            })
+            let ty_a = frame_a[2];
+            ty_a != 85
         });
         let (frame_a, frame_b) = if swap { (frame_b, frame_a) } else { (frame_a, frame_b) };
 
@@ -129,7 +126,7 @@ impl ProcessingNode for DualFrameRawDecoder {
                 let ctr_a = frame_a[0];
                 let ctr_b = frame_b[0];
                 let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
-                let ctr_is_ok = ctr_is_ok || (ctr_b == 0);
+                let ctr_is_ok = ctr_is_ok || (ctr_b == 0 && ctr_a == 255) || (ctr_a == 0 && ctr_b == 255);
                 (wrsel_matches && ctr_is_ok && (frame_a[1] != last_wrsel), debug_info, frame_a[1])
             })
         });
