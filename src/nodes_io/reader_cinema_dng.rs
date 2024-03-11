@@ -1,18 +1,11 @@
 use crate::pipeline_processing::{
-    frame::{
-        CfaDescriptor,
-        ColorInterpretation,
-        Compression,
-        Frame,
-        FrameInterpretation,
-        SampleInterpretation,
-    },
+    frame::{CfaDescriptor, Frame, Raw},
     node::{Caps, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     payload::Payload,
     processing_context::ProcessingContext,
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use dng::{tags, DngReader};
 use glob::glob;
@@ -40,7 +33,7 @@ impl Parameterizable for CinemaDngReader {
         mut options: Parameters,
         _is_input_to: &[NodeID],
         context: &ProcessingContext,
-    ) -> Result<Self>
+    ) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
@@ -52,8 +45,8 @@ impl Parameterizable for CinemaDngReader {
         }
         Ok(Self {
             files,
-            cache_frames: options.has("cache-frames"),
-            internal_loop: options.has("internal-loop"),
+            cache_frames: options.take("cache-frames")?,
+            internal_loop: options.take("internal-loop")?,
             cache: Mutex::new((0..frame_count).map(|_| None).collect()),
             context: context.clone(),
         })
@@ -115,46 +108,20 @@ impl ProcessingNode for CinemaDngReader {
                 .map(|x| x as u64)
         };
 
-        let fps = dng
-            .get_entry_by_path(&main_ifd.chain_tag(tags::ifd::FrameRate))
-            .map(|v| {
-                v.value
-                    .as_f64()
-                    .ok_or(anyhow!("couldnt interpret frame rate of DNG {path:?} as f64"))
-            })
-            .transpose()?;
-
-
-        let bits_per_sample = get_tag_as_u32(tags::ifd::BitsPerSample)?;
-        let sample_interpretation = match get_tag_as_u32(tags::ifd::SampleFormat)? {
-            1 => {
-                // uint
-                SampleInterpretation::UInt(bits_per_sample as u8)
-            }
-            3 => {
-                // IEEE float
-                if bits_per_sample == 16 {
-                    SampleInterpretation::FP16
-                } else if bits_per_sample == 32 {
-                    SampleInterpretation::FP32
-                } else {
-                    bail!("DNG is IEEE float with bits_per_sample={bits_per_sample}. This is unsupported")
-                }
-            }
-            other => bail!("Unknown SampleFormat {other}"),
-        };
-
-
-        let interpretation = FrameInterpretation {
+        let interp = Raw {
             width: get_tag_as_u32(tags::ifd::ImageWidth)?,
             height: get_tag_as_u32(tags::ifd::ImageLength)?,
-            fps,
-            color_interpretation: ColorInterpretation::Bayer(cfa),
-            sample_interpretation,
-            compression: Compression::Uncompressed,
+            bit_depth: get_tag_as_u32(tags::ifd::BitsPerSample)?,
+            fps: dng
+                .get_entry_by_path(&main_ifd.chain_tag(tags::ifd::FrameRate))
+                .ok_or(anyhow!("couldnt read frame rate of DNG {path:?}"))?
+                .value
+                .as_f64()
+                .ok_or(anyhow!("couldnt interpret frame rate of DNG {path:?} as f64"))?,
+            cfa,
         };
 
-        let payload = Payload::from(Frame { storage: buffer, interpretation });
+        let payload = Payload::from(Frame { storage: buffer, interp });
 
         if self.cache_frames {
             self.cache.lock().unwrap()[frame_number as usize] = Some(payload.clone());

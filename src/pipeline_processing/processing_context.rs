@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     buffers::{CpuBuffer, GpuBuffer},
-    frame::Frame,
+    frame::{Frame, Raw, Rgb, Rgba, SZ3Compressed},
     payload::Payload,
     prioritized_executor::PrioritizedReactor,
 };
@@ -192,7 +192,19 @@ impl ProcessingContext {
             CpuBuffer::Vec(Arc::new(RwLock::new(vec)))
         }
     }
-    fn to_cpu_buffer_frame(&self, frame: Arc<Frame<GpuBuffer>>) -> Result<Frame<CpuBuffer>> {
+    pub fn get_init_cpu_buffer(&self, len: usize, init: u8) -> CpuBuffer {
+        unsafe {
+            let mut buf = self.get_uninit_cpu_buffer(len);
+            buf.as_mut_slice(|buf| {
+                buf.iter_mut().for_each(|v| *v = init);
+            });
+            buf
+        }
+    }
+    fn to_cpu_buffer<Interpretation: Clone + Send + Sync + 'static>(
+        &self,
+        frame: Arc<Frame<Interpretation, GpuBuffer>>,
+    ) -> Result<Frame<Interpretation, CpuBuffer>> {
         let (device, queues) = self.require_vulkan()?;
         let queue =
             queues.iter().find(|&q| q.family().explicitly_supports_transfers()).unwrap().clone();
@@ -217,21 +229,44 @@ impl ProcessingContext {
         // dropping this future blocks this thread until the gpu finished the work
         drop(future);
 
-        Ok(Frame { interpretation: frame.interpretation.clone(), storage: buffer })
+        Ok(Frame { interp: frame.interp.clone(), storage: buffer })
     }
-    pub fn ensure_cpu_buffer_frame(&self, payload: &Payload) -> Result<Arc<Frame<CpuBuffer>>> {
-        if let Ok(frame) = payload.downcast::<Frame<CpuBuffer>>() {
+    pub fn ensure_cpu_buffer<Interpretation: Clone + Send + Sync + 'static>(
+        &self,
+        payload: &Payload,
+    ) -> anyhow::Result<Arc<Frame<Interpretation, CpuBuffer>>> {
+        if let Ok(frame) = payload.downcast::<Frame<Interpretation, CpuBuffer>>() {
             Ok(frame)
-        } else if let Ok(frame) = payload.downcast::<Frame<GpuBuffer>>() {
-            Ok(Arc::new(self.to_cpu_buffer_frame(frame)?))
+        } else if let Ok(frame) = payload.downcast::<Frame<Interpretation, GpuBuffer>>() {
+            Ok(Arc::new(self.to_cpu_buffer(frame)?))
         } else {
             Err(anyhow!(
-                "wanted a frame with type {}, but the payload was of type {}",
-                std::any::type_name::<Frame<CpuBuffer>>(),
+                "wanted a frame with interpretation {}, but the payload was of type {}",
+                std::any::type_name::<Interpretation>(),
                 payload.type_name
             ))
         }
     }
+    pub fn ensure_any_cpu_buffer(&self, payload: &Payload) -> anyhow::Result<CpuBuffer> {
+        macro_rules! conv {
+            ($($ty:ty),*) => {
+                $(
+                    if let Ok(frame) = payload.downcast::<Frame<$ty, CpuBuffer>>() {
+                        return Ok(frame.storage.clone());
+                    } else if let Ok(frame) = payload.downcast::<Frame<$ty, GpuBuffer>>() {
+                        return Ok(self.to_cpu_buffer(frame)?.storage);
+                    }
+                )*
+            };
+        }
+        conv!(Raw, Rgb, Rgba, SZ3Compressed);
+
+        return Err(anyhow!(
+            "wanted to convert frame {} to a byte array, but this was not possible",
+            payload.type_name
+        ));
+    }
+
     pub fn require_vulkan(&self) -> Result<(Arc<Device>, Vec<Arc<Queue>>)> {
         if let Some(vulkan_context) = &self.vulkan_device {
             Ok((vulkan_context.device.clone(), vulkan_context.queues.clone()))

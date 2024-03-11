@@ -24,14 +24,14 @@ pub async fn pull_unordered(
     output_priority: u8,
     progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     input: InputProcessingNode,
-    number_of_frames: Option<u64>,
+    number_of_frames: u64,
     on_payload: impl Fn(Payload, u64) -> Result<()> + Send + Sync + Clone + 'static,
 ) -> Result<()> {
     let mut range = match (number_of_frames, input.get_caps().frame_count) {
-        (None, None) => 0..u64::MAX_VALUE,
-        (None, Some(n)) => 0..n,
-        (Some(n), None) => 0..n,
-        (Some(n), Some(m)) => 0..n.min(m),
+        (0, None) => 0..u64::MAX_VALUE,
+        (0, Some(n)) => 0..n,
+        (n, None) => 0..n,
+        (n, Some(m)) => 0..n.min(m),
     };
 
     let total_frames = if range.end == u64::MAX_VALUE { None } else { Some(range.end as _) };
@@ -99,13 +99,13 @@ pub fn pull_ordered(
     output_priority: u8,
     progress_callback: Arc<dyn Fn(ProgressUpdate) + Send + Sync>,
     input: InputProcessingNode,
-    number_of_frames: Option<u64>,
+    number_of_frames: u64,
 ) -> flume::Receiver<Payload> {
     let mut range = match (number_of_frames, input.get_caps().frame_count) {
-        (None, None) => 0..u64::MAX_VALUE,
-        (None, Some(n)) => 0..n,
-        (Some(n), None) => 0..n,
-        (Some(n), Some(m)) => 0..n.min(m),
+        (0, None) => 0..u64::MAX_VALUE,
+        (0, Some(n)) => 0..n,
+        (n, None) => 0..n,
+        (n, Some(m)) => 0..n.min(m),
     };
 
     let total_frames = if range.end == u64::MAX_VALUE { None } else { Some(range.end as _) };

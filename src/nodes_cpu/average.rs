@@ -1,7 +1,7 @@
 use crate::{
     pipeline_processing::{
         buffers::ChunkedCpuBuffer,
-        frame::{Frame},
+        frame::{Frame, Raw},
         node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
         parametrizable::prelude::*,
         payload::Payload,
@@ -37,7 +37,7 @@ impl Parameterizable for Average {
         Ok(Self {
             input: parameters.take("input")?,
             num_frames: parameters.take::<i64>("n")? as usize,
-            produce_std: parameters.has("std"),
+            produce_std: parameters.take("std")?,
             last_frame_info: Default::default(),
             context: context.clone(),
         })
@@ -64,18 +64,18 @@ impl ProcessingNode for Average {
 
         let context = &self.context;
         let frame =
-            context.ensure_cpu_buffer_frame(&input).context("Wrong input format for Average")?;
-        let interpretation = frame.interpretation.clone();
-        assert_eq!(frame.interpretation.bit_depth, 12);
+            context.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format for Average")?;
+        let interp = frame.interp;
+        assert_eq!(frame.interp.bit_depth, 12);
 
         // println!("[{frame_number}] adding {n}");
 
         // f32 -> 4 bytes per pixel
         let out_buffer_avg =
-            unsafe { context.get_uninit_cpu_buffer((interpretation.height * interpretation.width * 4) as usize) };
+            unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
 
         let out_buffer_std =
-            unsafe { context.get_uninit_cpu_buffer((interpretation.height * interpretation.width * 4) as usize) };
+            unsafe { context.get_uninit_cpu_buffer((interp.height * interp.width * 4) as usize) };
 
         let out = Arc::new(ChunkedCpuBuffer::<usize, 2>::new(
             [out_buffer_avg, out_buffer_std],
@@ -127,7 +127,7 @@ impl ProcessingNode for Average {
                         _ => {}
                     }
                     let input = input?;
-                    let frame = context_copy.ensure_cpu_buffer(&input).context("Wrong input format for Average")?;
+                    let frame = context_copy.ensure_cpu_buffer::<Raw>(&input).context("Wrong input format for Average")?;
                     assert_eq!(interp.bit_depth, 12);
 
                     frame.storage.as_slice_async(|frame: &[u8]| async move {
@@ -198,10 +198,10 @@ impl ProcessingNode for Average {
             }
         });
 
-        let mut interp = interpretation;
+        let mut interp = interp;
         interp.bit_depth = 32;
-        let avg_frame = Frame { storage: avg_buffer, interpretation: interp };
-        let std_frame = Frame { storage: std_buffer, interpretation: interp };
+        let avg_frame = Frame { storage: avg_buffer, interp };
+        let std_frame = Frame { storage: std_buffer, interp };
 
         if self.produce_std {
             Ok(Payload::from(vec![Payload::from(avg_frame), Payload::from(std_frame)]))

@@ -1,6 +1,6 @@
 use crate::{
     pipeline_processing::{
-        frame::{Frame, FrameInterpretation},
+        frame::{Frame, FrameInterpretation, FrameInterpretations},
         node::{Caps, EOFError, NodeID, ProcessingNode, Request},
         parametrizable::prelude::*,
         payload::Payload,
@@ -20,7 +20,7 @@ pub struct ZstdBlobReader {
         u64,
         Arc<Mutex<zstd::stream::read::Decoder<'static, std::io::BufReader<std::fs::File>>>>,
     )>,
-    interpretation: FrameInterpretation,
+    interp: FrameInterpretations,
     context: ProcessingContext,
 }
 impl Parameterizable for ZstdBlobReader {
@@ -38,13 +38,13 @@ impl Parameterizable for ZstdBlobReader {
         let path: String = options.take("file")?;
         let file = std::fs::File::open(path)?;
 
-        let interpretation = options.get_interpretation()?;
+        let interp = options.get_interpretation()?;
         Ok(Self {
             frame_and_file: AsyncNotifier::new((
                 0,
                 Arc::new(Mutex::new(zstd::stream::read::Decoder::new(file)?)),
             )),
-            interpretation,
+            interp,
             context: context.clone(),
         })
     }
@@ -64,14 +64,22 @@ impl ProcessingNode for ZstdBlobReader {
         let mut decoder = decoder.lock().unwrap();
 
         let mut buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(self.interpretation.required_bytes()) };
+            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
+        // dbg!(self.interp.required_bytes());
         buffer.as_mut_slice(move |buffer| {
             decoder.read_exact(buffer).context(EOFError)?;
-            Result::<_, anyhow::Error>::Ok(())
+            // dbg!(buffer[0], buffer[1], buffer[2]);
+            anyhow::Result::<_, anyhow::Error>::Ok(())
         })?;
         self.frame_and_file.update(|(frame_no, _)| *frame_no = frame_number + 1);
 
-        Ok(Payload::from(Frame { interpretation: self.interpretation.clone(), storage: buffer }))
+        let payload = match self.interp {
+            FrameInterpretations::Raw(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgb(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgba(interp) => Payload::from(Frame { storage: buffer, interp }),
+        };
+
+        Ok(payload)
     }
 
     fn get_caps(&self) -> Caps { Caps { frame_count: None, random_access: false } }

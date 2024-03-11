@@ -1,6 +1,6 @@
 use crate::pipeline_processing::{
     frame::Rgb,
-    gpu_util::ensure_gpu_buffer_frame,
+    gpu_util::ensure_gpu_buffer,
     node::{InputProcessingNode, NodeID, ProgressUpdate, SinkNode},
     parametrizable::prelude::*,
     processing_context::ProcessingContext,
@@ -145,7 +145,7 @@ impl Parameterizable for Display {
             .with("mailbox", Optional(BoolParameter))
             .with("live", Optional(BoolParameter))
             .with("loop", Optional(BoolParameter))
-            .with("priority", WithDefault(U8(), ParameterValue::IntRangeValue(0)))
+            .with("priority", Optional(U8()))
             .with("fullscreen", Optional(BoolParameter))
     }
 
@@ -155,10 +155,10 @@ impl Parameterizable for Display {
         _context: &ProcessingContext,
     ) -> Result<Self> {
         Ok(Self {
-            mailbox: parameters.has("mailbox"),
-            live: parameters.has("live"),
-            do_loop: parameters.has("loop"),
-            fullscreen: parameters.has("fullscreen"),
+            mailbox: parameters.take("mailbox")?,
+            live: parameters.take("live")?,
+            do_loop: parameters.take("loop")?,
+            fullscreen: parameters.take("fullscreen")?,
             input: parameters.take("input")?,
             priority: parameters.take("priority")?,
         })
@@ -316,15 +316,13 @@ impl SinkNode for Display {
                                 *control_flow = ControlFlow::Exit
                             }
                             Ok(ref frame) => {
-                                let (frame, fut) =
-                                    ensure_gpu_buffer_frame::<Rgb>(frame, queue.clone())
-                                        .context("Wrong input format for Display")
-                                        .unwrap();
-                                frame_width = frame.interpretation.width as _;
-                                frame_height = frame.interpretation.height as _;
+                                let (frame, fut) = ensure_gpu_buffer::<Rgb>(frame, queue.clone())
+                                    .context("Wrong input format for Display")
+                                    .unwrap();
+                                frame_width = frame.interp.width as _;
+                                frame_height = frame.interp.height as _;
 
-                                next_frame_time +=
-                                    Duration::from_secs_f64(1.0 / frame.interpretation.fps);
+                                next_frame_time += Duration::from_secs_f64(1.0 / frame.interp.fps);
                                 source_buffer = Some(frame);
                                 source_future = Some(fut);
                             }

@@ -23,7 +23,7 @@ impl Parameterizable for Cache {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
-            .with("size", WithDefault(NaturalGreaterZero(), IntRangeValue(1)))
+            .with("size", Optional(NaturalGreaterZero()))
     }
 
     fn from_parameters(

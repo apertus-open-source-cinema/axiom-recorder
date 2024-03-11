@@ -79,7 +79,7 @@ pub trait ProcessingNode {
     fn get_caps(&self) -> Caps;
 }
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct NodeID(u16);
 
 impl From<NodeID> for usize {

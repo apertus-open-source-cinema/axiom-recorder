@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 
 
 use crate::pipeline_processing::{
-    frame::{Frame, FrameInterpretation, SampleInterpretation},
+    frame::{Frame, FrameInterpretation, Raw},
     node::{Caps, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     processing_context::ProcessingContext,
@@ -38,18 +38,14 @@ impl ProcessingNode for BitDepthConverter {
         let input = self.input.pull(request).await?;
         let frame = self
             .context
-            .ensure_cpu_buffer_frame(&input)
+            .ensure_cpu_buffer::<Raw>(&input)
             .context("Wrong input format for BitDepthConverter")?;
-        let interpretation = FrameInterpretation {
-            sample_interpretation: SampleInterpretation::UInt(8),
-            ..frame.interpretation.clone()
-        };
-        let mut new_buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(interpretation.required_bytes()) };
+        let interp = Raw { bit_depth: 8, ..frame.interp };
+        let mut new_buffer = unsafe { self.context.get_uninit_cpu_buffer(interp.required_bytes()) };
 
-        if let SampleInterpretation::UInt(8) = frame.interpretation.sample_interpretation {
+        if frame.interp.bit_depth == 8 {
             return Ok(input);
-        } else if let SampleInterpretation::UInt(12) = frame.interpretation.sample_interpretation {
+        } else if frame.interp.bit_depth == 12 {
             new_buffer.as_mut_slice(|new_buffer| {
                 frame.storage.as_slice(|frame_storage| {
                     for (input, output) in
@@ -60,21 +56,21 @@ impl ProcessingNode for BitDepthConverter {
                     }
                 })
             });
-        } else if let SampleInterpretation::UInt(bits) = frame.interpretation.sample_interpretation
-        {
+        } else {
             let mut rest_value: u32 = 0;
             let mut rest_bits: u32 = 0;
             let mut pos = 0;
             new_buffer.as_mut_slice(|new_buffer| {
                 frame.storage.as_slice(|frame_storage| {
                     for value in frame_storage.iter() {
-                        let bits_more_than_bit_depth = (rest_bits as i32 + 8) - bits as i32;
+                        let bits_more_than_bit_depth =
+                            (rest_bits as i32 + 8) - frame.interp.bit_depth as i32;
                         if bits_more_than_bit_depth >= 0 {
                             let new_n_bit_value: u32 = rest_value
-                                .wrapping_shl(bits as u32 - rest_bits)
+                                .wrapping_shl(frame.interp.bit_depth as u32 - rest_bits)
                                 | value.wrapping_shr(8 - bits_more_than_bit_depth as u32) as u32;
-                            new_buffer[pos] = (if bits > 8 {
-                                new_n_bit_value.wrapping_shr(bits as u32 - 8)
+                            new_buffer[pos] = (if frame.interp.bit_depth > 8 {
+                                new_n_bit_value.wrapping_shr(frame.interp.bit_depth as u32 - 8)
                             } else {
                                 new_n_bit_value
                             } as u8);
@@ -91,7 +87,7 @@ impl ProcessingNode for BitDepthConverter {
             });
         }
 
-        let new_frame = Frame { storage: new_buffer, interpretation };
+        let new_frame = Frame { storage: new_buffer, interp };
 
         Ok(Payload::from(new_frame))
     }

@@ -6,13 +6,15 @@ use crate::nodes_gpu::plot::Plot;
 use crate::nodes_io::reader_webcam::WebcamInput;
 use crate::{
     nodes_cpu::{
-        //average::Average,
+        average::Average,
         benchmark_sink::BenchmarkSink,
+        bitdepth_convert::BitDepthConverter,
         dual_frame_raw_decoder::{DualFrameRawDecoder, ReverseDualFrameRawDecoder},
-        //sz3::SZ3Compress,
+        sz3::SZ3Compress,
         zstd::ZstdBlobReader,
     },
     nodes_gpu::{
+        bitdepth_convert::GpuBitDepthConverter,
         calibrate::Calibrate,
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
@@ -33,14 +35,10 @@ use crate::{
         processing_context::ProcessingContext,
     },
 };
-use crate::{
-    nodes_gpu::base_gpu_node::GpuNodeImpl,
-    nodes_io::{frameserver_cinema_dng::CinemaDngFrameserver, writer_ffmpeg::FfmpegWriter},
-    nodes_util::null_source::NullFrameSource,
-};
+
+use crate::nodes_io::{frameserver_cinema_dng::CinemaDngFrameserver, writer_ffmpeg::FfmpegWriter};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
-
 macro_rules! generate_dynamic_node_creation_functions {
     ($($(#[$m:meta])? $x:ty),+ $(,)?) => {
         pub fn list_available_nodes() -> HashMap<String, ParameterizableDescriptor> {
@@ -67,27 +65,28 @@ macro_rules! generate_dynamic_node_creation_functions {
     };
 }
 
-
 generate_dynamic_node_creation_functions![
     RawDirectoryReader,
     RawBlobReader,
     CinemaDngWriter,
     CinemaDngReader,
-    GpuNodeImpl<Debayer>,
-    GpuNodeImpl<ColorVoodoo>,
-    GpuNodeImpl<Lut3d>,
+    GpuBitDepthConverter,
+    Debayer,
     #[cfg(target_os = "linux")]
     Display,
+    BitDepthConverter,
     DualFrameRawDecoder,
     ReverseDualFrameRawDecoder,
     BenchmarkSink,
+    ColorVoodoo,
     RawDirectoryWriter,
     RawBlobWriter,
-    //Average,
+    Lut3d,
+    Average,
     TcpReader,
     Cache,
     Split,
-    //SZ3Compress,
+    SZ3Compress,
     ZstdBlobReader,
     Calibrate,
     Histogram,
@@ -97,5 +96,4 @@ generate_dynamic_node_creation_functions![
     WebcamInput,
     FfmpegWriter,
     CinemaDngFrameserver,
-    NullFrameSource,
 ];

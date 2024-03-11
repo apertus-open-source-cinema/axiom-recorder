@@ -1,6 +1,6 @@
 use crate::{
     pipeline_processing::{
-        frame::{Frame, FrameInterpretation, Rgb, SampleInterpretation},
+        frame::{Frame, FrameInterpretation, Rgb},
         node::{Caps, NodeID, ProcessingNode, Request},
         parametrizable::prelude::*,
         payload::Payload,
@@ -27,7 +27,7 @@ use v4l2_sys_mit::*;
 pub struct WebcamInput {
     queue: AsyncNotifier<(u64, u64)>,
     stream: RwLock<CpuBufferQueueManager>,
-    interpretation: FrameInterpretation,
+    interp: Rgb,
     context: ProcessingContext,
 }
 
@@ -36,7 +36,7 @@ impl Parameterizable for WebcamInput {
         Some("read frames from a webcam (or webcam like source like a frame-grabber)");
 
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new().with("device", WithDefault(NaturalWithZero(), IntRangeValue(0)))
+        ParametersDescriptor::new().with("device", Optional(NaturalWithZero()))
     }
     fn from_parameters(
         mut options: Parameters,
@@ -46,21 +46,14 @@ impl Parameterizable for WebcamInput {
         let dev =
             Device::new(options.take::<u64>("device")? as usize).expect("Failed to open device");
         let format = dev.format()?;
-        let interpretation = FrameInterpretation {
-            width: format.width as u64,
-            height: format.height as u64,
-            fps: 10000.0, // TODO: this is a dirty hack
-            color_interpretation: ColorInterpretation::Rgb,
-            sample_interpretation: SampleInterpretation::UInt(8),
-            compression: Compression::Uncompressed,
-        };
+        let interp = Rgb { width: format.width as u64, height: format.height as u64, fps: 10000.0 };
         let mut stream = CpuBufferQueueManager::new(&dev);
         stream.start();
 
         Ok(Self {
             queue: Default::default(),
             stream: RwLock::new(stream),
-            interpretation,
+            interp,
             context: context.clone(),
         })
     }
@@ -97,7 +90,7 @@ impl ProcessingNode for WebcamInput {
         // frame, metadata.sequence
 
         let mut buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(self.interpretation.required_bytes()) };
+            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
         buffer.as_mut_slice(|buffer| {
             for (src, dst) in frame.chunks_exact(3).zip(buffer.chunks_exact_mut(3)) {
                 dst[0] = src[2];
@@ -106,7 +99,7 @@ impl ProcessingNode for WebcamInput {
             }
         });
 
-        return Ok(Payload::from(Frame { storage: buffer, interpretation: self.interpretation }));
+        return Ok(Payload::from(Frame { storage: buffer, interp: self.interp }));
     }
 
     fn get_caps(&self) -> Caps { Caps { frame_count: None, random_access: false } }
@@ -117,7 +110,6 @@ pub struct CpuBufferQueueManager {
     buffer_size: usize,
     buffers: Vec<Option<Vec<u8>>>,
 }
-
 impl CpuBufferQueueManager {
     fn new(dev: &Device) -> Self {
         let handle = dev.handle();

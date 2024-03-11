@@ -91,11 +91,6 @@ The config file supports variable substitution. You can set name value pairs on 
 
 ## Examples
 
-Display a live stream from the AXIOM Beta (running in raw mode, adjust --device= number accoring to your HDMI capture device):
-```shell
-$ target/release/cli from-cli WebcamInput --device=0 ! DualFrameRawDecoder ! BitDepthConverter ! Debayer ! Display
-```
-
 Convert a directory of raw12 files recorded previously from the AXIOM Beta to mp4 (h264) using FFmpeg:
 ```shell
 $ target/release/cli from-cli RawDirectoryReader --file-pattern '~/Darkbox-Timelapse-Clock-Sequence/*.raw12' --bit-depth 12 --height 3072 --width 4096 --loop true --fps 30 ! BitDepthConverter ! Debayer ! FfmpegWriter --output darkbox.mp4

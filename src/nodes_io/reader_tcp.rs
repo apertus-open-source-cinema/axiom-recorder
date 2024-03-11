@@ -1,6 +1,6 @@
 use crate::{
     pipeline_processing::{
-        frame::{Frame, FrameInterpretation},
+        frame::{Frame, FrameInterpretation, FrameInterpretations},
         node::{Caps, EOFError, NodeID, ProcessingNode, Request},
         parametrizable::prelude::*,
         payload::Payload,
@@ -14,7 +14,7 @@ use std::{io::Read, net::TcpStream, sync::Mutex};
 
 pub struct TcpReader {
     tcp_connection: Mutex<TcpStream>,
-    interpretation: FrameInterpretation,
+    interp: FrameInterpretations,
     notifier: AsyncNotifier<u64>,
     context: ProcessingContext,
 }
@@ -35,7 +35,7 @@ impl Parameterizable for TcpReader {
     {
         Ok(Self {
             tcp_connection: Mutex::new(TcpStream::connect(parameters.take::<String>("address")?)?),
-            interpretation: parameters.get_interpretation()?,
+            interp: parameters.get_interpretation()?,
             notifier: Default::default(),
             context: context.clone(),
         })
@@ -50,14 +50,18 @@ impl ProcessingNode for TcpReader {
         self.notifier.wait(move |x| *x >= frame_number).await;
 
         let mut buffer =
-            unsafe { self.context.get_uninit_cpu_buffer(self.interpretation.required_bytes()) };
+            unsafe { self.context.get_uninit_cpu_buffer(self.interp.required_bytes()) };
         buffer
             .as_mut_slice(|slice| self.tcp_connection.lock().unwrap().read_exact(slice))
             .context(EOFError)?;
 
         self.notifier.update(|x| *x = frame_number + 1);
 
-        let payload = Payload::from(Frame { storage: buffer, interpretation: self.interpretation });
+        let payload = match self.interp {
+            FrameInterpretations::Raw(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgb(interp) => Payload::from(Frame { storage: buffer, interp }),
+            FrameInterpretations::Rgba(interp) => Payload::from(Frame { storage: buffer, interp }),
+        };
 
         Ok(payload)
     }
