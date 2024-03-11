@@ -1,5 +1,5 @@
 use crate::pipeline_processing::{
-    frame::{Frame, Raw, Rgb, SZ3Compressed},
+    frame::{Frame, Bayer, Rgb, SZ3Compressed},
     node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     payload::Payload,
@@ -83,11 +83,11 @@ impl ProcessingNode for SZ3Compress {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
         let (bytes, frame_dims, interp) =
-            if let Ok(frame) = self.context.ensure_cpu_buffer::<Raw>(&input) {
+            if let Ok(frame) = self.context.ensure_cpu_buffer::<Bayer>(&input) {
                 (
                     frame.storage.clone(),
-                    vec![frame.interp.width as _, frame.interp.height as _],
-                    Arc::new(frame.interp) as Arc<_>,
+                    vec![frame.interpretation.width as _, frame.interpretation.height as _],
+                    Arc::new(frame.interpretation) as Arc<_>,
                 )
             } else {
                 let frame = self
@@ -96,8 +96,8 @@ impl ProcessingNode for SZ3Compress {
                     .context("Wrong input format for SZ3Compress")?;
                 (
                     frame.storage.clone(),
-                    vec![3, frame.interp.width as _, frame.interp.height as _],
-                    Arc::new(frame.interp) as Arc<_>,
+                    vec![3, frame.interpretation.width as _, frame.interpretation.height as _],
+                    Arc::new(frame.interpretation) as Arc<_>,
                 )
             };
 
@@ -142,7 +142,7 @@ impl ProcessingNode for SZ3Compress {
             buffer
         };
 
-        let new_frame = Frame { interp: SZ3Compressed::new(interp, buffer.len()), storage: buffer };
+        let new_frame = Frame { interpretation: SZ3Compressed::new(interp, buffer.len()), storage: buffer };
 
         Ok(Payload::from(new_frame))
     }

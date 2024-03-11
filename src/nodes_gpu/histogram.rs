@@ -1,7 +1,7 @@
 use crate::pipeline_processing::{
     buffers::GpuBuffer,
-    frame::{Frame, Raw},
-    gpu_util::ensure_gpu_buffer,
+    frame::{Frame, FrameInterpretation, SampleInterpretation},
+    gpu_util::ensure_gpu_buffer_frame,
     node::{Caps, InputProcessingNode, NodeID, ProcessingNode, Request},
     parametrizable::prelude::*,
     payload::Payload,
@@ -70,12 +70,13 @@ impl ProcessingNode for Histogram {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
 
-        let (frame, fut) = ensure_gpu_buffer::<Raw>(&input, self.queue.clone())
+        let (frame, fut) = ensure_gpu_buffer_frame(&input, self.queue.clone())
             .context("Wrong input format for Histogram")?;
+
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),
-            (1 << frame.interp.bit_depth) * 4, // actually uint
+            (1 << 8) * 4, // actually uint
             BufferUsage {
                 storage_buffer: true,
                 storage_texel_buffer: true,
@@ -88,8 +89,8 @@ impl ProcessingNode for Histogram {
         )?;
 
         let push_constants = compute_shader::ty::PushConstantData {
-            width: frame.interp.width as _,
-            height: frame.interp.height as _,
+            width: frame.interpretation.width as _,
+            height: frame.interpretation.height as _,
         };
 
         let layout = self.pipeline.layout().set_layouts()[0].clone();
@@ -122,8 +123,8 @@ impl ProcessingNode for Histogram {
             .push_constants(self.pipeline.layout().clone(), 0, push_constants)
             .bind_pipeline_compute(self.pipeline.clone())
             .dispatch([
-                (frame.interp.width as u32 + 15) / 16,
-                (frame.interp.height as u32 + 31) / 32,
+                (frame.interpretation.width as u32 + 15) / 16,
+                (frame.interpretation.height as u32 + 31) / 32,
                 1,
             ])?;
         let command_buffer = builder.build()?;
@@ -133,12 +134,11 @@ impl ProcessingNode for Histogram {
 
         future.wait(None).unwrap();
         Ok(Payload::from(Frame {
-            interp: Raw {
+            interpretation: FrameInterpretation {
                 width: 4096,
                 height: 1,
-                bit_depth: 32,
-                cfa: frame.interp.cfa,
-                fps: frame.interp.fps,
+                sample_interpretation: SampleInterpretation::FP32,
+                ..frame.interpretation.clone()
             },
             storage: GpuBuffer::from(sink_buffer),
         }))

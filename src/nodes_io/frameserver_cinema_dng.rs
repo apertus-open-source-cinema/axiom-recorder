@@ -1,8 +1,10 @@
-use crate::pipeline_processing::{
-    frame::Raw,
-    node::{InputProcessingNode, NodeID, ProgressUpdate, Request, SinkNode},
-    parametrizable::prelude::*,
-    processing_context::ProcessingContext,
+use crate::{
+    nodes_io::writer_cinema_dng::frame_to_dng_ifd,
+    pipeline_processing::{
+        node::{InputProcessingNode, NodeID, ProgressUpdate, Request, SinkNode},
+        parametrizable::prelude::*,
+        processing_context::ProcessingContext,
+    },
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -24,14 +26,7 @@ use dav_server::{
     DavHandler,
 };
 use derivative::Derivative;
-use dng::{
-    ifd::{Ifd, IfdValue},
-    tags,
-    tags::IfdType,
-    yaml::IfdYamlParser,
-    DngWriter,
-    FileType,
-};
+use dng::{ifd::Ifd, yaml::IfdYamlParser, DngWriter, FileType};
 use futures::{future, FutureExt};
 use hyper::{
     body::{Buf, Bytes},
@@ -67,7 +62,7 @@ impl Parameterizable for CinemaDngFrameserver {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
-            .with("priority", Optional(U8()))
+            .with("priority", WithDefault(U8(), ParameterValue::IntRangeValue(0)))
             .with("host", WithDefault(StringParameter, StringValue("127.0.0.1".to_string())))
             .with("port", Optional(IntRange(0, u16::MAX as i64)))
             .with("dcp-yaml", Optional(StringParameter))
@@ -81,22 +76,26 @@ impl Parameterizable for CinemaDngFrameserver {
     where
         Self: Sized,
     {
-        let port = parameters.take::<u64>("port")?;
-        let port = if port == 0 { portpicker::pick_unused_port().unwrap() } else { port as u16 };
+        let port = if let Some(port) = parameters.take_option::<u64>("port")? {
+            port as u16
+        } else {
+            portpicker::pick_unused_port().unwrap()
+        };
+
         let host = parameters.take::<String>("host")?;
         let address = SocketAddr::from((IpAddr::from_str(&host)?, port));
 
         let mut base_ifd =
             IfdYamlParser::default().parse_from_str(include_str!("./base_ifd.yml"))?;
 
-        let path_string = parameters.take::<String>("dcp-yaml").unwrap_or("".to_string());
-        let dcp_ifd = if path_string.is_empty() {
-            IfdYamlParser::default().parse_from_str(include_str!("./default_dcp.yml"))?
-        } else {
-            let path = PathBuf::from_str(&path_string)?;
+        let dcp_ifd = if let Some(path) = parameters.take_option::<String>("dcp-yaml")? {
+            let path = PathBuf::from_str(&path)?;
             let data = fs::read_to_string(path.clone()).context("couldnt read dcp-yaml file")?;
             IfdYamlParser::new(path).parse_from_str(&data).context("couldnt parse dcp-yaml file")?
+        } else {
+            IfdYamlParser::default().parse_from_str(include_str!("./default_dcp.yml"))?
         };
+
         base_ifd.insert_from_other(dcp_ifd);
 
         Ok(Self {
@@ -129,36 +128,10 @@ impl SinkNode for CinemaDngFrameserver {
                 let payload = input.pull(Request::new(priority, i)).await?;
 
                 let frame = context
-                    .ensure_cpu_buffer::<Raw>(&payload)
-                    .context("Wrong input format for CinemaDngWriter")?;
+                    .ensure_cpu_buffer_frame(&payload)
+                    .context("Wrong input format for CinemaDng")?;
 
-
-                let mut ifd = Ifd::new(IfdType::Ifd);
-                ifd.insert_from_other(base_ifd.clone());
-
-                ifd.insert(tags::ifd::ImageWidth, frame.interp.width as u32);
-                ifd.insert(tags::ifd::ImageLength, frame.interp.height as u32);
-                ifd.insert(tags::ifd::RowsPerStrip, frame.interp.height as u32);
-                ifd.insert(
-                    tags::ifd::FrameRate,
-                    IfdValue::SRational((frame.interp.fps * 10000.0) as i32, 10000),
-                );
-                ifd.insert(tags::ifd::BitsPerSample, frame.interp.bit_depth as u32);
-                ifd.insert(
-                    tags::ifd::CFAPattern,
-                    match (frame.interp.cfa.red_in_first_row, frame.interp.cfa.red_in_first_col) {
-                        (true, true) => [0u8, 1, 1, 2],
-                        (true, false) => [1, 0, 2, 1],
-                        (false, true) => [1, 2, 0, 1],
-                        (false, false) => [2, 1, 1, 0],
-                    },
-                );
-
-                ifd.insert(
-                    tags::ifd::StripOffsets,
-                    IfdValue::Offsets(Arc::new(frame.storage.clone())),
-                );
-                ifd.insert(tags::ifd::StripByteCounts, frame.storage.len() as u32);
+                let ifd = frame_to_dng_ifd(frame, base_ifd)?;
 
                 let mut buffer = Cursor::new(Vec::new());
                 DngWriter::write_dng(&mut buffer, true, FileType::Dng, vec![ifd])?;

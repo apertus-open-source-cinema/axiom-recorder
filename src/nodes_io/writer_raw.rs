@@ -16,7 +16,7 @@ use std::{
 pub struct RawBlobWriter {
     file: Arc<Mutex<File>>,
     input: InputProcessingNode,
-    number_of_frames: u64,
+    number_of_frames: Option<u64>,
     priority: u8,
 }
 impl Parameterizable for RawBlobWriter {
@@ -24,7 +24,7 @@ impl Parameterizable for RawBlobWriter {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInputParameter))
-            .with("priority", Optional(U8()))
+            .with("priority", WithDefault(U8(), ParameterValue::IntRangeValue(0)))
             .with("number-of-frames", Optional(NaturalWithZero()))
     }
     fn from_parameters(
@@ -38,7 +38,7 @@ impl Parameterizable for RawBlobWriter {
         Ok(Self {
             file: Arc::new(Mutex::new(File::create(parameters.take::<String>("path")?)?)),
             input: parameters.take("input")?,
-            number_of_frames: parameters.take("number-of-frames")?,
+            number_of_frames: parameters.take_option("number-of-frames")?,
             priority: parameters.take("priority")?,
         })
     }
@@ -59,8 +59,8 @@ impl SinkNode for RawBlobWriter {
             self.number_of_frames,
         );
         while let Ok(payload) = rx.recv_async().await {
-            let buffer = context.ensure_any_cpu_buffer(&payload)?;
-            buffer.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
+            let frame = context.ensure_cpu_buffer_frame(&payload)?;
+            frame.storage.as_slice(|slice| self.file.lock().unwrap().write_all(slice))?;
         }
 
         Ok(())
@@ -70,7 +70,7 @@ impl SinkNode for RawBlobWriter {
 pub struct RawDirectoryWriter {
     dir_path: String,
     input: InputProcessingNode,
-    number_of_frames: u64,
+    number_of_frames: Option<u64>,
     priority: u8,
 }
 impl Parameterizable for RawDirectoryWriter {
@@ -78,7 +78,7 @@ impl Parameterizable for RawDirectoryWriter {
         ParametersDescriptor::new()
             .with("path", Mandatory(StringParameter))
             .with("input", Mandatory(NodeInputParameter))
-            .with("priority", Optional(U8()))
+            .with("priority", WithDefault(U8(), ParameterValue::IntRangeValue(0)))
             .with("number-of-frames", Optional(NaturalWithZero()))
     }
 
@@ -95,7 +95,7 @@ impl Parameterizable for RawDirectoryWriter {
         Ok(Self {
             dir_path: filename,
             input: parameters.take("input")?,
-            number_of_frames: parameters.take("number-of-frames")?,
+            number_of_frames: parameters.take_option("number-of-frames")?,
             priority: parameters.take("priority")?,
         })
     }
@@ -116,9 +116,9 @@ impl SinkNode for RawDirectoryWriter {
             self.input.clone_for_same_puller(),
             self.number_of_frames,
             move |payload, frame_number| {
-                let buffer = context_clone.ensure_any_cpu_buffer(&payload)?;
+                let frame = context_clone.ensure_cpu_buffer_frame(&payload)?;
                 let mut file = File::create(format!("{}/{:06}.data", &dir_path, frame_number))?;
-                buffer.as_slice(|slice| file.write_all(slice))?;
+                frame.storage.as_slice(|slice| file.write_all(slice))?;
                 Ok(())
             },
         )

@@ -1,14 +1,22 @@
 use crate::pipeline_processing::{
-    frame::{CfaDescriptor, FrameInterpretations, Raw, Rgb},
+    frame::{
+        CfaDescriptor,
+        ColorInterpretation,
+        Compression,
+        FrameInterpretation,
+        SampleInterpretation,
+    },
     node::{InputProcessingNode, Node, NodeID},
     processing_context::ProcessingContext,
 };
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
+use clap::{builder::TypedValueParser, Arg, Command};
 use prelude::*;
 use std::{
     any::type_name,
     collections::HashMap,
     convert::TryInto,
+    ffi::OsStr,
     fmt::{Debug, Formatter},
 };
 
@@ -20,17 +28,15 @@ pub enum ParameterValue {
     NodeInputValue(InputProcessingNode),
     ListValue(Vec<ParameterValue>),
 }
-impl ParameterValue {
-    fn clone_for_same_puller(&self) -> Self {
+impl Clone for ParameterValue {
+    fn clone(&self) -> Self {
         match self {
-            FloatRangeValue(f) => Self::FloatRangeValue(*f),
-            IntRangeValue(i) => Self::IntRangeValue(*i),
-            BoolValue(b) => Self::BoolValue(*b),
-            StringValue(s) => Self::StringValue(s.clone()),
-            ListValue(l) => {
-                Self::ListValue(l.iter().map(ParameterValue::clone_for_same_puller).collect())
-            }
-            Self::NodeInputValue(n) => Self::NodeInputValue(n.clone_for_same_puller()),
+            FloatRangeValue(f) => FloatRangeValue(*f),
+            IntRangeValue(i) => IntRangeValue(*i),
+            BoolValue(b) => BoolValue(*b),
+            StringValue(s) => StringValue(s.clone()),
+            ListValue(l) => ListValue(l.iter().map(ParameterValue::clone).collect()),
+            NodeInputValue(n) => NodeInputValue(n.clone_for_same_puller()),
         }
     }
 }
@@ -60,7 +66,19 @@ impl TryInto<f64> for ParameterValue {
     fn try_into(self) -> Result<f64, Self::Error> {
         match self {
             FloatRangeValue(v) => Ok(v),
-            _ => Err(anyhow!("cant convert a non FloatRange ParameterValue to f64")),
+            _ => Err(anyhow!("cant convert a non FloatRange ParameterValue ({self:?}) to f64")),
+        }
+    }
+}
+
+
+impl TryInto<f32> for ParameterValue {
+    type Error = Error;
+
+    fn try_into(self) -> Result<f32, Self::Error> {
+        match self {
+            FloatRangeValue(v) => Ok(v as f32),
+            _ => Err(anyhow!("cant convert a non FloatRange ParameterValue ({self:?}) to f32")),
         }
     }
 }
@@ -71,7 +89,7 @@ impl TryInto<i64> for ParameterValue {
     fn try_into(self) -> Result<i64, Self::Error> {
         match self {
             IntRangeValue(v) => Ok(v),
-            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to i64")),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue ({self:?}) to i64")),
         }
     }
 }
@@ -82,7 +100,7 @@ impl TryInto<u64> for ParameterValue {
     fn try_into(self) -> Result<u64, Self::Error> {
         match self {
             IntRangeValue(v) => Ok(v as u64),
-            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to u64")),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue ({self:?}) to u64")),
         }
     }
 }
@@ -94,7 +112,7 @@ impl TryInto<usize> for ParameterValue {
     fn try_into(self) -> Result<usize, Self::Error> {
         match self {
             IntRangeValue(v) => Ok(v as usize),
-            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to u64")),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue ({self:?}) to u64")),
         }
     }
 }
@@ -105,7 +123,7 @@ impl TryInto<u8> for ParameterValue {
     fn try_into(self) -> Result<u8, Self::Error> {
         match self {
             IntRangeValue(v) => Ok(v as u8),
-            _ => Err(anyhow!("cant convert a non IntRange ParameterValue to u8")),
+            _ => Err(anyhow!("cant convert a non IntRange ParameterValue ({self:?}) to u8")),
         }
     }
 }
@@ -116,7 +134,9 @@ impl TryInto<String> for ParameterValue {
     fn try_into(self) -> Result<String, Self::Error> {
         match self {
             StringValue(v) => Ok(v),
-            _ => Err(anyhow!("cant convert a non StringParameter ParameterValue to string")),
+            _ => Err(anyhow!(
+                "cant convert a non StringParameter ParameterValue ({self:?}) to string"
+            )),
         }
     }
 }
@@ -127,7 +147,7 @@ impl TryInto<bool> for ParameterValue {
     fn try_into(self) -> Result<bool, Self::Error> {
         match self {
             BoolValue(v) => Ok(v),
-            _ => Err(anyhow!("cant convert a non BoolParameter ParameterValue to bool")),
+            _ => Err(anyhow!("cant convert a non BoolParameter ParameterValue ({self:?}) to bool")),
         }
     }
 }
@@ -138,7 +158,9 @@ impl TryInto<InputProcessingNode> for ParameterValue {
     fn try_into(self) -> Result<InputProcessingNode, Self::Error> {
         match self {
             NodeInputValue(v) => Ok(v),
-            _ => Err(anyhow!("cant convert a non NodeInput ParameterValue to ProcessingNode")),
+            _ => Err(anyhow!(
+                "cant convert a non NodeInput ParameterValue ({self:?}) to ProcessingNode"
+            )),
         }
     }
 }
@@ -154,7 +176,7 @@ impl Parameters {
 
     pub fn take<T>(&mut self, key: &str) -> Result<T>
     where
-        ParameterValue: TryInto<T, Error = anyhow::Error>,
+        ParameterValue: TryInto<T, Error = Error>,
     {
         let parameter_value = self
             .values
@@ -166,7 +188,7 @@ impl Parameters {
     // FIXME(robin): workaround to https://github.com/rust-lang/rust/issues/96634
     pub fn take_vec<T>(&mut self, key: &str) -> Result<Vec<T>>
     where
-        ParameterValue: TryInto<T, Error = anyhow::Error>,
+        ParameterValue: TryInto<T, Error = Error>,
     {
         let parameter_value = self
             .values
@@ -178,6 +200,14 @@ impl Parameters {
             }
             _ => Err(anyhow!("cant convert a non ListParameter ParameterValue to Vec")),
         }
+    }
+
+    pub fn take_option<T>(&mut self, key: &str) -> Result<Option<T>>
+    where
+        ParameterValue: TryInto<T, Error = Error>,
+    {
+        let parameter_value = self.values.remove(key);
+        parameter_value.map(|v| v.try_into()).transpose()
     }
 
     pub(crate) fn add_inputs(
@@ -210,21 +240,57 @@ impl Parameters {
         self
     }
 
-    pub fn get_interpretation(&mut self) -> Result<FrameInterpretations> {
+    pub fn get_bayer(&mut self) -> Result<CfaDescriptor> {
+        Ok(if let Some(pattern) = self.take_option::<String>("bayer")? {
+            match pattern.to_uppercase().as_str() {
+                "RGGB" => CfaDescriptor { red_in_first_col: true, red_in_first_row: true },
+                "GBRG" => CfaDescriptor { red_in_first_col: true, red_in_first_row: false },
+                "GRBG" => CfaDescriptor { red_in_first_col: false, red_in_first_row: true },
+                "BGGR" => CfaDescriptor { red_in_first_col: false, red_in_first_row: false },
+                _ => bail!("couldn't parse CFA Pattern"),
+            }
+        } else {
+            bail!("bayer pattern not specified")
+        })
+    }
+
+    pub fn get_interpretation(&mut self) -> Result<FrameInterpretation> {
         let width = self.take("width")?;
         let height = self.take("height")?;
-        let bit_depth = self.take("bit-depth")?;
-        let cfa = CfaDescriptor::from_first_red(
-            self.take("red-in-first-col")?,
-            self.take("red-in-first-row")?,
-        );
-        let fps = self.take("fps")?;
+        let fps = self.take_option("fps")?;
 
-        if self.take("rgb")? {
-            Ok(FrameInterpretations::Rgb(Rgb { width, height, fps }))
-        } else {
-            Ok(FrameInterpretations::Raw(Raw { bit_depth, width, height, cfa, fps }))
-        }
+        let sample_interpretation = {
+            if let Some(bits) = self.take_option::<u8>("uint-bits")? {
+                SampleInterpretation::UInt(bits)
+            } else if let Some(true) = self.take_option::<bool>("fp16")? {
+                SampleInterpretation::FP16
+            } else if let Some(true) = self.take_option::<bool>("fp32")? {
+                SampleInterpretation::FP32
+            } else {
+                bail!("no sample interpretation was specified")
+            }
+        };
+
+        let color_interpretation = {
+            if self.values.contains_key("bayer") {
+                ColorInterpretation::Bayer(self.get_bayer()?)
+            } else if self.take("rgb")? {
+                ColorInterpretation::Rgb
+            } else if self.take("rgba")? {
+                ColorInterpretation::Rgba
+            } else {
+                bail!("no color interpretation was specified")
+            }
+        };
+
+        Ok(FrameInterpretation {
+            width,
+            height,
+            fps,
+            color_interpretation,
+            sample_interpretation,
+            compression: Compression::Uncompressed,
+        })
     }
 }
 
@@ -241,16 +307,16 @@ pub enum ParameterType {
 impl ParameterType {
     pub fn value_is_of_type(&self, value: ParameterValue) -> Result<ParameterValue> {
         match (self, &value) {
-            (StringParameter, ParameterValue::StringValue(_)) => Ok(value),
-            (BoolParameter, ParameterValue::BoolValue(_)) => Ok(value),
-            (FloatRange(min, max), ParameterValue::FloatRangeValue(v)) => {
+            (StringParameter, StringValue(_)) => Ok(value),
+            (BoolParameter, BoolValue(_)) => Ok(value),
+            (FloatRange(min, max), FloatRangeValue(v)) => {
                 if (v >= min) && (v <= max) {
                     Ok(value)
                 } else {
                     Err(anyhow!("value {} is not {} <= value <= {}", v, min, max))
                 }
             }
-            (IntRange(min, max), ParameterValue::IntRangeValue(v)) => {
+            (IntRange(min, max), IntRangeValue(v)) => {
                 if (v >= min) && (v <= max) {
                     Ok(value)
                 } else {
@@ -262,12 +328,10 @@ impl ParameterType {
     }
     pub fn parse(&self, string: &str) -> Result<ParameterValue> {
         match self {
-            StringParameter => Ok(ParameterValue::StringValue(string.to_string())),
-            BoolParameter => Ok(ParameterValue::BoolValue(string.parse()?)),
-            IntRange(..) => self.value_is_of_type(ParameterValue::IntRangeValue(string.parse()?)),
-            FloatRange(..) => {
-                self.value_is_of_type(ParameterValue::FloatRangeValue(string.parse()?))
-            }
+            StringParameter => Ok(StringValue(string.to_string())),
+            BoolParameter => Ok(BoolValue(string.parse()?)),
+            IntRange(..) => self.value_is_of_type(IntRangeValue(string.parse()?)),
+            FloatRange(..) => self.value_is_of_type(FloatRangeValue(string.parse()?)),
             NodeInputParameter => Err(anyhow!("cant parse node input from string")),
             ListParameter(ty) => {
                 let values = if string.trim().is_empty() {
@@ -275,25 +339,31 @@ impl ParameterType {
                 } else {
                     string.split(',').map(|part| ty.parse(part)).collect::<Result<_>>()?
                 };
-                Ok(ParameterValue::ListValue(values))
+                Ok(ListValue(values))
             }
         }
     }
-    pub fn default_value(&self) -> ParameterValue {
-        match &self {
-            FloatRange(min, _) => FloatRangeValue(*min),
-            IntRange(min, _) => IntRangeValue(*min),
-            ListParameter(_) => ListValue(vec![]),
-            StringParameter => StringValue("".to_string()),
-            BoolParameter => BoolValue(false),
-            NodeInputParameter => panic!("no default value for node input"),
-        }
+}
+
+impl TypedValueParser for ParameterType {
+    type Value = ParameterValue;
+
+    fn parse_ref(
+        &self,
+        _cmd: &Command,
+        _arg: Option<&Arg>,
+        value: &OsStr,
+    ) -> std::result::Result<Self::Value, clap::Error> {
+        Ok(self
+            .parse(value.to_str().unwrap())
+            .map_err(|e| clap::Error::raw(clap::error::ErrorKind::ValueValidation, e))?)
     }
 }
 
 #[derive(Debug)]
 pub enum ParameterTypeDescriptor {
     Mandatory(ParameterType),
+    Optional(ParameterType),
     WithDefault(ParameterType, ParameterValue),
 }
 
@@ -301,27 +371,23 @@ impl Clone for ParameterTypeDescriptor {
     fn clone(&self) -> Self {
         match self {
             Mandatory(ty) => Mandatory(ty.clone()),
-            WithDefault(ty, v) => WithDefault(ty.clone(), v.clone_for_same_puller()),
+            WithDefault(ty, v) => WithDefault(ty.clone(), v.clone()),
+            Optional(ty) => Optional(ty.clone()),
         }
     }
 }
 
 impl ParameterTypeDescriptor {
-    pub fn parse(&self, string: Option<&str>) -> Result<ParameterValue> {
+    pub fn get_parameter_type(&self) -> &ParameterType {
         match self {
-            Mandatory(parameter_type) => {
-                string.map(|s| parameter_type.parse(s)).unwrap_or_else(|| {
-                    Err(anyhow!("parameter was not supplied but is mandatory (no default value)"))
-                })
-            }
-            WithDefault(parameter_type, default_value) => string
-                .map(|s| parameter_type.parse(s))
-                .unwrap_or_else(|| Ok(default_value.clone_for_same_puller())),
+            Mandatory(pt) => pt,
+            Optional(pt) => pt,
+            WithDefault(pt, _) => pt,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ParametersDescriptor(pub HashMap<String, ParameterTypeDescriptor>);
 
 impl Default for ParametersDescriptor {
@@ -335,17 +401,25 @@ impl ParametersDescriptor {
         ParametersDescriptor(self.0)
     }
     pub fn with_interpretation(self) -> ParametersDescriptor {
-        self.with("bit-depth", WithDefault(IntRange(8, 16), IntRangeValue(12)))
+        self
+            // general metadata
             .with("width", Mandatory(NaturalWithZero()))
             .with("height", Mandatory(NaturalWithZero()))
-            .with("red-in-first-col", WithDefault(BoolParameter, BoolValue(true)))
-            .with("red-in-first-row", WithDefault(BoolParameter, BoolValue(true)))
-            .with("rgb", Optional(BoolParameter))
             .with("fps", WithDefault(PositiveReal(), FloatRangeValue(24.0)))
+
+            // buffer interpretation
+            .with("uint-bits", Optional(IntRange(1, 64)))
+            .with("fp16", Flag())
+            .with("fp32", Flag())
+
+            // color interpretation
+            .with("bayer", WithDefault(StringParameter, StringValue("RGGB".to_string())))
+            .with("rgb", Flag())
+            .with("rgba", Flag())
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ParameterizableDescriptor {
     pub name: String,
     pub description: Option<String>,
@@ -379,6 +453,20 @@ pub trait Parameterizable {
     }
 }
 
+impl<T: Default> Parameterizable for T {
+    fn describe_parameters() -> ParametersDescriptor { ParametersDescriptor::default() }
+    fn from_parameters(
+        _parameters: Parameters,
+        _is_input_to: &[NodeID],
+        _context: &ProcessingContext,
+    ) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Self::default())
+    }
+}
+
 
 #[allow(non_snake_case)]
 pub mod prelude {
@@ -391,10 +479,7 @@ pub mod prelude {
         Parameters,
         ParametersDescriptor,
     };
-
-    pub fn Optional(ty: ParameterType) -> ParameterTypeDescriptor {
-        WithDefault(ty.clone(), ty.default_value())
-    }
+    pub fn Flag() -> ParameterTypeDescriptor { WithDefault(BoolParameter, BoolValue(false)) }
     pub fn NaturalWithZero() -> ParameterType { IntRange(0, i64::MAX) }
     pub fn NaturalGreaterZero() -> ParameterType { IntRange(1, i64::MAX) }
     pub fn U8() -> ParameterType { IntRange(0, u8::MAX as i64) }
