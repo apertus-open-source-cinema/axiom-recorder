@@ -57,23 +57,24 @@ impl Parameterizable for DualFrameRawDecoder {
 impl ProcessingNode for DualFrameRawDecoder {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let frame_number = request.frame_number();
-        let LastFrameInfo(_, next_even, last_wrsel, old_frame) =
+        let LastFrameInfo(_, next_even, last_read_buffer, old_frame) =
             self.last_frame_info.wait(move |LastFrameInfo(next, ..)| *next == frame_number).await;
+        let slipped_before = old_frame.is_some();
 
         let mut offset = 2;
         let pulled_frames_used_old = (|| async {
             match old_frame {
-                Some(frame_a) => {
+                Some(old_frame) => {
                     self.last_frame_info
                         .update(|LastFrameInfo(_, _, _, old_frame)| *old_frame = None);
 
                     offset = 1;
                     let frame = self.input.pull(request.with_frame_number(next_even)).await?;
-                    let frame_b = self
+                    let new_frame = self
                         .context
                         .ensure_cpu_buffer::<Rgb>(&frame)
                         .context("Wrong input format for DualFrameRawDecoder")?;
-                    Result::<_>::Ok(((frame_a, frame_b), true))
+                    Result::<_>::Ok(((old_frame, new_frame), true))
                 }
                 None => {
                     let frames = join!(
@@ -102,42 +103,45 @@ impl ProcessingNode for DualFrameRawDecoder {
             });
             return Err(e);
         }
-        let ((frame_a, frame_b), used_old) = pulled_frames_used_old.unwrap();
-        let swap = frame_a.storage.as_slice(|frame_a| {
-            let ty_a = frame_a[2];
-            ty_a != 85
+        let ((older_frame, newer_frame), used_old) = pulled_frames_used_old.unwrap();
+        let newer_is_a = newer_frame.storage.as_slice(|newer_frame| {
+            let ty_newer = newer_frame[2];
+            ty_newer == 85
         });
-        let (frame_a, frame_b) = if swap { (frame_b, frame_a) } else { (frame_a, frame_b) };
+        let (frame_a, frame_b) = if newer_is_a { (newer_frame, older_frame) } else { (older_frame, newer_frame) };
 
-        let (is_correct, debug_info, wrsel) = frame_a.storage.as_slice(|frame_a| {
+        let (is_correct, debug_info, read_buffer) = frame_a.storage.as_slice(|frame_a| {
             frame_b.storage.as_slice(|frame_b| {
+                let read_buffer_a = frame_a[1] & 0b11;
+                let read_buffer_b = frame_b[1] & 0b11;
+
                 let debug_info = format!(
-                    "frame a: ctr: {}, wrsel: {}, ty: {}\n",
-                    frame_a[0], frame_a[1], frame_a[2]
+                    "frame a: ctr: {}, read_buffer: {}, ty: {}\n",
+                    frame_a[0], read_buffer_a, frame_a[2]
                 ) + &format!(
-                    "frame b: ctr: {}, wrsel: {}, ty: {}",
-                    frame_b[0], frame_b[1], frame_b[2]
+                    "frame b: ctr: {}, read_buffer: {}, ty: {}",
+                    frame_b[0], read_buffer_b, frame_b[2]
                 );
                 if self.debug {
-                    println!("---------");
+                    println!("--------- {}", frame_number);
                     println!("{}", debug_info);
                 }
-                let wrsel_matches = frame_a[1] == frame_b[1];
+                let read_buffer_matches = read_buffer_a == read_buffer_b;
                 let ctr_a = frame_a[0];
                 let ctr_b = frame_b[0];
                 let ctr_is_ok = (ctr_a.max(ctr_b) - ctr_a.min(ctr_b)) == 1;
                 let ctr_is_ok = ctr_is_ok || (ctr_b == 0 && ctr_a == 255) || (ctr_a == 0 && ctr_b == 255);
-                (wrsel_matches && ctr_is_ok && (frame_a[1] != last_wrsel), debug_info, frame_a[1])
+                (read_buffer_matches && ctr_is_ok && ((read_buffer_a != last_read_buffer) || slipped_before), debug_info, read_buffer_a)
             })
         });
         self.last_frame_info.update(
-            |LastFrameInfo(next, next_next_even, last_wrsel, old_frame)| {
+            |LastFrameInfo(next, next_next_even, last_read_buffer, old_frame)| {
                 *next = frame_number + 1;
                 *next_next_even = next_even + offset;
-                *last_wrsel = wrsel;
-                if !is_correct && !used_old {
+                *last_read_buffer = read_buffer;
+                if !is_correct {
                     // println!("slipped, offset = {offset}, next_even = {next_even}");
-                    *old_frame = Some(frame_b.clone());
+                    *old_frame = Some(if newer_is_a { frame_a.clone() } else { frame_b.clone() });
                 }
             },
         );
@@ -183,7 +187,7 @@ impl ProcessingNode for DualFrameRawDecoder {
 
     fn get_caps(&self) -> Caps {
         let upstream = self.input.get_caps();
-        Caps { frame_count: upstream.frame_count.map(|x| x / 2), ..upstream }
+        Caps { frame_count: None, random_access: false, ..upstream }
     }
 }
 
