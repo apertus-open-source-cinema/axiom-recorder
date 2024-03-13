@@ -21,6 +21,7 @@ impl Parameterizable for BenchmarkSink {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
             .with("priority", Optional(U8()))
+            .with("unordered", Optional(Bool()))
     }
 
     fn from_parameters(

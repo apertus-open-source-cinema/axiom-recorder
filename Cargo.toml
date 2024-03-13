@@ -52,8 +52,8 @@ futures-util = "0.3.25"
 portpicker = "0.1.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-v4l = "0.13.0"
-v4l2-sys-mit = "0.2.0"
+v4l = "0.14.0"
+v4l2-sys-mit = "0.3.0"
 
 [profile.release]
 debug = 2

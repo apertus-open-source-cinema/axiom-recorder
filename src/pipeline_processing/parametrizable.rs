@@ -398,5 +398,6 @@ pub mod prelude {
     pub fn NaturalWithZero() -> ParameterType { IntRange(0, i64::MAX) }
     pub fn NaturalGreaterZero() -> ParameterType { IntRange(1, i64::MAX) }
     pub fn U8() -> ParameterType { IntRange(0, u8::MAX as i64) }
+    pub fn Bool() -> ParameterType { BoolParameter }
     pub fn PositiveReal() -> ParameterType { FloatRange(0.0, f64::MAX) }
 }
