@@ -18,6 +18,7 @@ use crate::{
         calibrate::Calibrate,
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
+        debayer_resolution_loss::DebayerResolutionLoss,
         histogram::Histogram,
         lut_3d::Lut3d,
     },
@@ -72,6 +73,7 @@ generate_dynamic_node_creation_functions![
     CinemaDngReader,
     GpuBitDepthConverter,
     Debayer,
+    DebayerResolutionLoss,
     #[cfg(target_os = "linux")]
     Display,
     BitDepthConverter,

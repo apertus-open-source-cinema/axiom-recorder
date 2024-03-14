@@ -98,7 +98,7 @@ pub struct InputProcessingNode {
 }
 
 impl InputProcessingNode {
-    pub(crate) fn new(puller_id: NodeID, node: Arc<dyn ProcessingNode + Send + Sync>) -> Self {
+    pub fn new(puller_id: NodeID, node: Arc<dyn ProcessingNode + Send + Sync>) -> Self {
         Self { node, node_id: puller_id }
     }
 
