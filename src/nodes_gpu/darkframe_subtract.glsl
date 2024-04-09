@@ -14,7 +14,7 @@ layout(push_constant) uniform PushConstantData {
 
 layout(set = 0, binding = 0) buffer readonly  Source { uint8_t data[]; } source;
 layout(set = 0, binding = 1) buffer writeonly Sink   { uint8_t data[]; } sink;
-layout(set = 0, binding = 2) uniform sampler2D lut_sampler;
+layout(set = 0, binding = 2) uniform sampler2D darkframe_sampler;
 
 void main() {
     ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
@@ -28,8 +28,8 @@ void main() {
     float first_value = float((a << 4) | (b >> 4)) + 128.0;
     float second_value = float(((b << 8) & 0xf00) | c) + 128.0;
 
-    float corr_first_v = texelFetch(lut_sampler, pos * ivec2(2, 1), 0).r;
-    float corr_second_v = texelFetch(lut_sampler, pos * ivec2(2, 1) + ivec2(1, 0), 0).r;
+    float corr_first_v = texelFetch(darkframe_sampler, pos * ivec2(2, 1), 0).r;
+    float corr_second_v = texelFetch(darkframe_sampler, pos * ivec2(2, 1) + ivec2(1, 0), 0).r;
     uint corr_first = uint(round(first_value - corr_first_v));
     uint corr_second = uint(round(second_value - corr_second_v));
 

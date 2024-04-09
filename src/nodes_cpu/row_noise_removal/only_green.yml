@@ -1,0 +1,24 @@
+!!python/object:__main__.ModelWeights
+weights_even: !!python/object:__main__.ModelHalfWeights
+  dark_col_mean_weights:
+  dark_col_row_weights:
+  green_diff_weights:
+  - - -0.17836376680291102
+    - -0.4105501952617383
+  - - 0.43629936409448755
+    - 0.4204623906920429
+  - - 0.19277238810231043
+    - -0.16900017632955364
+  offset: -0.0010874289591121151
+weights_odd: !!python/object:__main__.ModelHalfWeights
+  dark_col_mean_weights:
+  dark_col_row_weights:
+  green_diff_weights:
+  - - 0.4879804645339848
+    - 0.43341050056294045
+  - - -0.17254326519042207
+    - -0.18052946235127315
+  - - 0.4236788587840668
+    - 0.23795484501101222
+  offset: -0.002760103438085751
+

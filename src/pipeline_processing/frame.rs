@@ -15,6 +15,9 @@ pub trait FrameInterpretation: ToAny {
     fn fps(&self) -> Option<f64>;
 }
 
+
+// TODO(robin): add some way to index frame 2d, by having a slice tied to interp
+
 /// The main data structure for transferring and representing single raw frames
 /// of a video stream
 pub struct Frame<Interpretation, Storage> {
@@ -34,6 +37,7 @@ impl CfaDescriptor {
     }
 }
 
+// TODO(robin): this needs black level!!!
 #[derive(Clone, Copy, Debug)]
 pub struct Raw {
     pub width: u64,
@@ -45,7 +49,7 @@ pub struct Raw {
 
 impl FrameInterpretation for Raw {
     fn required_bytes(&self) -> usize {
-        self.width as usize * self.height as usize * self.bit_depth as usize / 8
+        (self.width as usize * self.height as usize * self.bit_depth as usize + 7) / 8
     }
     fn width(&self) -> u64 { self.width }
     fn height(&self) -> u64 { self.height }

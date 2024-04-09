@@ -27,11 +27,11 @@ use vulkano::{
 mod compute_shader {
     vulkano_shaders::shader! {
         ty: "compute",
-        path: "src/nodes_gpu/calibrate.glsl"
+        path: "src/nodes_gpu/darkframe_subtract.glsl"
     }
 }
 
-pub struct Calibrate {
+pub struct DarkframeSubtract {
     device: Arc<Device>,
     pipeline: Arc<ComputePipeline>,
     queue: Arc<Queue>,
@@ -40,7 +40,7 @@ pub struct Calibrate {
     darkframe_sampler: Arc<Sampler>,
 }
 
-impl Parameterizable for Calibrate {
+impl Parameterizable for DarkframeSubtract {
     fn describe_parameters() -> ParametersDescriptor {
         ParametersDescriptor::new()
             .with("input", Mandatory(NodeInputParameter))
@@ -99,7 +99,7 @@ impl Parameterizable for Calibrate {
         )
         .unwrap();
 
-        Ok(Calibrate {
+        Ok(DarkframeSubtract {
             device,
             pipeline,
             queue,
@@ -111,12 +111,12 @@ impl Parameterizable for Calibrate {
 }
 
 #[async_trait]
-impl ProcessingNode for Calibrate {
+impl ProcessingNode for DarkframeSubtract {
     async fn pull(&self, request: Request) -> Result<Payload> {
         let input = self.input.pull(request).await?;
 
         let (frame, fut) = ensure_gpu_buffer::<Raw>(&input, self.queue.clone())
-            .context("Wrong input format for Calibrate")?;
+            .context("Wrong input format for DarkframeSubtract")?;
 
         let sink_buffer = DeviceLocalBuffer::<[u8]>::array(
             self.device.clone(),

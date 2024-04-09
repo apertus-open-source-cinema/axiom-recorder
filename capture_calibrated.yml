@@ -1,35 +1,24 @@
 input:
-  type: WebcamInput
-  device: {{ webcam-device }}
-
-decode:
-  type: DualFrameRawDecoder
-  input: <input
-
-calibrate:
-  input: <decode
-  type: Calibrate
-  darkframe: {{ darkframe }}
+  type: RawDirectoryReader
+  file-pattern: test/Darkbox-Timelapse-Clock-Sequence/*.raw12
   width: 4096
-  height: 2160
-
-calib_cache:
-  type: Cache
-  input: <calibrate
+  height: 3072
+  bit-depth: 12
+  internal-loop: true
+  cache-frames: true
 
 bitdepth_conv:
-  type: BitDepthConverter
-  input: <calib_cache
+  type: GpuBitDepthConverter
+  input: <input
 
 debayer:
-  type: Debayer
+  type: DebayerResolutionLoss
   input: <bitdepth_conv
 
-display:
+# out:
+#   type: BenchmarkSink
+#   input: <debayer
+
+Display:
   type: Display
   input: <debayer
-
-save:
-  type: RawBlobWriter
-  path: {{ out-file }}
-  input: <calib_cache

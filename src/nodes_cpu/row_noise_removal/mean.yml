@@ -1,0 +1,13 @@
+# this is a hand-crafted model only for sanity checking. It takes every dark column simply * 0.6 
+# and subtracts it. proof that 0.6 is optimal:
+# https://github.com/apertus-open-source-cinema/misc-tools-utilities/commit/48de47b2a544dc32bbd5a8fd7701bb44a31ea850#diff-624053a553f49c0036b4d31282e58b2fR301
+
+weights_even:
+  dark_col_row_weights:
+    - - [0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375]
+      - [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+weights_odd:
+  dark_col_row_weights:
+    - - [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      - [0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375]
