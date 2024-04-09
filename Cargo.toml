@@ -56,6 +56,6 @@ v4l = "0.14.0"
 v4l2-sys-mit = "0.3.0"
 
 [profile.release]
-debug = 2
-lto = "thin"
+# debug = 2
+#lto = "thin"
 # panic = "abort"

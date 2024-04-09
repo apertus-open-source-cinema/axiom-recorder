@@ -18,7 +18,7 @@ use dng::{
 };
 use std::{
     fs,
-    fs::{create_dir, File},
+    fs::{create_dir, File, remove_dir_all},
     io::Write,
     path::PathBuf,
     str::FromStr,
@@ -45,6 +45,7 @@ impl Parameterizable for CinemaDngWriter {
             .with("priority", Optional(U8()))
             .with("number-of-frames", Optional(NaturalWithZero()))
             .with("dcp-yaml", Optional(StringParameter))
+            .with("exists-ok?", Optional(Bool()))
     }
 
     fn from_parameters(
@@ -70,6 +71,10 @@ impl Parameterizable for CinemaDngWriter {
         base_ifd.insert_from_other(dcp_ifd);
 
         let filename = parameters.take("path")?;
+        if parameters.take("exists-ok?")? {
+            // we dont care if this fails
+            let _ = dbg!(remove_dir_all(&filename)).unwrap_or(());
+        }
         create_dir(&filename).context("Error while creating target directory")?;
 
         Ok(Self {

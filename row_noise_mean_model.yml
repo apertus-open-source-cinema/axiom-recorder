@@ -1,0 +1,31 @@
+# #[derive(serde::Deserialize)]
+# pub struct PerHalfWeights {
+#     dark_col_mean_weights: Option<[f32; 2 * NUM_DARKCOLS]>,
+#     #[serde(default)]
+#     green_diff_weights: Vec<[f32; 2]>,
+
+#     // index -> lags
+#     // 0, 1, 2, 3, 4 -> 0, -1, 1, -2, 2
+#     #[serde(default)]
+#     dark_col_row_weights: Vec<[[f32; 2 * NUM_DARKCOLS]; 2]>,
+#     #[serde(default)]
+#     offset: f32,
+# }
+
+# #[derive(serde::Deserialize)]
+# pub struct RowNoiseRemovalModel {
+#     weights_odd: PerHalfWeights,
+#     weights_even: PerHalfWeights,
+# }
+
+
+
+weights_even:
+  dark_col_row_weights:
+    - - [0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375]
+      - [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+weights_odd:
+  dark_col_row_weights:
+    - - [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      - [0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375, 0.0375]

@@ -1,0 +1,26 @@
+input:
+  type: CinemaDngReader
+  file-pattern: {{ file }}
+
+darkframe_subtracted:
+  type: DarkframeSubtract
+  input: <input
+  darkframe: {{ darkframe }}
+  width: 4096
+  height: 2160
+
+in_16bit:
+  type: BitDepthConverter
+  input: <darkframe_subtracted
+  to: 16
+
+row_noise_removed:
+  type: RowNoiseRemoval
+  input: <in_16bit
+  model: {{ model }}
+
+output:
+  type: CinemaDngWriter
+  input: <row_noise_removed
+  path: {{ file }}_corrected
+  exists-ok?: true

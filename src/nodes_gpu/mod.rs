@@ -1,5 +1,5 @@
 pub mod bitdepth_convert;
-pub mod calibrate;
+pub mod darkframe_subtract;
 pub mod color_voodoo;
 pub mod debayer;
 pub mod debayer_resolution_loss;

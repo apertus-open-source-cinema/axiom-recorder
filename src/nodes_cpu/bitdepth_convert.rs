@@ -16,11 +16,14 @@ use async_trait::async_trait;
 
 pub struct BitDepthConverter {
     input: InputProcessingNode,
+    target_bitdepth: u64,
     context: ProcessingContext,
 }
 impl Parameterizable for BitDepthConverter {
     fn describe_parameters() -> ParametersDescriptor {
-        ParametersDescriptor::new().with("input", Mandatory(NodeInputParameter))
+        ParametersDescriptor::new()
+            .with("input", Mandatory(NodeInputParameter))
+            .with("to", WithDefault(U8(), IntRangeValue(8)))
     }
 
     fn from_parameters(
@@ -28,7 +31,7 @@ impl Parameterizable for BitDepthConverter {
         _is_input_to: &[NodeID],
         context: &ProcessingContext,
     ) -> Result<Self> {
-        Ok(Self { input: parameters.take("input")?, context: context.clone() })
+        Ok(Self { input: parameters.take("input")?, context: context.clone(), target_bitdepth: parameters.take("to")? })
     }
 }
 
@@ -40,12 +43,12 @@ impl ProcessingNode for BitDepthConverter {
             .context
             .ensure_cpu_buffer::<Raw>(&input)
             .context("Wrong input format for BitDepthConverter")?;
-        let interp = Raw { bit_depth: 8, ..frame.interp };
+        let interp = Raw { bit_depth: self.target_bitdepth, ..frame.interp };
         let mut new_buffer = unsafe { self.context.get_uninit_cpu_buffer(interp.required_bytes()) };
 
-        if frame.interp.bit_depth == 8 {
+        if frame.interp.bit_depth == self.target_bitdepth {
             return Ok(input);
-        } else if frame.interp.bit_depth == 12 {
+        } else if (frame.interp.bit_depth == 12) && (self.target_bitdepth == 8) {
             new_buffer.as_mut_slice(|new_buffer| {
                 frame.storage.as_slice(|frame_storage| {
                     for (input, output) in
@@ -56,7 +59,25 @@ impl ProcessingNode for BitDepthConverter {
                     }
                 })
             });
+        } else if (frame.interp.bit_depth == 12) && (self.target_bitdepth == 16) {
+            new_buffer.as_mut_slice(|new_buffer| {
+                frame.storage.as_slice(|frame_storage| {
+                    let new_buffer: &mut [u16] = bytemuck::cast_slice_mut(new_buffer);
+                    for (input, output) in
+                        frame_storage.chunks_exact(3).zip(new_buffer.chunks_exact_mut(2))
+                    {
+                        let a: u16 = ((input[0] as u16) << 4) | ((input[1] >> 4) as u16);
+                        let b: u16 = (((input[1] & 0xf) as u16) << 8) | input[2] as u16;
+
+                        output[0] = a;
+                        output[1] = b;
+                    }
+                })
+            });
         } else {
+            println!("using unoptimized bitdepth conversion path from {} to {}", frame.interp.bit_depth, self.target_bitdepth);
+            assert_eq!(self.target_bitdepth, 8);
+
             let mut rest_value: u32 = 0;
             let mut rest_bits: u32 = 0;
             let mut pos = 0;

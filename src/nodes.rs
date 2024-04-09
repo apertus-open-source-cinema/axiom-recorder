@@ -11,11 +11,11 @@ use crate::{
         bitdepth_convert::BitDepthConverter,
         dual_frame_raw_decoder::{DualFrameRawDecoder, ReverseDualFrameRawDecoder},
         sz3::SZ3Compress,
-        zstd::ZstdBlobReader,
+        zstd::ZstdBlobReader, row_noise_removal::RowNoiseRemoval,
     },
     nodes_gpu::{
         bitdepth_convert::GpuBitDepthConverter,
-        calibrate::Calibrate,
+        darkframe_subtract::DarkframeSubtract,
         color_voodoo::ColorVoodoo,
         debayer::Debayer,
         debayer_resolution_loss::DebayerResolutionLoss,
@@ -90,7 +90,8 @@ generate_dynamic_node_creation_functions![
     Split,
     SZ3Compress,
     ZstdBlobReader,
-    Calibrate,
+    DarkframeSubtract,
+    RowNoiseRemoval,
     Histogram,
     #[cfg(target_os = "linux")]
     Plot,
