@@ -55,7 +55,7 @@ impl RowNoiseRemovalModel {
     fn has_dark_col_means(&self) -> bool { self.weights_even.has_dark_col_means() }
 
     fn num_uncorrectable(&self) -> usize {
-        return self.num_green_lags().max(self.num_dark_cols() - 1);
+        return self.num_green_lags().max((self.num_dark_cols() - 1) * 2);
     }
 }
 
@@ -192,7 +192,9 @@ impl ProcessingNode for RowNoiseRemoval {
                     let middle = diffs.len() / 2;
                     let (_, median, _) = diffs.select_nth_unstable(middle);
                     green_diffs[lag - 1][row] = *median as f32;
-                    println!("row: {row:04}, lag: {lag:04}, green_diff: {median:04}")
+                    if row < 10 {
+                        println!("row: {row:04}, lag: {lag:04}, green_diff: {median:04}")
+                    }
                 }
             }
         });
@@ -214,39 +216,47 @@ impl ProcessingNode for RowNoiseRemoval {
                     };
 
                     for (lag, lag_weights) in weights.green_diff_weights.iter().enumerate() {
-                        offset -= green_diffs[lag][row - lag] * lag_weights[0];
+                        if row < 10 {
+                            println!("row: {}, lag: {}, green diff: {} weight: {}", row, lag, green_diffs[lag][row - lag - 1], lag_weights[0]);
+                            println!("row: {}, lag: {}, green diff: {} weight: {}", row, lag, green_diffs[lag][row], lag_weights[1]);
+                        }
+                        // the lag for the row is 1 based. lag == 0 means we want this offseted by one
+                        offset -= green_diffs[lag][row - lag - 1] * lag_weights[0];
                         offset += green_diffs[lag][row] * lag_weights[1];
                     }
 
 
                     for (i, [weights_even, weights_odd]) in weights.dark_col_row_weights.iter().enumerate() {
                         // 0, 1, 2, 3, 4 -> 0, -1, 1, -2, 2
+                        let i = i as isize;
                         let lag = (i / 2) - (i % 2);
                         let even_row = row - (row % 2);
 
                         for col in 0..NUM_DARKCOLS {
-                            if row == 2 {
-                                dbg!(weights_even[col]);
-                                dbg!(src[(even_row + 2 * lag) * width + col] as f32 - BLACK_LEVEL);
-                                dbg!(weights_even[col + NUM_DARKCOLS]);
-                                dbg!(src[(even_row + 2 * lag) * width + (width - NUM_DARKCOLS) + col] as f32 - BLACK_LEVEL);
-                            }
-                            offset += weights_even[col] * (src[(even_row + 2 * lag) * width + col] as f32 - BLACK_LEVEL);
+                            // if row == 2 {
+                            //     dbg!(weights_even[col]);
+                            //     dbg!(src[(even_row as isize + 2 * lag) * width + col] as f32 - BLACK_LEVEL);
+                            //     dbg!(weights_even[col + NUM_DARKCOLS]);
+                            //     dbg!(src[(even_row + 2 * lag) * width + (width - NUM_DARKCOLS) + col] as f32 - BLACK_LEVEL);
+                            // }
+                            offset += weights_even[col] * (src[(even_row as isize + 2 * lag) as usize * width + col] as f32 - BLACK_LEVEL);
                             offset += weights_even[col + NUM_DARKCOLS]
-                                * (src[(even_row + 2 * lag) * width + (width - NUM_DARKCOLS) + col] as f32 - BLACK_LEVEL);
+                                * (src[(even_row as isize + 2 * lag) as usize * width + (width - NUM_DARKCOLS) + col] as f32 - BLACK_LEVEL);
                         }
 
                         for col in 0..NUM_DARKCOLS {
                             offset +=
-                                weights_odd[col] * (src[(even_row + 1 + 2 * lag) * width + col] as f32 - BLACK_LEVEL);
+                                weights_odd[col] * (src[(even_row as isize + 1 + 2 * lag) as usize * width + col] as f32 - BLACK_LEVEL);
                             offset += weights_odd[col + NUM_DARKCOLS]
-                                * (src[(even_row + 1 + 2 * lag) * width
+                                * (src[(even_row as isize + 1 + 2 * lag) as usize * width
                                     + (width - NUM_DARKCOLS)
                                     + col] as f32 - BLACK_LEVEL);
                         }
                     }
 
-                    println!("row: {row:04}, offset: {offset:04.02}");
+                    if row < 50 {
+                        println!("row: {row:04}, offset: {offset:04.02}");
+                    }
                     for col in NUM_DARKCOLS..(width - NUM_DARKCOLS) {
                         dst[row * width + col] = (src[row * width + col] as f32 - offset) as u16;
                     }
